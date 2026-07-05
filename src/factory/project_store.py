@@ -87,6 +87,29 @@ def find_project_root(path: Path) -> Path | None:
     return projects_resolved / relative.parts[0]
 
 
+def status_index(status: str) -> int:
+    try:
+        return PROJECT_STATUSES.index(status)
+    except ValueError:
+        return -1
+
+
+def advance_status(brief: dict, new_status: str) -> bool:
+    """Move brief['status'] forward to new_status, but never backward.
+
+    Returns True if the status changed. Never advances to print_ready or
+    human_approved - those require an explicit human action, not a
+    `factory` command.
+    """
+    if new_status in ("print_ready", "human_approved"):
+        raise ValueError(f"{new_status!r} may not be set by advance_status(); it requires explicit human action.")
+    current = brief.get("status", "idea")
+    if status_index(new_status) > status_index(current):
+        brief["status"] = new_status
+        return True
+    return False
+
+
 def default_brief(project_name: str) -> dict:
     return {
         "project_name": project_name,

@@ -1,18 +1,22 @@
 """factory CLI - local-first 3D print project assistant.
 
 Phase 0/1: create, organize, validate, preview, and package projects for
-human slicer review. No printing, no cloud calls. See AGENT.md.
+human slicer review. Phase 2: local OpenSCAD source generation helpers.
+No printing, no cloud calls. See AGENT.md.
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 import typer
 from rich.console import Console
 
 from factory import project_store
+from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitializedError, generate_openscad
+from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
 from factory.previews.render_preview import render_preview
 from factory.slicer.local_slicer_probe import probe_slicers
@@ -30,6 +34,7 @@ AVAILABLE_COMMANDS = (
     "status",
     "init-project <name>",
     "plan <brief.json>",
+    "generate-openscad <project_dir> --template <name> [--text ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
     "inspect-slicer",
@@ -120,6 +125,35 @@ def plan(brief_path: Path = typer.Argument(..., help="Path to a project's brief.
     console.print(f"  status: {build_plan['status']}")
     console.print(f"  primary_tool: {build_plan['tool_routing_recommendation']['primary_tool']}")
     console.print(f"  human_review_required: {build_plan['human_review_required']}")
+
+
+@app.command(name="generate-openscad")
+def generate_openscad_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to an initialized project directory (see factory init-project)"),
+    template: str = typer.Option(..., "--template", help=f"One of: {', '.join(ALLOWED_TEMPLATES)}"),
+    text: Optional[str] = typer.Option(None, "--text", help="Text for templates that need it (nameplate, sign, multipart-nameplate)"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing .scad files for this template"),
+) -> None:
+    """Generate local, parametric OpenSCAD source into <project_dir>/cad/. Does not run OpenSCAD or export STLs."""
+    try:
+        result = generate_openscad(project_dir, template, text, force=force)
+    except (ValueError, ProjectNotInitializedError) as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    except GeneratedFileExistsError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        console.print("Re-run with --force to overwrite.")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]generated[/green] template '{result.template}' in {result.project_dir}")
+    for path in result.written_files:
+        console.print(f"  {path}")
+    console.print(f"  updated manifest: {result.manifest_path}")
+    console.print(f"  export instructions: {result.export_instructions_path}")
+    console.print(
+        "\nThis only wrote local .scad source and instructions - it did not run OpenSCAD, "
+        "export an STL, or contact any printer/network/API."
+    )
 
 
 @app.command()

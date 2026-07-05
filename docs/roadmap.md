@@ -9,12 +9,23 @@ human-approval and print-initiation boundary in `AGENT.md` does not move.
 Foundation: CLI (`factory`), JSON schemas, local mesh validation, local
 preview rendering, read-only slicer discovery, project scaffolding.
 
-## Phase 2 — CAD generation helpers
+## Phase 2 — CAD generation helpers (started)
 
 OpenSCAD and CadQuery generation helpers: turn a build plan / part
 manifest into starter parametric CAD source under `cad/`, and export it to
 `stl/`. Still fully local; no AI call required to export geometry, though
 an AI-assisted authoring step may propose the CAD source for human review.
+
+**Started:** `factory generate-openscad` writes local, parametric `.scad`
+source for four templates (`test-cube`, `nameplate`, `sign`,
+`multipart-nameplate`) into a project's `cad/`, keeps
+`slicer_review/openscad_export_instructions.md` and `part_manifest.json`
+in sync, and advances `brief.json` status to `cad_generated`. See
+`docs/openscad-generation.md`. STL export itself is still a manual,
+human-run step (no automatic OpenSCAD invocation yet).
+
+**Not yet started:** CadQuery generation helpers, and any automated,
+locally-validated OpenSCAD export command.
 
 ## Phase 3 — multi-part / multi-color workflows
 

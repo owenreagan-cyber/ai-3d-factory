@@ -13,6 +13,11 @@ Why: parametric models are easy to validate, re-parameterize, and export
 deterministically to STL. This is the default starting point for anything
 with real-world measurements.
 
+As of Phase 2, `factory generate-openscad` implements this for a handful
+of common shapes (test cube, nameplate, sign, multi-part nameplate) as
+local, deterministic templates — see `docs/openscad-generation.md`. It
+writes `.scad` source only; exporting to STL is still a manual step.
+
 ## CadQuery — mechanical/engineering solids
 
 Use for: mechanical parts, fillets, chamfers, exact engineering solids,
