@@ -1,0 +1,13 @@
+{
+  "project_name": "mr-reagan-nameplate",
+  "status": "brief_created",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "An original classroom nameplate design featuring raised lettering. Intended as a multi-part, multi-color print: a base plate plus separately-colored raised letters aligned to a shared origin, per docs/slicer-review-workflow.md. This is a placeholder brief only - no CAD/assets have been generated yet.",
+  "constraints": [
+    "Original design only - no franchise/copyrighted logos or characters (see docs/licensing-policy.md).",
+    "Letters should use the letter_pocket_clearance_mm range from config/tolerances.json if inset, or be modeled as a separate raised-letter part aligned to the base plate's origin if multi-color.",
+    "Real-world size (desk nameplate scale) not yet finalized - confirm exact dimensions before CAD work begins."
+  ],
+  "required_human_approval": true
+}

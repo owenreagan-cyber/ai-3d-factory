@@ -1,0 +1,28 @@
+{
+  "$schema_note": "Local reference data only. Not read by any print/upload code path in Phase 0/1.",
+  "primary_printer": "bambu_h2d",
+  "printers": {
+    "bambu_h2d": {
+      "display_name": "Bambu Lab H2D",
+      "vendor": "Bambu Lab",
+      "verified": false,
+      "verification_note": "Build volume and nozzle fields below are cautious placeholders and have NOT been confirmed against the printer's official spec sheet or the physical unit. Verify against the actual printer/manual before relying on these numbers for a hard go/no-go fit decision. Dimension checks that use this data should report the fit result as advisory, not authoritative, until verified is set to true.",
+      "build_volume_mm": {
+        "x": 350,
+        "y": 320,
+        "z": 325,
+        "note": "Placeholder only, unverified. Confirm against official Bambu H2D documentation."
+      },
+      "nozzle_diameter_mm_default": 0.4,
+      "supports_multi_material": true,
+      "connection": {
+        "note": "This config is for local reference and dimension-fit checks only. It does not contain and must not be used to configure network, cloud, or LAN print connections."
+      }
+    }
+  },
+  "notes": [
+    "This file is local reference data for dimension sanity checks (see factory validate).",
+    "It is never used to send print jobs, connect to a printer, or connect to Bambu cloud.",
+    "Always verify printer specs against the manufacturer before trusting a hard pass/fail on build volume."
+  ]
+}

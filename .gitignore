@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Env files with real secrets (never commit)
+.env
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS cruft
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# User project data (each project can be large: renders, STLs, etc.)
+projects/*
+!projects/.gitkeep

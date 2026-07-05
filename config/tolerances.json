@@ -1,0 +1,33 @@
+{
+  "$schema_note": "Local reference data only. Different joins/fits need different clearances - do not use a single universal tolerance.",
+  "tolerances_mm": {
+    "seam_gap_mm": {
+      "value": 0.10,
+      "use_case": "Tight visible seams between two aligned parts that should read as nearly flush."
+    },
+    "letter_pocket_clearance_mm": {
+      "min": 0.20,
+      "max": 0.30,
+      "use_case": "Pocket for an inset/raised letter or badge that should sit snugly but still fit without forcing."
+    },
+    "connector_clearance_mm": {
+      "min": 0.25,
+      "max": 0.40,
+      "use_case": "Peg/socket or dowel-style connectors joining two printed parts."
+    },
+    "decorative_inlay_clearance_mm": {
+      "min": 0.15,
+      "max": 0.25,
+      "use_case": "Decorative inlay pieces (e.g. contrasting color inlay) that should sit snugly with minimal gap."
+    },
+    "sliding_fit_clearance_mm": {
+      "min": 0.30,
+      "max": 0.50,
+      "use_case": "Parts intended to slide or be removable after printing, e.g. a drawer or sliding cover."
+    }
+  },
+  "notes": [
+    "Do not default to 0.10mm as a universal fit tolerance - it is only appropriate for tight seam gaps.",
+    "Actual required clearance also depends on printer calibration, material, and orientation; treat these as starting points for human review, not guarantees."
+  ]
+}

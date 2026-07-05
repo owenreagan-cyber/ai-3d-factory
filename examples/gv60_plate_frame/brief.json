@@ -1,0 +1,14 @@
+{
+  "project_name": "gv60-plate-frame",
+  "status": "brief_created",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "An original license-plate-frame concept sized for a Genesis GV60. This is a placeholder brief only - no CAD/assets have been generated yet. Must be an original frame design, not a reproduction of any manufacturer logo, badge, or trademarked design.",
+  "constraints": [
+    "Original design only - do not reproduce the Genesis/Hyundai logo, badges, or any trademarked marks (see docs/licensing-policy.md).",
+    "Exterior automotive use: material choice needs UV/weather resistance and impact tolerance in mind (see config/materials.json - ASA is a reasonable candidate over PLA); confirm material choice with a human before finalizing.",
+    "Exact plate frame dimensions and mounting hole positions must be measured/confirmed against the real vehicle before CAD work begins - do not guess mounting dimensions.",
+    "This part is exterior and load-bearing at the mounting points; validation and human slicer review are required, and print-ready status additionally requires human confirmation of fit on the actual vehicle."
+  ],
+  "required_human_approval": true
+}

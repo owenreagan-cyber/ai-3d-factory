@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-3d-factory.local/schemas/slicer_review.schema.json",
+  "title": "Slicer Review Package",
+  "description": "Describes what a human should check when reviewing a project's parts in a slicer (e.g. Bambu Studio). This repo never invokes a slicer or sends a print job; it only prepares files and this checklist for a human.",
+  "type": "object",
+  "required": [
+    "project_name",
+    "status",
+    "parts_for_review",
+    "human_checklist",
+    "human_approval",
+    "auto_print_allowed"
+  ],
+  "properties": {
+    "project_name": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["slicer_review_ready", "human_approved"]
+    },
+    "parts_for_review": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["part_name", "file_path"],
+        "properties": {
+          "part_name": { "type": "string" },
+          "file_path": { "type": "string" },
+          "material": { "type": "string" },
+          "color": { "type": "string" }
+        }
+      }
+    },
+    "human_checklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Items a human must check in-slicer: plate layout, colors/materials, scale, orientation, supports.",
+      "minItems": 1
+    },
+    "human_approval": {
+      "type": "object",
+      "required": ["approved"],
+      "properties": {
+        "approved": { "type": "boolean" },
+        "approved_by": { "type": ["string", "null"] },
+        "approved_at": { "type": ["string", "null"], "format": "date-time" },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "auto_print_allowed": {
+      "type": "boolean",
+      "const": false,
+      "description": "Always false. This repo never auto-prints, regardless of approval state."
+    }
+  },
+  "additionalProperties": true
+}

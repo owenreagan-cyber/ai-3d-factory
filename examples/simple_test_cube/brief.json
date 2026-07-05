@@ -1,0 +1,12 @@
+{
+  "project_name": "simple-test-cube",
+  "status": "brief_created",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "A minimal 20mm test cube used to sanity-check the factory CLI's validate/render pipeline end to end. Not a real product design.",
+  "constraints": [
+    "20mm x 20mm x 20mm, single solid, single color/material.",
+    "Must be watertight and manifold - it exists specifically to exercise the validation pipeline cleanly."
+  ],
+  "required_human_approval": true
+}

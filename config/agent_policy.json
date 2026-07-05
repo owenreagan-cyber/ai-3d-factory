@@ -1,0 +1,38 @@
+{
+  "$schema_note": "Machine-readable safety policy. See AGENT.md and docs/safety-gates.md for the human-readable version.",
+  "policy_version": "0.1.0",
+  "blocked_actions": [
+    "cloud_api_calls",
+    "paid_api_calls",
+    "printer_control",
+    "auto_print",
+    "bambu_cloud_upload",
+    "lan_print",
+    "meshy_without_explicit_approval",
+    "mcp_setup",
+    "blender_addon_install",
+    "secret_creation",
+    "copyrighted_franchise_assets"
+  ],
+  "allowed_actions": [
+    "local_file_read_write_within_repo",
+    "local_mesh_validation",
+    "local_preview_rendering",
+    "local_slicer_discovery_readonly",
+    "local_json_schema_validation",
+    "local_project_scaffolding"
+  ],
+  "status_gates": {
+    "max_automatic_status": "slicer_review_ready",
+    "print_ready_requires": "explicit_human_approval",
+    "notes": [
+      "No code path in this repo may set a project status to print_ready automatically.",
+      "Watertight/manifold geometry checks passing does NOT imply print-ready status."
+    ]
+  },
+  "required_human_approval_for": [
+    "print_ready",
+    "human_approved",
+    "any_relaxation_of_blocked_actions"
+  ]
+}

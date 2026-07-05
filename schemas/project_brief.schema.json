@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-3d-factory.local/schemas/project_brief.schema.json",
+  "title": "Project Brief",
+  "description": "Initial description of a project's intent, created by factory init-project.",
+  "type": "object",
+  "required": [
+    "project_name",
+    "status",
+    "owner",
+    "intended_printer",
+    "description",
+    "constraints",
+    "required_human_approval"
+  ],
+  "properties": {
+    "project_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable project name."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "idea",
+        "brief_created",
+        "plan_drafted",
+        "plan_approved",
+        "cad_generated",
+        "mesh_exported",
+        "geometry_validated",
+        "dimension_validated",
+        "preview_rendered",
+        "slicer_review_ready",
+        "human_approved",
+        "print_ready"
+      ]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "intended_printer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "required_human_approval": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always true in Phase 0/1 - no project may bypass human approval."
+    }
+  },
+  "additionalProperties": true
+}

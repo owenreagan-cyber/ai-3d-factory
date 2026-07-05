@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-3d-factory.local/schemas/validation_report.schema.json",
+  "title": "Validation Report",
+  "description": "Local geometry sanity-check report produced by factory validate. PASS/WARN/FAIL only reflect local checks and never imply print-ready status.",
+  "type": "object",
+  "required": [
+    "source_file",
+    "generated_at",
+    "overall_status",
+    "checks",
+    "summary_message",
+    "limitations"
+  ],
+  "properties": {
+    "source_file": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "overall_status": {
+      "type": "string",
+      "enum": ["PASS", "WARN", "FAIL"]
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/check" }
+    },
+    "mesh_stats": {
+      "type": "object",
+      "properties": {
+        "is_scene": { "type": "boolean" },
+        "geometry_count": { "type": "integer", "minimum": 0 },
+        "vertex_count": { "type": ["integer", "null"], "minimum": 0 },
+        "face_count": { "type": ["integer", "null"], "minimum": 0 },
+        "bounding_box_mm": {
+          "type": ["object", "null"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "z": { "type": "number" }
+          }
+        },
+        "volume_mm3": { "type": ["number", "null"] },
+        "is_watertight": { "type": ["boolean", "null"] },
+        "winding_consistent": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "summary_message": {
+      "type": "string",
+      "description": "Human-facing summary. Must never claim print-ready status from geometry checks alone."
+    },
+    "limitations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "check": {
+      "type": "object",
+      "required": ["name", "status", "detail"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "WARN", "FAIL"]
+        },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

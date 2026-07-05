@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-3d-factory.local/schemas/part_manifest.schema.json",
+  "title": "Part Manifest",
+  "description": "Tracks each physical part in a project: its file, material/color, origin alignment, units, and licensing source. Prefer separate aligned STLs per color/material over a single fused mesh.",
+  "type": "object",
+  "required": ["parts"],
+  "properties": {
+    "parts": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/part" }
+    }
+  },
+  "definitions": {
+    "part": {
+      "type": "object",
+      "required": [
+        "part_name",
+        "file_path",
+        "material",
+        "color",
+        "export_units",
+        "role",
+        "required_for_assembly"
+      ],
+      "properties": {
+        "part_name": { "type": "string", "minLength": 1 },
+        "file_path": { "type": "string", "minLength": 1 },
+        "material": { "type": "string" },
+        "color": { "type": "string" },
+        "transform_notes": {
+          "type": "string",
+          "description": "Free-text notes on origin/transform alignment shared across parts, e.g. 'origin at plate center, Z-up'."
+        },
+        "export_units": {
+          "type": "string",
+          "enum": ["mm", "cm", "in"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Where this part's geometry came from, e.g. 'original design', 'OpenSCAD script', 'Meshy (approved <date>)'."
+        },
+        "license": {
+          "type": "string",
+          "description": "License/attribution for the geometry, e.g. 'original', 'CC-BY-4.0', 'user-provided licensed asset'."
+        },
+        "role": {
+          "type": "string",
+          "description": "The part's function in the assembly, e.g. 'base_plate', 'raised_letters', 'frame'."
+        },
+        "required_for_assembly": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

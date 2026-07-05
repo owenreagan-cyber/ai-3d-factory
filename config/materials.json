@@ -1,0 +1,45 @@
+{
+  "$schema_note": "Local reference data only. Not read by any print/upload code path in Phase 0/1.",
+  "materials": {
+    "pla": {
+      "display_name": "PLA",
+      "category": "standard",
+      "typical_shrinkage_percent": 0.3,
+      "notes": "Good default for prototypes, signage, and indoor decorative parts. Low heat resistance."
+    },
+    "pla_plus": {
+      "display_name": "PLA+",
+      "category": "standard",
+      "typical_shrinkage_percent": 0.3,
+      "notes": "Slightly tougher than standard PLA, similar print behavior."
+    },
+    "petg": {
+      "display_name": "PETG",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.2,
+      "notes": "More flexible and impact-resistant than PLA; better for outdoor or functional parts."
+    },
+    "abs": {
+      "display_name": "ABS",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.5,
+      "notes": "Higher heat resistance; more prone to warping. Requires enclosure for best results."
+    },
+    "asa": {
+      "display_name": "ASA",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.5,
+      "notes": "UV-resistant alternative to ABS; a reasonable default for outdoor/exterior parts (e.g. plate frames)."
+    },
+    "tpu": {
+      "display_name": "TPU",
+      "category": "flexible",
+      "typical_shrinkage_percent": 0.4,
+      "notes": "Flexible filament; use for gaskets, grips, or flexible connectors only."
+    }
+  },
+  "notes": [
+    "Shrinkage values are typical/reference figures, not guarantees for a specific spool or printer.",
+    "Material choice affects clearance tolerances; see config/tolerances.json."
+  ]
+}
