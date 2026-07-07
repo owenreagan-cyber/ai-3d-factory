@@ -66,8 +66,12 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   `factory/preview_package.py` per-project instead of duplicating its file
   scan. Each project also gets a deterministic `suggested_actions` list
   (advisory-only, `"safety": "manual_only"`, never executed) rendered as
-  plain `<pre><code>` blocks in a "Suggested next steps" section - no
-  JavaScript, no copy button. See `docs/preview-board.md`.
+  plain `<pre><code>` blocks in a "Suggested next steps" section, and a
+  deterministic `health_signals` rollup (`summary` +
+  `info`/`warning`/`blocked`/`ready` items, including local
+  `validation/`-report-coverage checking - `factory validate` is never run
+  automatically) rendered in a "Health signals" section - no JavaScript,
+  no copy button. See `docs/preview-board.md`.
 - `factory/render_coverage.py` — read-only `stl/*.stl` vs. `renders/*.png`
   comparison for one project (missing/stale/orphan renders); the single
   shared implementation `factory/preview_package.py` and

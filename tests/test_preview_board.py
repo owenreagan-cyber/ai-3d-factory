@@ -11,8 +11,10 @@ from factory import project_store
 from factory.cli import app
 from factory.preview_board import (
     ACTION_SAFETY,
+    HEALTH_SEVERITIES,
     VISUAL_READINESS_STATES,
     build_board_html,
+    build_health_signals,
     build_suggested_actions,
     classify_visual_readiness,
     discover_projects,
@@ -957,16 +959,19 @@ def test_summarize_project_with_missing_render_suggests_factory_render(project_r
     summary = summarize_project(project_root)
     assert summary["visual_readiness_state"] == "needs_render"
     actions = summary["suggested_actions"]
-    assert len(actions) == 1
-    assert actions[0]["kind"] == "render_missing_mesh"
-    assert str(project_root) in actions[0]["command"]
-    assert "stl/part.stl" in actions[0]["command"]
+    render_actions = [a for a in actions if a["kind"] == "render_missing_mesh"]
+    assert len(render_actions) == 1
+    assert str(project_root) in render_actions[0]["command"]
+    assert "stl/part.stl" in render_actions[0]["command"]
     _assert_actions_are_safe(actions)
 
 
 def test_summarize_project_fully_covered_suggests_manual_review_only(project_root):
+    # "Fully covered" means STL + render + validation report all present -
+    # only then should the only suggestion be the manual slicer review.
     (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
     (project_root / "renders" / "part_preview.png").write_bytes(b"fake png")
+    (project_root / "validation" / "part_validation.json").write_text('{"overall_status": "PASS"}', encoding="utf-8")
     summary = summarize_project(project_root)
     assert summary["visual_readiness_state"] == "slicer_review_ready"
     actions = summary["suggested_actions"]
@@ -994,7 +999,8 @@ def test_summarize_project_action_command_matches_plan_render_commands(project_r
     from factory.render_coverage import plan_render_commands
 
     expected_suffixes = {cmd.removeprefix("factory render ") for cmd in plan_render_commands(coverage)}
-    actual_suffixes = {a["command"].removeprefix(f"factory render {project_root}/") for a in summary["suggested_actions"]}
+    render_actions = [a for a in summary["suggested_actions"] if a["kind"] == "render_missing_mesh"]
+    actual_suffixes = {a["command"].removeprefix(f"factory render {project_root}/") for a in render_actions}
     assert actual_suffixes == expected_suffixes
 
 
@@ -1103,3 +1109,440 @@ def test_cli_preview_board_html_includes_suggested_next_steps(isolated_projects_
     html = (isolated_projects_dir / "preview_board" / "index.html").read_text()
     assert "Suggested next steps" in html
     assert "factory route-cad" in html
+
+
+# ---- build_health_signals (Phase 11) ----
+
+
+_FORBIDDEN_SIGNAL_LANGUAGE = _FORBIDDEN_ACTION_LANGUAGE
+
+
+def _assert_health_signals_are_safe(health: dict) -> None:
+    assert set(health.keys()) == {"summary", "items"}
+    assert health["summary"] in ("ok", "attention_needed", "blocked")
+    for item in health["items"]:
+        assert set(item.keys()) == {"kind", "severity", "message", "suggested_action_kind"}
+        assert item["severity"] in HEALTH_SEVERITIES
+        haystack = item["message"].lower()
+        for forbidden in _FORBIDDEN_SIGNAL_LANGUAGE:
+            assert forbidden not in haystack, f"found forbidden language {forbidden!r} in signal {item!r}"
+        assert "human_approved" not in haystack
+        assert "print_ready" not in haystack
+
+
+def _base_health_kwargs(**overrides) -> dict:
+    kwargs = dict(
+        visual_readiness_state="cad_source_ready",
+        brief_status="ok",
+        manifest_status="ok",
+        preview_package_status="ok",
+        selected_manufacturing_option="single_piece",
+        mesh_files=[],
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+        validation_missing=[],
+        validation_present_count=0,
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_health_signals_ok_when_nothing_to_flag():
+    health = build_health_signals(**_base_health_kwargs())
+    assert health["summary"] == "ok"
+    assert health["items"] == []
+
+
+def test_health_signals_missing_brief_is_warning():
+    health = build_health_signals(**_base_health_kwargs(visual_readiness_state="needs_brief", brief_status="missing"))
+    assert health["summary"] == "attention_needed"
+    item = next(i for i in health["items"] if i["kind"] == "brief_missing")
+    assert item["severity"] == "warning"
+    assert item["suggested_action_kind"] == "create_brief_missing"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_unreadable_brief_is_blocked():
+    health = build_health_signals(**_base_health_kwargs(visual_readiness_state="blocked_or_incomplete", brief_status="unreadable"))
+    assert health["summary"] == "blocked"
+    item = next(i for i in health["items"] if i["kind"] == "brief_unreadable")
+    assert item["severity"] == "blocked"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_missing_manifest_is_warning():
+    health = build_health_signals(**_base_health_kwargs(manifest_status="missing"))
+    item = next(i for i in health["items"] if i["kind"] == "manifest_missing")
+    assert item["severity"] == "warning"
+    assert item["suggested_action_kind"] == "inspect_blocked_project"
+    assert health["summary"] == "attention_needed"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_unreadable_manifest_is_blocked():
+    health = build_health_signals(
+        **_base_health_kwargs(visual_readiness_state="blocked_or_incomplete", manifest_status="unreadable")
+    )
+    item = next(i for i in health["items"] if i["kind"] == "manifest_unreadable")
+    assert item["severity"] == "blocked"
+    assert health["summary"] == "blocked"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_manufacturing_option_not_selected_only_when_brief_ok():
+    health = build_health_signals(**_base_health_kwargs(selected_manufacturing_option=None))
+    kinds = {i["kind"] for i in health["items"]}
+    assert "manufacturing_option_not_selected" in kinds
+
+    # Not shown when there's no brief to plan from yet - avoids redundant noise.
+    health_no_brief = build_health_signals(
+        **_base_health_kwargs(visual_readiness_state="needs_brief", brief_status="missing", selected_manufacturing_option=None)
+    )
+    kinds_no_brief = {i["kind"] for i in health_no_brief["items"]}
+    assert "manufacturing_option_not_selected" not in kinds_no_brief
+
+
+def test_health_signals_preview_package_missing_is_info():
+    health = build_health_signals(**_base_health_kwargs(preview_package_status="missing"))
+    item = next(i for i in health["items"] if i["kind"] == "preview_package_missing")
+    assert item["severity"] == "info"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_preview_package_unreadable_is_warning():
+    health = build_health_signals(**_base_health_kwargs(preview_package_status="unreadable"))
+    item = next(i for i in health["items"] if i["kind"] == "preview_package_unreadable")
+    assert item["severity"] == "warning"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_render_missing_is_warning():
+    coverage = _empty_render_coverage()
+    coverage["missing_renders"] = ["stl/a.stl"]
+    health = build_health_signals(
+        **_base_health_kwargs(visual_readiness_state="needs_render", mesh_files=["stl/a.stl"], render_coverage=coverage)
+    )
+    item = next(i for i in health["items"] if i["kind"] == "render_missing")
+    assert item["severity"] == "warning"
+    assert item["suggested_action_kind"] == "render_missing_mesh"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_render_stale_is_blocked_consistent_with_classification():
+    # Stale-only (no missing) always resolves classify_visual_readiness to
+    # blocked_or_incomplete - the health signal severity must agree.
+    coverage = _empty_render_coverage()
+    coverage["stale_renders"] = ["renders/a_preview.png"]
+    state = classify_visual_readiness(
+        brief_status="ok", manifest_status="ok", cad_files=["cad/a.scad"], mesh_files=["stl/a.stl"],
+        missing_renders=[], stale_renders=["renders/a_preview.png"],
+        missing_visual_artifacts=[], stale_previews=[],
+    )
+    assert state == "blocked_or_incomplete"
+    health = build_health_signals(
+        **_base_health_kwargs(visual_readiness_state=state, mesh_files=["stl/a.stl"], render_coverage=coverage)
+    )
+    item = next(i for i in health["items"] if i["kind"] == "render_stale")
+    assert item["severity"] == "blocked"
+    assert health["summary"] == "blocked"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_render_orphan_is_advisory_info_only():
+    coverage = _empty_render_coverage()
+    coverage["orphan_renders"] = ["renders/leftover_preview.png"]
+    health = build_health_signals(**_base_health_kwargs(render_coverage=coverage))
+    item = next(i for i in health["items"] if i["kind"] == "render_orphan")
+    assert item["severity"] == "info"
+    # An orphan alone must never push the overall summary to blocked/attention_needed.
+    assert health["summary"] == "ok"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_validation_missing_is_warning():
+    health = build_health_signals(
+        **_base_health_kwargs(mesh_files=["stl/a.stl"], validation_missing=["stl/a.stl"])
+    )
+    item = next(i for i in health["items"] if i["kind"] == "validation_missing")
+    assert item["severity"] == "warning"
+    assert item["suggested_action_kind"] == "validate_mesh_manual"
+    assert health["summary"] == "attention_needed"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_validation_present_is_info():
+    health = build_health_signals(
+        **_base_health_kwargs(mesh_files=["stl/a.stl"], validation_present_count=1)
+    )
+    item = next(i for i in health["items"] if i["kind"] == "validation_present")
+    assert item["severity"] == "info"
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_validation_missing_and_present_can_coexist():
+    health = build_health_signals(
+        **_base_health_kwargs(
+            mesh_files=["stl/a.stl", "stl/b.stl"], validation_missing=["stl/b.stl"], validation_present_count=1
+        )
+    )
+    kinds = {i["kind"] for i in health["items"]}
+    assert {"validation_missing", "validation_present"} <= kinds
+
+
+def test_health_signals_slicer_review_ready_is_ready_not_approval():
+    health = build_health_signals(**_base_health_kwargs(visual_readiness_state="slicer_review_ready"))
+    item = next(i for i in health["items"] if i["kind"] == "slicer_review_ready")
+    assert item["severity"] == "ready"
+    assert item["suggested_action_kind"] == "review_slicer_manually"
+    assert "print_ready" not in item["message"].lower()
+    assert "human_approved" not in item["message"].lower()
+    _assert_health_signals_are_safe(health)
+
+
+def test_health_signals_summary_rolls_up_to_blocked_over_warning():
+    coverage = _empty_render_coverage()
+    coverage["stale_renders"] = ["renders/a_preview.png"]
+    health = build_health_signals(
+        **_base_health_kwargs(
+            visual_readiness_state="blocked_or_incomplete",
+            manifest_status="missing",  # warning-level
+            mesh_files=["stl/a.stl"],
+            render_coverage=coverage,  # blocked-level
+        )
+    )
+    assert health["summary"] == "blocked"
+
+
+def test_health_signals_are_deterministic():
+    kwargs = _base_health_kwargs(manifest_status="missing")
+    assert build_health_signals(**kwargs) == build_health_signals(**kwargs)
+
+
+def test_health_signals_never_produce_approval_or_print_readiness_kind():
+    # Exercise a broad mix of inputs and confirm no kind/severity implies approval.
+    coverage = _empty_render_coverage()
+    coverage["missing_renders"] = ["stl/a.stl"]
+    coverage["stale_renders"] = []
+    coverage["orphan_renders"] = ["renders/orphan_preview.png"]
+    health = build_health_signals(
+        **_base_health_kwargs(
+            visual_readiness_state="needs_render",
+            mesh_files=["stl/a.stl"],
+            render_coverage=coverage,
+            validation_missing=["stl/a.stl"],
+        )
+    )
+    for item in health["items"]:
+        assert item["kind"] not in ("human_approved", "print_ready", "approved", "print_ready_signal")
+    _assert_health_signals_are_safe(health)
+
+
+# ---- summarize_project integration: health_signals + validation coverage ----
+
+
+def test_summarize_project_includes_health_signals_field(project_root):
+    summary = summarize_project(project_root)
+    assert "health_signals" in summary
+    assert summary["health_signals"]["summary"] in ("ok", "attention_needed", "blocked")
+
+
+def test_summarize_project_missing_manifest_creates_warning_health_signal(project_root):
+    (project_root / "part_manifest.json").unlink()
+    summary = summarize_project(project_root)
+    kinds = {i["kind"]: i["severity"] for i in summary["health_signals"]["items"]}
+    assert kinds["manifest_missing"] == "warning"
+
+
+def test_summarize_project_unreadable_manifest_creates_blocked_health_signal(project_root):
+    (project_root / "part_manifest.json").write_text("{not valid json", encoding="utf-8")
+    summary = summarize_project(project_root)
+    kinds = {i["kind"]: i["severity"] for i in summary["health_signals"]["items"]}
+    assert kinds["manifest_unreadable"] == "blocked"
+    assert summary["health_signals"]["summary"] == "blocked"
+
+
+def test_summarize_project_stl_without_validation_report_creates_warning_and_suggestion(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    summary = summarize_project(project_root)
+
+    kinds = {i["kind"]: i for i in summary["health_signals"]["items"]}
+    assert kinds["validation_missing"]["severity"] == "warning"
+
+    validate_actions = [a for a in summary["suggested_actions"] if a["kind"] == "validate_mesh_manual"]
+    assert len(validate_actions) == 1
+    assert validate_actions[0]["command"] == f"factory validate {project_root}/stl/part.stl"
+    _assert_actions_are_safe(validate_actions)
+
+
+def test_summarize_project_validation_report_present_creates_info_signal(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    (project_root / "validation" / "part_validation.json").write_text('{"overall_status": "PASS"}', encoding="utf-8")
+    summary = summarize_project(project_root)
+
+    kinds = {i["kind"]: i for i in summary["health_signals"]["items"]}
+    assert kinds["validation_present"]["severity"] == "info"
+    assert "validation_missing" not in kinds
+    assert not any(a["kind"] == "validate_mesh_manual" for a in summary["suggested_actions"])
+
+
+def test_summarize_project_validation_folder_missing_when_stl_exists_counts_as_missing(project_root):
+    import shutil
+
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    shutil.rmtree(project_root / "validation")
+    summary = summarize_project(project_root)
+    kinds = {i["kind"]: i for i in summary["health_signals"]["items"]}
+    assert kinds["validation_missing"]["severity"] == "warning"
+
+
+def test_summarize_project_fully_covered_shows_ready_health_signal(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    (project_root / "renders" / "part_preview.png").write_bytes(b"fake png")
+    (project_root / "validation" / "part_validation.json").write_text('{"overall_status": "PASS"}', encoding="utf-8")
+    summary = summarize_project(project_root)
+
+    assert summary["visual_readiness_state"] == "slicer_review_ready"
+    kinds = {i["kind"]: i for i in summary["health_signals"]["items"]}
+    assert kinds["slicer_review_ready"]["severity"] == "ready"
+    assert "human_approved" not in str(summary)
+    assert "print_ready" not in str(summary)
+
+
+def test_summarize_project_never_writes_validation_reports(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    summarize_project(project_root)
+    assert not (project_root / "validation" / "part_validation.json").exists()
+
+
+# ---- HTML: Health signals section ----
+
+
+def test_build_board_html_includes_health_signals_section():
+    html = build_board_html(_minimal_board())
+    assert "Health signals" in html
+
+
+def test_build_board_html_renders_health_items():
+    project = {
+        "project_name": "Demo",
+        "project_dir": "demo",
+        "slug": "demo",
+        "brief_exists": True,
+        "brief_status": "cad_generated",
+        "manufacturing_status": "plan_drafted",
+        "selected_manufacturing_option": None,
+        "manifest_exists": True,
+        "preview_package_exists": True,
+        "cad_files": ["cad/part.scad"],
+        "mesh_files": ["stl/part.stl"],
+        "render_files": [],
+        "render_coverage": _empty_render_coverage(),
+        "visual_readiness_state": "needs_render",
+        "warnings": [],
+        "suggested_actions": [],
+        "health_signals": {
+            "summary": "attention_needed",
+            "items": [
+                {
+                    "kind": "render_missing",
+                    "severity": "warning",
+                    "message": "1 STL file(s) have no matching render yet.",
+                    "suggested_action_kind": "render_missing_mesh",
+                }
+            ],
+        },
+    }
+    html = build_board_html(_minimal_board([project]))
+    assert "1 STL file(s) have no matching render yet." in html
+    assert "health-warning" in html
+    assert "health-summary-attention_needed" in html
+
+
+def test_build_board_html_health_signals_escape_html():
+    project = {
+        "project_name": "Demo",
+        "project_dir": "demo",
+        "slug": "demo",
+        "brief_exists": True,
+        "brief_status": "idea",
+        "manufacturing_status": None,
+        "selected_manufacturing_option": None,
+        "manifest_exists": True,
+        "preview_package_exists": False,
+        "cad_files": [],
+        "mesh_files": [],
+        "render_files": [],
+        "render_coverage": _empty_render_coverage(),
+        "visual_readiness_state": "cad_source_ready",
+        "warnings": [],
+        "suggested_actions": [],
+        "health_signals": {
+            "summary": "attention_needed",
+            "items": [
+                {
+                    "kind": "manifest_missing",
+                    "severity": "warning",
+                    "message": "<script>alert(1)</script>",
+                    "suggested_action_kind": None,
+                }
+            ],
+        },
+    }
+    html = build_board_html(_minimal_board([project]))
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_build_board_html_no_health_signals_message_when_no_projects():
+    html = build_board_html(_minimal_board())
+    assert "No health signals" in html
+
+
+def test_build_board_html_health_signals_no_external_assets_or_js():
+    html = build_board_html(_minimal_board())
+    forbidden = ["http://", "https://", "<script", "cdn.", "onclick=", "navigator.clipboard"]
+    for term in forbidden:
+        assert term not in html
+
+
+def test_cli_preview_board_json_includes_health_signals(isolated_projects_dir):
+    runner.invoke(app, ["init-project", "Demo Project"])
+    result = runner.invoke(app, ["preview-board", str(isolated_projects_dir)])
+    assert result.exit_code == 0, result.stdout
+
+    import json
+
+    board = json.loads((isolated_projects_dir / "preview_board" / "index.json").read_text())
+    assert "health_signals" in board["projects"][0]
+
+
+def test_cli_preview_board_html_includes_health_signals_section(isolated_projects_dir):
+    runner.invoke(app, ["init-project", "Demo Project"])
+    result = runner.invoke(app, ["preview-board", str(isolated_projects_dir)])
+    assert result.exit_code == 0, result.stdout
+
+    html = (isolated_projects_dir / "preview_board" / "index.html").read_text()
+    assert "Health signals" in html
+
+
+# ---- safety: health signals never contain unsafe execution language ----
+
+
+def test_no_health_signal_kind_contains_forbidden_execution_behavior():
+    coverage_with_gaps = _empty_render_coverage()
+    coverage_with_gaps["missing_renders"] = ["stl/a.stl"]
+    coverage_with_stale = _empty_render_coverage()
+    coverage_with_stale["stale_renders"] = ["renders/a_preview.png"]
+    scenarios = [
+        _base_health_kwargs(visual_readiness_state="needs_brief", brief_status="missing"),
+        _base_health_kwargs(manifest_status="missing"),
+        _base_health_kwargs(visual_readiness_state="blocked_or_incomplete", manifest_status="unreadable"),
+        _base_health_kwargs(mesh_files=["stl/a.stl"], render_coverage=coverage_with_gaps, visual_readiness_state="needs_render"),
+        _base_health_kwargs(mesh_files=["stl/a.stl"], render_coverage=coverage_with_stale, visual_readiness_state="blocked_or_incomplete"),
+        _base_health_kwargs(mesh_files=["stl/a.stl"], validation_missing=["stl/a.stl"]),
+        _base_health_kwargs(visual_readiness_state="slicer_review_ready"),
+    ]
+    for kwargs in scenarios:
+        health = build_health_signals(**kwargs)
+        _assert_health_signals_are_safe(health)

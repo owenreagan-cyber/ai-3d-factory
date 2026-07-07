@@ -259,28 +259,64 @@ slicing-and-sending, uploading, or calling a cloud/paid API, Meshy, or
 Blender; none set `human_approved`/`print_ready`.
 
 **Not yet started:** any richer UI around these suggestions (still the
-Future track below) - the board stays a single static HTML file.
+Future track below) - the board stays a single static HTML file. (Health
+signals - a rollup summary plus validation-coverage awareness - were
+added later, in Phase 11 - see below.)
 
-## Phase 11 — optional Meshy, with approval/cost gates
+## Phase 11 — preview board health signals (started)
+
+Rolls up everything worth flagging about a project into one deterministic
+`health_signals` field per board card - missing/unreadable `brief.json`/
+`part_manifest.json`, an unselected manufacturing option, a stale/missing/
+unreadable `preview_package/index.json`, render coverage gaps, and (new)
+local `validation/` report coverage - so Owen can scan many projects at a
+glance instead of reading every warning individually. See
+`docs/preview-board.md`'s "Health signals" section.
+
+**Started:** `factory.preview_board.build_health_signals()` returns
+`{"summary": "ok"|"attention_needed"|"blocked", "items": [...]}`, each
+item carrying a `kind`, `severity` (`info`/`warning`/`blocked`/`ready`),
+`message`, and an optional `suggested_action_kind` hint. Severities are
+built to always agree with `classify_visual_readiness()`'s own precedence
+(e.g. a stale render is `"blocked"` because that's exactly the condition
+that resolves the project to `blocked_or_incomplete`; a missing brief is
+`"warning"`, matching its own distinct, non-blocked `needs_brief` state).
+The only `"ready"` signal (`slicer_review_ready`) explicitly means "ready
+for human slicer review, not print-ready" - never an approval. This phase
+also adds local, read-only validation-report-coverage checking (mirroring
+`factory validate`'s own `validation/<name>_validation.json` naming
+convention, never running validation itself) and extends
+`build_suggested_actions()` with one orthogonal `validate_mesh_manual`
+suggestion (`factory validate <path>`) per un-validated STL, applied
+regardless of visual-readiness state. The board's HTML gained a "Health
+signals" section (severity-colored badges, plain text, no JavaScript) and
+a compact "Health" column in the summary table. `human_approved`/
+`print_ready` are never computed or implied.
+
+**Not yet started:** deeply parsing validation report contents beyond
+presence/absence (deliberately out of scope - `factory report` already
+does PASS/WARN/FAIL rollup for a single project).
+
+## Phase 12 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 12 — 3MF packaging experiments
+## Phase 13 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 13 — advanced slicer review automation
+## Phase 14 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 14 — Blender repair/render automation
+## Phase 15 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

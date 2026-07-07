@@ -108,10 +108,15 @@ directly). Each project is classified into a visual-readiness state
 `slicer_review_ready`, `blocked_or_incomplete`) - a visual inspection aid,
 never an approval or print-readiness signal. Each project also gets a
 `suggested_actions` list - safe, copyable next-step commands (e.g. `factory
-render <path>` for a missing preview) shown in a "Suggested next steps"
-section on the board's HTML page as plain text/code blocks. Nothing is
-ever run automatically; the human decides what to copy and execute. See
-`docs/preview-board.md`.
+render <path>` for a missing preview, or `factory validate <path>` for an
+STL with no local validation report yet) shown in a "Suggested next steps"
+section on the board's HTML page as plain text/code blocks. A
+`health_signals` field (`summary`: ok/attention_needed/blocked, plus
+structured `items`) rolls up everything worth flagging - missing/unreadable
+files, render/validation coverage gaps - for scanning many projects at a
+glance, shown in a "Health signals" section and a compact "Health" column.
+Nothing is ever run automatically; the human decides what to copy and
+execute. See `docs/preview-board.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

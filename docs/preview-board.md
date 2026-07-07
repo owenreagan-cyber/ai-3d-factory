@@ -135,6 +135,72 @@ No action ever suggests printing, slicing-and-sending, uploading, calling
 a cloud/paid API, calling Meshy, or launching Blender - and none set
 `human_approved` or `print_ready`.
 
+**Phase 11 addition:** on top of the one primary state-driven suggestion
+above, each project also gets one `validate_mesh_manual` suggestion per
+STL file that has no local `validation/<name>_validation.json` report yet
+(`factory validate <path>` never runs automatically). This is orthogonal
+to `visual_readiness_state` - checking geometry is independent of visual
+progress, so it's applied regardless of which state a project is in.
+
+## Health signals (Phase 11)
+
+Each project's card also carries a `health_signals` object - a local,
+read-only rollup of everything worth flagging, for scanning many projects
+at a glance without reading every warning individually:
+
+```jsonc
+{
+  "summary": "attention_needed",
+  "items": [
+    {
+      "kind": "manifest_missing",
+      "severity": "warning",
+      "message": "part_manifest.json is missing.",
+      "suggested_action_kind": "inspect_blocked_project"
+    }
+  ]
+}
+```
+
+`summary` is a deterministic rollup of `items`: `"blocked"` if any item is
+`"blocked"`-severity, else `"attention_needed"` if any is `"warning"`,
+else `"ok"`. **This is a visual-inspection aid only** - `summary`/`items`
+never set `human_approved` or `print_ready`, and the highest severity used
+for a positive result is `"ready"` (see `slicer_review_ready` below),
+never an approval.
+
+Severities always agree with `visual_readiness_state`'s own precedence -
+a `"blocked"` health item only ever appears for exactly the condition that
+puts (or would put) the project into `blocked_or_incomplete`; a normal,
+expected, non-corrupt gap is `"warning"`; and purely informational context
+is `"info"`:
+
+| `kind` | Severity | When |
+|---|---|---|
+| `brief_missing` | `warning` | `brief.json` doesn't exist yet. |
+| `brief_unreadable` | `blocked` | `brief.json` exists but isn't valid JSON. |
+| `manifest_missing` | `warning` | `part_manifest.json` doesn't exist yet. |
+| `manifest_unreadable` | `blocked` | `part_manifest.json` exists but isn't valid JSON. |
+| `manufacturing_option_not_selected` | `info` | Brief exists but no option chosen yet (`factory choose-option`). Not shown before a brief exists, to avoid redundant noise. |
+| `preview_package_missing` | `info` | No `preview_package/index.json` yet - a live summary was computed instead. |
+| `preview_package_unreadable` | `warning` | `preview_package/index.json` exists but isn't valid JSON. |
+| `render_missing` | `warning` | At least one STL has no matching render yet. |
+| `render_stale` | `blocked` | At least one render is older than its STL - always coincides with `blocked_or_incomplete`. |
+| `render_orphan` | `info` | A render has no matching STL currently on disk - advisory only, never blocking. |
+| `missing_visual_artifacts` / `stale_preview_artifacts` | `blocked` | The preview package's manifest-aware check flags something render coverage's directory-only view can't see. |
+| `validation_missing` | `warning` | At least one STL has no local `validation/<name>_validation.json` report yet. |
+| `validation_present` | `info` | At least one STL already has a local validation report. |
+| `slicer_review_ready` | `ready` | Every mesh has a fresh render and nothing else was flagged - ready for **human** slicer review, explicitly "not print-ready" in the message text. |
+
+`suggested_action_kind` (when set) names the matching entry in
+`suggested_actions`'s `kind` vocabulary - a hint at what would resolve
+that signal, not a promise that exact action is already in the list for
+every state.
+
+The board's HTML gets a "Health signals" section (one block per project,
+severity-colored badges, plain text only - no JavaScript) and a compact
+"Health" column in the summary table (e.g. "Attention needed (2)").
+
 ## Board JSON shape
 
 ```jsonc
@@ -175,7 +241,18 @@ a cloud/paid API, calling Meshy, or launching Blender - and none set
           "reason": "CAD source exists but no STL has been exported yet. STL export is always a "
                      "manual, human-run step in this repo."
         }
-      ]
+      ],
+      "health_signals": {
+        "summary": "attention_needed",
+        "items": [
+          {
+            "kind": "manufacturing_option_not_selected",
+            "severity": "info",
+            "message": "No manufacturing option has been selected yet - see `factory list-options` / `factory choose-option`.",
+            "suggested_action_kind": null
+          }
+        ]
+      }
     }
   ],
   "notes": ["Local static preview only - ...", "..."]
@@ -186,6 +263,8 @@ a cloud/paid API, calling Meshy, or launching Blender - and none set
 
 - Does not generate CAD, run OpenSCAD, or run CadQuery.
 - Does not export or render meshes.
+- Does not run `factory validate` - it only checks whether a
+  `validation/<name>_validation.json` report already exists on disk.
 - Does not invoke or launch a slicer.
 - Does not invoke or launch Blender.
 - Does not call Meshy or any paid/cloud API.
@@ -200,4 +279,5 @@ a cloud/paid API, calling Meshy, or launching Blender - and none set
 See also `docs/visual-preview-package.md` (per-project preview package,
 which this board aggregates), `docs/render-coverage.md` (the render-gap
 detection `needs_render` suggestions are built on), and `docs/roadmap.md`
-Phase 8 (board foundation) / Phase 10 (action suggestions).
+Phase 8 (board foundation) / Phase 10 (action suggestions) / Phase 11
+(health signals).
