@@ -79,6 +79,12 @@ lid). It exists to demonstrate that the multi-part shared-origin pattern
 `multipart-classroom-sign/` introduced generalizes to everyday labeled-
 container objects, not just signage.
 
+**Future working examples should keep raising this bar, not just prove a
+command runs.** See `docs/design-quality-standard.md`'s "Etsy-worthy"
+standard - a future richer example (once the Meshy/Blender tracks below
+exist) should demonstrate a polished, intentional, gift-worthy result,
+not just a technically-generated mesh.
+
 ### Future / roadmap concept examples
 
 `examples/future-organic-models/{car-concept,animal-concept,

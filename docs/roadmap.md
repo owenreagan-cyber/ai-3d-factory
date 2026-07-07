@@ -680,6 +680,17 @@ Real (not concept-only) car/animal/human-figure examples under
 `examples/future-organic-models/` - blocked on the Meshy and/or Blender
 tracks above actually being implemented first.
 
+### Custom Design Quality Pipeline
+
+A planning layer for high-quality custom designs: style direction,
+reference interpretation, artistic intent, functional requirements,
+manufacturability constraints, and iteration loops. Defines the "Etsy-worthy"
+quality bar (see `docs/design-quality-standard.md`) that the Meshy,
+Blender, and Rich organic examples tracks above should aim for once they
+exist - not a generation pipeline itself, and not a relaxation of any
+existing safety gate. Blocked on the Meshy and/or Blender tracks above for
+any real (non-planning) implementation.
+
 ### Mac launcher/dashboard track
 
 The Mac app launcher, Dock icon, Shortcuts/Automator wrapper, "Chief of

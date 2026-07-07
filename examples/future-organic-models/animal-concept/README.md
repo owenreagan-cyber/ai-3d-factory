@@ -42,3 +42,12 @@ call them:
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this
 placeholder, and no file has been uploaded anywhere.
+
+## Quality bar, if this is ever implemented
+
+Per `../../../docs/design-quality-standard.md`, an animal figure concept
+should aim for the same **polished, animal/piggy-bank-style organic
+design** standard as the piggy bank worked example there - a clear style
+direction (cute, realistic, cartoon, ...), proportioned features, and
+gift/display-worthy finish. The goal is a considered figurine, not
+"picture to blob generation."

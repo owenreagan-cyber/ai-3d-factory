@@ -1,0 +1,40 @@
+{
+  "concept_name": "piggy-bank-design-study",
+  "status": "concept_only",
+  "owner": "Owen",
+  "description": "Roadmap placeholder for the canonical worked example in docs/design-quality-standard.md: a reference photo of a pig turned into a polished, gift-worthy piggy bank - not a blobby image-to-3D pass. No CAD, mesh, or render exists for this concept.",
+  "intended_future_backend": ["blender", "meshy"],
+  "backend_gate_status": "not_implemented - requires future Blender local-automation phase and/or a Meshy safety/cost approval gate before any generation may occur",
+  "design_quality_standard_doc": "docs/design-quality-standard.md",
+  "design_track": "artistic_organic",
+  "not_printable": true,
+  "not_generated": true,
+  "meshy_approval_gate_doc": "docs/meshy-approval-gate.md",
+  "meshy_gate_config": "config/future_cloud_tools.json",
+  "blender_local_track_doc": "docs/blender-local-track.md",
+  "blender_gate_config": "config/future_local_tools.json",
+  "staged_workflow": [
+    "reference image or idea",
+    "style direction",
+    "concept brief",
+    "high-quality model path",
+    "cleanup/refinement",
+    "manufacturability adaptation",
+    "render/preview/review",
+    "human slicer review"
+  ],
+  "style_options": ["cute", "realistic", "cartoon", "anime-inspired", "designer-toy", "ceramic-style", "luxury/gift", "funny/exaggerated"],
+  "intended_function": ["hollow body", "coin slot", "removable plug or access door"],
+  "intended_features": ["snout", "ears", "eyes", "legs", "tail", "facial expression"],
+  "manufacturability_considerations": ["wall thickness", "overhangs", "supports", "part splitting", "smoothing", "safe edges"],
+  "quality_bar": "polished and gift-worthy, not blobby",
+  "notes": [
+    "This file uses `concept_brief.json`, not `brief.json`, so `factory` commands do not treat this directory as a real, in-progress project.",
+    "See ../README.md, ../../../docs/examples-library.md, and ../../../docs/design-quality-standard.md.",
+    "No STL, render, or other generated mesh asset exists for this concept.",
+    "This concept is not human_approved and not print_ready, and is not expected to pass factory review-gate.",
+    "Meshy remains disabled by default - see docs/meshy-approval-gate.md and config/future_cloud_tools.json (factory check-future-tools).",
+    "Blender remains future-only with no automation - see docs/blender-local-track.md and config/future_local_tools.json (factory check-local-tools).",
+    "The goal is a staged design workflow ending in a polished, gift-worthy piggy bank - not a single-shot 'picture to blob' generation."
+  ]
+}

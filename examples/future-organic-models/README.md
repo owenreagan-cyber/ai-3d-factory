@@ -61,6 +61,22 @@ check-local-tools`. **This is a planning document and a config scaffold
 only** - no Blender automation, add-on, MCP configuration, or execution
 was added to build it.
 
+### The quality bar for future organic examples: "Etsy-worthy," not blob generation
+
+`docs/design-quality-standard.md` records the standard every future
+working example under this directory should aim for once the Meshy
+and/or Blender tracks above actually exist: polished, intentional,
+gift-worthy, display-worthy results - a staged design workflow (style
+direction -> concept brief -> high-quality model -> cleanup ->
+manufacturability adaptation -> render/preview/review -> human slicer
+review), not a single-shot "reference image in, blobby mesh out" pass.
+The canonical worked example is a photo-of-a-pig turned into a *polished*
+piggy bank (style choice, hollow body, coin slot, removable access door,
+proportioned features, clean walls) - see
+`docs/design-quality-standard.md`'s "Piggy bank example" for the full
+breakdown. This is a **planning document only** - it doesn't change what
+any `factory` command does today.
+
 ## Why `concept_brief.json`, not `brief.json`
 
 Every command that treats a directory as a real project
@@ -79,6 +95,10 @@ name no command reads automatically.
 - `animal-concept/` - an original organic-form animal figure concept.
 - `human-figure-study/` - an original organic-form human figure study
   concept.
+- `piggy-bank-design-study/` - the canonical worked example from
+  `docs/design-quality-standard.md`: a reference photo of a pig turned
+  into a polished, gift-worthy piggy bank via the staged design
+  workflow - not a blobby single-shot generation.
 
 None of these contain STL files, renders, or any generated mesh asset.
 None of these are `human_approved` or `print_ready`, and none of them are

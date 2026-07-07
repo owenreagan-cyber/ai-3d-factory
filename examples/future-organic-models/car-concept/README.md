@@ -43,3 +43,13 @@ call them:
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this
 placeholder, and no file has been uploaded anywhere.
+
+## Quality bar, if this is ever implemented
+
+Per `../../../docs/design-quality-standard.md`, this concept should aim
+for **polished product/display quality** - a strong silhouette, clear
+style direction, and clean proportions, not a rough or blobby
+first-pass mesh. A car accessory concept that merely resembles a car
+from one angle has not met the bar; it should read as an intentional,
+finished design a person would actually want to display or give as a
+gift.

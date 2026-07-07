@@ -50,3 +50,14 @@ question until such a policy exists.
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this
 placeholder, and no file has been uploaded anywhere.
+
+## Quality bar, if this is ever implemented
+
+Per `../../../docs/design-quality-standard.md`, character/person studies
+must be **intentional and respectful** - stylized or realistic *by
+deliberate design choice*, never an accidental or careless likeness -
+and, like every other object in this repo, only ever manufacturable
+after full human review (`factory review-gate` plus human slicer
+review). This concept's stylized/non-representational framing exists
+specifically so that quality and respect questions are settled before
+any generation, not worked out after the fact.
