@@ -27,11 +27,32 @@ human-run step (no automatic OpenSCAD invocation yet).
 **Not yet started:** CadQuery generation helpers, and any automated,
 locally-validated OpenSCAD export command.
 
-## Phase 3 — multi-part / multi-color workflows
+## Phase 3 — manufacturing knowledge & printer-aware planning (started)
 
-Tooling to help keep multi-part STL exports aligned to a shared origin,
-and to pre-fill `part_manifest.json` entries (material/color/transform
-notes) from a build plan, reducing manual manifest editing.
+A local manufacturing knowledge base (`config/manufacturing/`: printers,
+materials, accessories, planning rules) and a deterministic decision engine
+that turn `factory plan` into a manufacturing advisor, not just a tool
+router. See `docs/manufacturing-knowledge-base.md` for the full write-up.
+
+**Started:** `factory plan` now resolves `brief.json`'s `intended_printer`
+against a multi-printer fleet (`config/manufacturing/printers.json`),
+explains every manufacturing option (single-piece, multipart for build
+volume/color/detail/painting/strength, replaceable components) with
+advantages/disadvantages and a non-binding recommendation
+(`factory.manufacturing.decision_engine`), and seeds `part_manifest.json`
+with planning-time placeholders (`factory.manufacturing.manifest`) without
+ever overwriting a human edit or a later phase's real values.
+`factory.validators.multipart_check` gained duplicate-name, duplicate-output,
+missing-CAD-source, invalid-quantity, and shared-origin-consistency checks.
+`factory report` now surfaces target printer/accessories/build volume,
+every manufacturing option, the recommendation, manifest/multipart/
+validation summaries, and every remaining human decision.
+
+**Not yet started:** `factory add-printer` / `factory add-accessory`
+commands (the knowledge base is hand-edited JSON for now), automatically
+proposing a `required_parts` breakdown once a human confirms a multi-part
+option, and reconciling the Phase 0/1 single-printer `config/printers.json`
+with the Phase 3 fleet-aware `config/manufacturing/printers.json`.
 
 ## Phase 4 — Blender repair/render automation
 

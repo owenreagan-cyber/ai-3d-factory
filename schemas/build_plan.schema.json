@@ -57,6 +57,63 @@
     "human_review_required": {
       "type": "boolean",
       "const": true
+    },
+    "manufacturing_goal": {
+      "type": "string",
+      "description": "Human-readable summary of what this project is trying to manufacture, derived from the brief description."
+    },
+    "target_printer": {
+      "type": "object",
+      "description": "Best-effort resolution of brief.json's intended_printer against config/manufacturing/printers.json. Reference/advisory only - never used to connect to or control a printer.",
+      "properties": {
+        "printer_id": { "type": ["string", "null"] },
+        "display_name": { "type": ["string", "null"] },
+        "resolved": { "type": "boolean" },
+        "resolved_from": { "type": ["string", "null"] },
+        "capabilities": { "type": ["object", "null"] }
+      }
+    },
+    "assembly": {
+      "type": "object",
+      "description": "Whether this plan currently reflects a single-part or multi-part project.",
+      "properties": {
+        "multi_part": { "type": "boolean" },
+        "shared_origin_required": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "materials": {
+      "type": "object",
+      "description": "Deterministic, keyword-based material candidates from config/manufacturing/materials.json - not a final material decision.",
+      "properties": {
+        "candidates": { "type": "array", "items": { "type": "string" } },
+        "rationale": { "type": "string" }
+      }
+    },
+    "colors": {
+      "type": "array",
+      "description": "Final color decisions per part - always empty from `factory plan`; a human fills this in.",
+      "items": { "type": "string" }
+    },
+    "manufacturing_options": {
+      "type": "object",
+      "description": "Every manufacturing option (single-piece, multipart variants, replaceable components) explained with advantages/disadvantages, plus one non-binding recommendation. See factory.manufacturing.decision_engine.",
+      "properties": {
+        "options": { "type": "array" },
+        "recommended_option": { "type": "string" },
+        "recommendation_rationale": { "type": "string" },
+        "selected_manufacturing_option": { "type": ["string", "null"] },
+        "requires_human_confirmation": { "type": "boolean", "const": true }
+      }
+    },
+    "selected_manufacturing_option": {
+      "type": ["string", "null"],
+      "description": "Always null from `factory plan`. Only a human, editing build_plan.json directly, may set this to one of manufacturing_options.options[].option_id."
+    },
+    "unanswered_questions": {
+      "type": "array",
+      "description": "Open decisions a human must resolve before this plan is considered final.",
+      "items": { "type": "string" }
     }
   },
   "additionalProperties": true

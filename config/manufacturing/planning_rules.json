@@ -1,0 +1,129 @@
+{
+  "$schema_note": "Local manufacturing knowledge base: deterministic planning rules read by factory.manufacturing.decision_engine. No AI/LLM call - this is reference data plus keyword hints for a deterministic heuristic, mirroring the existing factory/router.py pattern. The engine explains every option below and recommends one; it never silently picks an option or requires anything less than explicit human confirmation.",
+  "knowledge_base_version": "0.1.0",
+  "decision_factors": [
+    "target_printer",
+    "build_volume",
+    "ams_availability",
+    "multicolor_capability",
+    "desired_appearance",
+    "fine_detail",
+    "surface_quality",
+    "strength",
+    "print_orientation",
+    "assembly_effort",
+    "painting",
+    "future_replacement_of_parts",
+    "estimated_print_time",
+    "material_usage"
+  ],
+  "manufacturing_options": {
+    "single_piece": {
+      "option_id": "single_piece",
+      "display_name": "Single-piece print",
+      "description": "Print the whole part as one fused body from one material/color.",
+      "advantages": [
+        "Simplest workflow: one CAD file, one STL, one slicer import, no post-print assembly.",
+        "No shared-origin alignment risk between parts.",
+        "Fastest to get to slicer_review_ready for straightforward, single-color parts."
+      ],
+      "disadvantages": [
+        "No per-region color/material control.",
+        "Must fit within a single printer's build volume in one orientation.",
+        "A single detail failure (e.g. a small broken feature) can require reprinting the entire part."
+      ],
+      "prefer_when_keywords": []
+    },
+    "multipart_build_volume": {
+      "option_id": "multipart_build_volume",
+      "display_name": "Multipart for build volume",
+      "description": "Split a part that is too large for the target printer's build volume into multiple sections printed separately and joined after printing.",
+      "advantages": [
+        "Allows parts larger than any single printer's build plate.",
+        "Each section can be reprinted independently if one fails."
+      ],
+      "disadvantages": [
+        "Requires designing a joint/alignment feature and post-print assembly.",
+        "Seam lines may be visible depending on joint design and material.",
+        "Adds assembly effort and a new failure mode (misaligned or weak joints)."
+      ],
+      "prefer_when_keywords": ["large", "oversized", "too big", "exceeds build volume", "doesn't fit the plate"]
+    },
+    "multipart_color": {
+      "option_id": "multipart_color",
+      "display_name": "Multipart for color",
+      "description": "Export separate aligned STLs per color (e.g. base plate + raised letters) instead of a single fused mesh, per docs/slicer-review-workflow.md.",
+      "advantages": [
+        "Crisp, deliberate per-region color without hand-painting.",
+        "Matches this repo's existing multi-part alignment tooling (factory generate-openscad --template multipart-nameplate).",
+        "Works well with AMS/AMS 2 Pro-equipped printers for automatic material switching."
+      ],
+      "disadvantages": [
+        "Requires an AMS-equipped (or native multi-nozzle) printer for automatic color switching, or manual filament swaps otherwise.",
+        "Requires careful shared-origin alignment across all part files.",
+        "More manifest/part bookkeeping than a single fused part."
+      ],
+      "prefer_when_keywords": ["two color", "two-color", "multi color", "multi-color", "multicolor", "contrasting", "nameplate", "sign", "raised letter", "raised letters", "inlay"]
+    },
+    "multipart_detail": {
+      "option_id": "multipart_detail",
+      "display_name": "Multipart for detail",
+      "description": "Print fine-detail regions (e.g. small text, thin decorative features) as a separate part, possibly with a smaller nozzle, from the bulk/structural body.",
+      "advantages": [
+        "Lets the detail region use a finer nozzle/slower settings without slowing down the whole print.",
+        "Reduces the chance that a bulk-print failure also ruins the fine-detail work."
+      ],
+      "disadvantages": [
+        "More parts to align and assemble.",
+        "Fine-detail printing is slower per unit area, even isolated to a smaller part."
+      ],
+      "prefer_when_keywords": ["fine detail", "intricate", "engraving", "small text", "delicate"]
+    },
+    "multipart_paint": {
+      "option_id": "multipart_paint",
+      "display_name": "Multipart for painting",
+      "description": "Split a part so that regions intended for hand-painting are separate, printable in a paint-friendly material (e.g. PLA/ABS/ASA) and maskable/removable during painting.",
+      "advantages": [
+        "Easier to mask adjacent regions and paint cleanly without removing the whole part from its stand/base.",
+        "Can choose a more paintable material per region (see config/manufacturing/materials.json paintable flag) instead of one compromise material."
+      ],
+      "disadvantages": [
+        "Adds assembly and paint-registration effort (parts must still align after painting).",
+        "Some materials chosen for print quality elsewhere (e.g. PETG) are poor for painting - may force a material compromise on that part."
+      ],
+      "prefer_when_keywords": ["paint", "painted", "painting", "hand-painted", "primer"]
+    },
+    "multipart_strength": {
+      "option_id": "multipart_strength",
+      "display_name": "Multipart for strength",
+      "description": "Split a part along load paths so each section can be printed with a stronger orientation/infill/material for its own load case, instead of one compromise orientation for the whole part.",
+      "advantages": [
+        "Each section's print orientation can align layer lines with its actual load direction.",
+        "Higher-stress sections can use a stronger material/infill without over-building low-stress sections."
+      ],
+      "disadvantages": [
+        "Joints between sections are almost always the weakest point - needs a deliberate joint design (not a simple butt seam) for load-bearing use.",
+        "More engineering effort up front; a poor joint design can be weaker than a single-piece print would have been."
+      ],
+      "prefer_when_keywords": ["load-bearing", "load bearing", "structural", "strength", "stress", "weight-bearing", "mounting point"]
+    },
+    "replaceable_components": {
+      "option_id": "replaceable_components",
+      "display_name": "Replaceable components",
+      "description": "Design wear-prone or failure-prone sub-parts (e.g. a clip, a hinge pin, a wear pad) as separate, individually reprintable parts rather than embedding them in the main body.",
+      "advantages": [
+        "A future failure only requires reprinting the small worn/broken sub-part, not the whole assembly.",
+        "Encourages parametrizing the sub-part so future revisions (e.g. a tighter fit) don't require redesigning the whole part."
+      ],
+      "disadvantages": [
+        "Requires a mechanical interface (screw, clip, press-fit) between the replaceable part and the main body, adding design and tolerancing work.",
+        "Slightly more assembly effort than a single fused part."
+      ],
+      "prefer_when_keywords": ["replace", "replaceable", "spare part", "spare", "wear", "wears out", "consumable"]
+    }
+  },
+  "notes": [
+    "This file is reference data for factory.manufacturing.decision_engine. It never causes a manufacturing_option to be auto-selected: selected_manufacturing_option in build_plan.json is always null until a human sets it.",
+    "advantages/disadvantages text is deliberately generic/reusable; keyword matches only affect which option is recommended, not which options are listed (all options are always listed)."
+  ]
+}

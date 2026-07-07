@@ -1,0 +1,86 @@
+{
+  "$schema_note": "Local manufacturing knowledge base: accessory catalog. Configuration data only - installing/removing an accessory here never touches hardware; a human physically attaches or detaches the real accessory and then updates a printer's installed_accessories list in config/manufacturing/printers.json to match.",
+  "knowledge_base_version": "0.1.0",
+  "extensibility_note": "Future accessories (filament dryers, cameras, laser modules, cutter modules, additional nozzle/build-plate variants, future printer models' accessories) can be added as new entries here without changing any code - the planner reads whatever capabilities are listed. `factory add-accessory` is planned (see docs/roadmap.md) to do this without hand-editing JSON, but is not implemented in Phase 3.",
+  "accessories": {
+    "ams_original": {
+      "accessory_id": "ams_original",
+      "display_name": "AMS (Automatic Material System)",
+      "category": "material_feed",
+      "manufacturer": "Bambu Lab",
+      "compatible_models": ["P1S", "P1P", "X1C", "X1", "H2D"],
+      "adds_capabilities": ["multicolor", "automatic_material_switching", "multi_material_single_plate"],
+      "notes": "Original-generation AMS. Feeds up to four spools with automatic switching between them during a single print."
+    },
+    "ams_2_pro": {
+      "accessory_id": "ams_2_pro",
+      "display_name": "AMS 2 Pro",
+      "category": "material_feed",
+      "manufacturer": "Bambu Lab",
+      "compatible_models": ["H2D"],
+      "adds_capabilities": [
+        "multicolor",
+        "automatic_material_switching",
+        "multi_material_single_plate",
+        "improved_humidity_control"
+      ],
+      "notes": "Newer-generation AMS with improved humidity/moisture control over the original AMS. Installed on the H2D in this fleet."
+    },
+    "build_plate_smooth_pei": {
+      "accessory_id": "build_plate_smooth_pei",
+      "display_name": "Smooth PEI build plate",
+      "category": "build_plate",
+      "compatible_models": ["H2D", "P1S", "Centauri Carbon"],
+      "adds_capabilities": ["smooth_bottom_surface_finish"],
+      "notes": "Default choice for a glossy, smooth part underside; slightly less first-layer grip than textured PEI for large flat parts."
+    },
+    "build_plate_textured_pei": {
+      "accessory_id": "build_plate_textured_pei",
+      "display_name": "Textured PEI build plate",
+      "category": "build_plate",
+      "compatible_models": ["H2D", "P1S"],
+      "adds_capabilities": ["improved_first_layer_adhesion", "matte_bottom_surface_finish"],
+      "notes": "Good default for most prints; matte-textured underside, strong first-layer adhesion."
+    },
+    "build_plate_engineering": {
+      "accessory_id": "build_plate_engineering",
+      "display_name": "Engineering build plate",
+      "category": "build_plate",
+      "compatible_models": ["H2D", "P1S"],
+      "adds_capabilities": ["high_temp_material_adhesion"],
+      "notes": "Aimed at higher-temperature engineering materials (e.g. ABS/ASA/PA); improves adhesion for warping-prone filaments."
+    },
+    "nozzle_0_2": {
+      "accessory_id": "nozzle_0_2",
+      "display_name": "0.2mm nozzle",
+      "category": "nozzle",
+      "adds_capabilities": ["fine_detail", "fine_text"],
+      "notes": "Best surface detail and small-text legibility; significantly slower and more prone to clogging on abrasive/filled filaments."
+    },
+    "nozzle_0_4": {
+      "accessory_id": "nozzle_0_4",
+      "display_name": "0.4mm nozzle",
+      "category": "nozzle",
+      "adds_capabilities": ["balanced_default"],
+      "notes": "Standard default nozzle size; balances detail, strength, and print time for most parts."
+    },
+    "nozzle_0_6": {
+      "accessory_id": "nozzle_0_6",
+      "display_name": "0.6mm nozzle",
+      "category": "nozzle",
+      "adds_capabilities": ["faster_print_speed", "thicker_walls_per_pass"],
+      "notes": "Faster for larger, less-detailed parts; loses fine text/detail fidelity versus 0.4mm/0.2mm."
+    },
+    "nozzle_0_8": {
+      "accessory_id": "nozzle_0_8",
+      "display_name": "0.8mm nozzle",
+      "category": "nozzle",
+      "adds_capabilities": ["fastest_bulk_printing", "highest_layer_strength_per_pass"],
+      "notes": "Fastest bulk-material throughput and strongest single-pass layers; coarsest surface detail of the supported sizes."
+    }
+  },
+  "notes": [
+    "This file is local reference data only. It never installs, activates, or communicates with any accessory or printer.",
+    "A printer's installed_accessories list in config/manufacturing/printers.json is the source of truth for what is actually attached right now; keep it in sync by hand when hardware changes."
+  ]
+}

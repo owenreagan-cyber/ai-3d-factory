@@ -1,0 +1,78 @@
+{
+  "$schema_note": "Local manufacturing knowledge base: material reference data, extending config/materials.json with planning-relevant fields (paintability, strength class, good_for tags). Not read by any print/upload code path.",
+  "knowledge_base_version": "0.1.0",
+  "extensibility_note": "Additional materials (e.g. PC, PA/nylon, PVA support, carbon-fiber blends) can be added as new entries here without changing planner code - the decision engine reads whatever tags/fields are present.",
+  "materials": {
+    "pla": {
+      "material_id": "pla",
+      "display_name": "PLA",
+      "category": "standard",
+      "typical_shrinkage_percent": 0.3,
+      "paintable": true,
+      "strength_class": "low",
+      "surface_finish_notes": "Prints crisp fine detail well; low heat/impact resistance.",
+      "good_for": ["prototypes", "indoor-decorative", "signage", "fine-detail", "low-strength"],
+      "notes": "Good default for prototypes, signage, and indoor decorative parts. Low heat resistance."
+    },
+    "pla_plus": {
+      "material_id": "pla_plus",
+      "display_name": "PLA+",
+      "category": "standard",
+      "typical_shrinkage_percent": 0.3,
+      "paintable": true,
+      "strength_class": "low_medium",
+      "surface_finish_notes": "Similar print behavior and detail fidelity to standard PLA; slightly tougher.",
+      "good_for": ["prototypes", "indoor-decorative", "signage", "fine-detail"],
+      "notes": "Slightly tougher than standard PLA, similar print behavior."
+    },
+    "petg": {
+      "material_id": "petg",
+      "display_name": "PETG",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.2,
+      "paintable": false,
+      "strength_class": "medium",
+      "surface_finish_notes": "More flexible/impact-resistant than PLA; glossier finish, paint adhesion is generally poor without prep.",
+      "good_for": ["functional", "impact-resistant", "outdoor-light", "replaceable-components"],
+      "notes": "More flexible and impact-resistant than PLA; better for outdoor or functional parts."
+    },
+    "abs": {
+      "material_id": "abs",
+      "display_name": "ABS",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.5,
+      "paintable": true,
+      "strength_class": "medium_high",
+      "surface_finish_notes": "Can be acetone vapor-smoothed; paints well after prep. Prone to warping without an enclosure.",
+      "good_for": ["engineering", "higher-heat", "paintable", "functional"],
+      "notes": "Higher heat resistance; more prone to warping. Requires enclosure for best results."
+    },
+    "asa": {
+      "material_id": "asa",
+      "display_name": "ASA",
+      "category": "engineering",
+      "typical_shrinkage_percent": 0.5,
+      "paintable": true,
+      "strength_class": "medium_high",
+      "surface_finish_notes": "Similar to ABS with better UV stability; paints well after prep.",
+      "good_for": ["outdoor", "uv-resistant", "automotive-exterior", "paintable", "engineering"],
+      "notes": "UV-resistant alternative to ABS; a reasonable default for outdoor/exterior parts (e.g. plate frames)."
+    },
+    "tpu": {
+      "material_id": "tpu",
+      "display_name": "TPU",
+      "category": "flexible",
+      "typical_shrinkage_percent": 0.4,
+      "paintable": false,
+      "strength_class": "flexible",
+      "surface_finish_notes": "Flexible/rubbery finish; not a paint-friendly surface.",
+      "good_for": ["flexible", "gaskets", "grips"],
+      "notes": "Flexible filament; use for gaskets, grips, or flexible connectors only."
+    }
+  },
+  "notes": [
+    "Shrinkage/paintability/strength values are typical/reference figures, not guarantees for a specific spool, printer, or post-processing method.",
+    "Material choice also affects clearance tolerances; see config/tolerances.json.",
+    "good_for tags are used by the deterministic planning decision engine (factory.manufacturing.decision_engine) as keyword-adjacent hints only - not a substitute for human material selection."
+  ]
+}

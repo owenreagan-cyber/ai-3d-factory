@@ -20,7 +20,7 @@ a schema in `schemas/`:
 |---|---|---|---|
 | Brief | `factory init-project <name>` | `brief.json` | `project_brief.schema.json` |
 | Plan | `factory plan <brief.json>` | `build_plan.json` | `build_plan.schema.json` |
-| Parts | (manual edit for now) | `part_manifest.json` | `part_manifest.schema.json` |
+| Parts | `factory plan` seeds it; `factory generate-openscad` fills in CAD-time fields; manual edit for the rest | `part_manifest.json` | `part_manifest.schema.json` |
 | Validation | `factory validate <mesh>` | `validation/*.json` | `validation_report.schema.json` |
 | Preview | `factory render <mesh>` | `renders/*.png` | n/a |
 | Slicer review | (human, in Bambu Studio/OrcaSlicer) | `slicer_review/*.json` | `slicer_review.schema.json` |
@@ -29,12 +29,17 @@ a schema in `schemas/`:
 
 - `factory/cli.py` — the Typer app; wires all commands, no business logic.
 - `factory/project_store.py` — repo/project paths, slugs, JSON read/write.
-- `factory/planner.py` — deterministic (non-AI) build-plan stub generator.
+- `factory/planner.py` — deterministic (non-AI) build-plan + manufacturing-advisor generator.
 - `factory/router.py` — deterministic keyword-based tool routing recommendation.
+- `factory/manufacturing/` — manufacturing knowledge base loader
+  (`knowledge.py`), deterministic manufacturing-option decision engine
+  (`decision_engine.py`), and planning-time part_manifest seeding
+  (`manifest.py`). See `docs/manufacturing-knowledge-base.md`.
 - `factory/validators/` — mesh geometry checks, dimension/build-volume fit,
   multi-part manifest sanity checks.
 - `factory/previews/` — trimesh + matplotlib preview rendering.
 - `factory/slicer/` — read-only local slicer discovery.
+- `factory/openscad/` — local, deterministic OpenSCAD source generation.
 
 ## Why local-first
 

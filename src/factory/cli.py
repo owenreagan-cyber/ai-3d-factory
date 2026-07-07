@@ -126,6 +126,19 @@ def plan(brief_path: Path = typer.Argument(..., help="Path to a project's brief.
     console.print(f"  primary_tool: {build_plan['tool_routing_recommendation']['primary_tool']}")
     console.print(f"  human_review_required: {build_plan['human_review_required']}")
 
+    target_printer = build_plan.get("target_printer") or {}
+    printer_label = target_printer.get("display_name") or "(unresolved)"
+    console.print(f"  target_printer: {printer_label} (resolved: {target_printer.get('resolved', False)})")
+
+    manufacturing_options = build_plan.get("manufacturing_options") or {}
+    if manufacturing_options:
+        console.print(
+            f"  manufacturing_options: {len(manufacturing_options.get('options', []))} explained, "
+            f"recommended: {manufacturing_options.get('recommended_option')!r} (not yet confirmed)"
+        )
+    for question in build_plan.get("unanswered_questions", []):
+        console.print(f"  [yellow]open question[/yellow]: {question}")
+
 
 @app.command(name="generate-openscad")
 def generate_openscad_cmd(
@@ -248,16 +261,109 @@ def report(project_dir: Path = typer.Argument(..., help="Path to a project direc
     console.print(f"[bold]project[/bold]: {project_dir}")
     console.print(f"  brief status: {brief.get('status', '(missing brief.json)') if brief else '(missing brief.json)'}")
     console.print(f"  build plan status: {build_plan.get('status', '(not planned)') if build_plan else '(missing build_plan.json)'}")
+
+    _print_target_printer_summary(build_plan)
+    _print_manufacturing_options_summary(build_plan)
+
+    manifest_checks = []
     console.print(f"  manifest parts: {len(manifest.get('parts', [])) if manifest else '(missing part_manifest.json)'}")
     if manifest:
-        for check in check_manifest(manifest, project_dir):
+        required_part_names = (
+            [p.get("part_name") for p in build_plan.get("required_parts", []) if p.get("part_name")]
+            if build_plan
+            else None
+        )
+        manifest_checks = check_manifest(manifest, project_dir, required_part_names=required_part_names)
+        for check in manifest_checks:
             console.print(f"    {_icon(check['status'])}  {check['name']}: {check['detail']}")
+
+    _print_manifest_and_multipart_summary(manifest, manifest_checks)
+
     console.print(f"  STL files: {len(stl_files)}")
     console.print(f"  renders: {len(render_files)}")
     console.print(f"  validation reports: {len(validation_files)} (clean: {has_clean_validation})")
+    _print_validation_summary(validation_reports)
     console.print(f"  slicer review packages: {len(slicer_review_files)}")
     console.print(f"  human approval on record: {human_approved}")
     console.print(f"\n[bold]current safe status[/bold]: {safe_status}")
+
+    _print_remaining_human_decisions(build_plan)
+
+    console.print("\nHuman slicer review required.")
+    console.print("Project is NOT print-ready.")
+
+
+def _print_target_printer_summary(build_plan: dict | None) -> None:
+    target_printer = (build_plan or {}).get("target_printer") or {}
+    if not target_printer:
+        console.print("  target printer: (not planned yet - run `factory plan`)")
+        return
+
+    display_name = target_printer.get("display_name") or "(unresolved)"
+    console.print(f"  target printer: {display_name} (resolved: {target_printer.get('resolved', False)})")
+
+    capabilities = target_printer.get("capabilities")
+    if not capabilities:
+        return
+
+    build_volume = capabilities.get("build_volume_mm") or {}
+    if build_volume:
+        console.print(
+            f"    build volume: {build_volume.get('x')} x {build_volume.get('y')} x {build_volume.get('z')} mm"
+            f" (verified: {capabilities.get('verified', False)})"
+        )
+    accessories = capabilities.get("installed_accessories") or []
+    if accessories:
+        names = ", ".join(a.get("display_name", "?") for a in accessories)
+        console.print(f"    installed accessories: {names}")
+    else:
+        console.print("    installed accessories: none")
+    console.print(f"    multicolor supported: {capabilities.get('multicolor_supported', False)}")
+
+
+def _print_manufacturing_options_summary(build_plan: dict | None) -> None:
+    manufacturing_options = (build_plan or {}).get("manufacturing_options") or {}
+    if not manufacturing_options:
+        return
+
+    options = manufacturing_options.get("options", [])
+    console.print(f"  manufacturing options ({len(options)} explained):")
+    for option in options:
+        availability = "" if option.get("available", True) else "  [not available for target printer]"
+        console.print(f"    - {option.get('display_name')}{availability}")
+
+    recommended = manufacturing_options.get("recommended_option")
+    selected = manufacturing_options.get("selected_manufacturing_option")
+    console.print(f"  recommended option: {recommended!r} (non-binding; selected: {selected!r})")
+
+
+def _print_manifest_and_multipart_summary(manifest: dict | None, manifest_checks: list[dict]) -> None:
+    parts = (manifest or {}).get("parts", [])
+    fail_count = sum(1 for c in manifest_checks if c["status"] == "FAIL")
+    warn_count = sum(1 for c in manifest_checks if c["status"] == "WARN")
+    console.print(
+        f"  manifest completeness: {len(manifest_checks)} check(s) run, {fail_count} FAIL, {warn_count} WARN"
+    )
+    console.print(f"  multipart summary: {len(parts)} part(s), multi-part: {len(parts) > 1}")
+
+
+def _print_validation_summary(validation_reports: list[dict]) -> None:
+    if not validation_reports:
+        return
+    fail_count = sum(1 for r in validation_reports if r.get("overall_status") == "FAIL")
+    warn_count = sum(1 for r in validation_reports if r.get("overall_status") == "WARN")
+    pass_count = len(validation_reports) - fail_count - warn_count
+    console.print(
+        f"    validation summary: {pass_count} PASS, {warn_count} WARN, {fail_count} FAIL "
+        f"across {len(validation_reports)} report(s)"
+    )
+
+
+def _print_remaining_human_decisions(build_plan: dict | None) -> None:
+    questions = (build_plan or {}).get("unanswered_questions", [])
+    console.print(f"\n[bold]remaining human decisions[/bold]: {len(questions)}")
+    for question in questions:
+        console.print(f"  [yellow]-[/yellow] {question}")
     console.print("Human approval is required before anything may be treated as print-ready. See AGENT.md.")
 
 

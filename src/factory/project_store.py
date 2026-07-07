@@ -14,6 +14,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
+MANUFACTURING_CONFIG_DIR = CONFIG_DIR / "manufacturing"
 SCHEMAS_DIR = REPO_ROOT / "schemas"
 PROJECTS_DIR = REPO_ROOT / "projects"
 

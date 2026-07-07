@@ -48,7 +48,32 @@
           "type": "string",
           "description": "The part's function in the assembly, e.g. 'base_plate', 'raised_letters', 'frame'."
         },
-        "required_for_assembly": { "type": "boolean" }
+        "required_for_assembly": { "type": "boolean" },
+        "source_scad": {
+          "type": "string",
+          "description": "Expected or actual path to this part's parametric CAD source, e.g. 'cad/nameplate.scad'."
+        },
+        "intended_material": {
+          "type": "string",
+          "description": "Planning-time intended material, set before CAD/export exists. May be a 'TBD' placeholder until a human confirms it."
+        },
+        "intended_color": {
+          "type": "string",
+          "description": "Planning-time intended color, set before CAD/export exists. May be a 'TBD' placeholder until a human confirms it."
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many copies of this part are needed."
+        },
+        "shared_origin": {
+          "type": "boolean",
+          "description": "Whether this part is modeled at a shared origin with other parts in the same assembly (see transform_notes)."
+        },
+        "export_expected": {
+          "type": "boolean",
+          "description": "Whether an STL export is expected for this part (true once planned, even before the file exists at file_path)."
+        }
       },
       "additionalProperties": true
     }

@@ -44,12 +44,20 @@ APIs. See `AGENT.md`.
 ```bash
 factory status                       # environment + safety status
 factory init-project my-part         # scaffold projects/my-part/
-factory plan projects/my-part/brief.json
+factory plan projects/my-part/brief.json   # printer-aware plan + manufacturing options
+factory generate-openscad projects/my-part --template test-cube
 factory validate path/to/model.stl
 factory render path/to/model.stl
 factory inspect-slicer               # read-only slicer discovery
-factory report projects/my-part
+factory report projects/my-part      # includes manufacturing summary + open decisions
 ```
+
+`factory plan` reads a local manufacturing knowledge base
+(`config/manufacturing/`: printers, materials, accessories, planning rules)
+to resolve the target printer, explain every manufacturing option (single
+piece vs. various multi-part approaches) with pros/cons, and recommend one -
+non-bindingly, always requiring explicit human confirmation. See
+`docs/manufacturing-knowledge-base.md`.
 
 ## Workflow
 
@@ -65,6 +73,7 @@ beyond that point; see `docs/safety-gates.md`.
 ```
 ai-3d-factory/
 ├── config/          # printers, materials, tolerances, agent policy
+│   └── manufacturing/  # printer fleet, accessories, materials, planning rules
 ├── docs/            # architecture, safety, tool routing, workflows
 ├── schemas/         # JSON Schemas for briefs/plans/manifests/reports
 ├── src/factory/     # the factory CLI package

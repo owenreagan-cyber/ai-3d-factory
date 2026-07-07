@@ -1,0 +1,127 @@
+{
+  "$schema_note": "Local manufacturing knowledge base: printer fleet reference data. Not read by any print/upload/network code path. Used only by factory plan / factory report to explain manufacturing options to a human - never to configure, discover, or connect to a printer. See docs/manufacturing-knowledge-base.md.",
+  "knowledge_base_version": "0.1.0",
+  "extensibility_note": "This fleet is expected to change over time (new printers, retired printers, moved accessories). Add/edit entries here directly for now; `factory add-printer` is planned (see docs/roadmap.md) to do this without hand-editing JSON, but is not implemented in Phase 3.",
+  "printers": {
+    "bambu_h2d": {
+      "printer_id": "bambu_h2d",
+      "display_name": "Bambu Lab H2D",
+      "unit_label": "H2D",
+      "manufacturer": "Bambu Lab",
+      "model": "H2D",
+      "verified": false,
+      "verification_note": "Build volume and nozzle fields below are cautious placeholders and have NOT been confirmed against the printer's official spec sheet or the physical unit. Verify before relying on these numbers for a hard go/no-go fit decision.",
+      "build_volume_mm": { "x": 350, "y": 320, "z": 325 },
+      "enclosed": true,
+      "default_nozzle_mm": 0.4,
+      "supported_nozzle_sizes_mm": [0.2, 0.4, 0.6, 0.8],
+      "default_build_plate": "build_plate_textured_pei",
+      "supported_build_plates": [
+        "build_plate_smooth_pei",
+        "build_plate_textured_pei",
+        "build_plate_engineering"
+      ],
+      "default_materials": ["pla", "petg"],
+      "supported_materials": ["pla", "pla_plus", "petg", "abs", "asa", "tpu"],
+      "multicolor_supported": true,
+      "ams_supported": true,
+      "installed_accessories": ["ams_2_pro"],
+      "preferred_job_types": [
+        "multicolor nameplates and signage",
+        "multi-material functional parts",
+        "large-format single parts"
+      ],
+      "notes": "Owen's primary printer. Dual-nozzle plus AMS 2 Pro gives it the fleet's best multicolor/multi-material capability."
+    },
+    "bambu_p1s_1": {
+      "printer_id": "bambu_p1s_1",
+      "display_name": "Bambu Lab P1S",
+      "unit_label": "P1S #1",
+      "manufacturer": "Bambu Lab",
+      "model": "P1S",
+      "verified": false,
+      "verification_note": "Build volume reflects the publicly published P1S spec sheet, not an independent measurement of this physical unit. Confirm before relying on it for a hard go/no-go fit decision.",
+      "build_volume_mm": { "x": 256, "y": 256, "z": 256 },
+      "enclosed": true,
+      "default_nozzle_mm": 0.4,
+      "supported_nozzle_sizes_mm": [0.2, 0.4, 0.6, 0.8],
+      "default_build_plate": "build_plate_textured_pei",
+      "supported_build_plates": [
+        "build_plate_smooth_pei",
+        "build_plate_textured_pei",
+        "build_plate_engineering"
+      ],
+      "default_materials": ["pla", "petg"],
+      "supported_materials": ["pla", "pla_plus", "petg", "abs", "asa", "tpu"],
+      "multicolor_supported": true,
+      "ams_supported": true,
+      "installed_accessories": ["ams_original"],
+      "preferred_job_types": [
+        "multicolor nameplates and signage",
+        "general-purpose functional parts"
+      ],
+      "notes": "First of two P1S units, each with an original AMS installed."
+    },
+    "bambu_p1s_2": {
+      "printer_id": "bambu_p1s_2",
+      "display_name": "Bambu Lab P1S",
+      "unit_label": "P1S #2",
+      "manufacturer": "Bambu Lab",
+      "model": "P1S",
+      "verified": false,
+      "verification_note": "Build volume reflects the publicly published P1S spec sheet, not an independent measurement of this physical unit. Confirm before relying on it for a hard go/no-go fit decision.",
+      "build_volume_mm": { "x": 256, "y": 256, "z": 256 },
+      "enclosed": true,
+      "default_nozzle_mm": 0.4,
+      "supported_nozzle_sizes_mm": [0.2, 0.4, 0.6, 0.8],
+      "default_build_plate": "build_plate_textured_pei",
+      "supported_build_plates": [
+        "build_plate_smooth_pei",
+        "build_plate_textured_pei",
+        "build_plate_engineering"
+      ],
+      "default_materials": ["pla", "petg"],
+      "supported_materials": ["pla", "pla_plus", "petg", "abs", "asa", "tpu"],
+      "multicolor_supported": true,
+      "ams_supported": true,
+      "installed_accessories": ["ams_original"],
+      "preferred_job_types": [
+        "multicolor nameplates and signage",
+        "general-purpose functional parts"
+      ],
+      "notes": "Second of two P1S units, each with an original AMS installed. Useful for running a second job/material combination in parallel with P1S #1."
+    },
+    "elegoo_centauri_carbon": {
+      "printer_id": "elegoo_centauri_carbon",
+      "display_name": "Elegoo Centauri Carbon",
+      "unit_label": "Centauri Carbon",
+      "manufacturer": "Elegoo",
+      "model": "Centauri Carbon",
+      "verified": false,
+      "verification_note": "Build volume reflects the publicly published spec sheet, not an independent measurement of this physical unit. Confirm before relying on it for a hard go/no-go fit decision.",
+      "build_volume_mm": { "x": 256, "y": 256, "z": 256 },
+      "enclosed": true,
+      "default_nozzle_mm": 0.4,
+      "supported_nozzle_sizes_mm": [0.4],
+      "default_build_plate": "build_plate_smooth_pei",
+      "supported_build_plates": ["build_plate_smooth_pei"],
+      "default_materials": ["pla", "petg"],
+      "supported_materials": ["pla", "pla_plus", "petg", "abs"],
+      "multicolor_supported": false,
+      "ams_supported": false,
+      "installed_accessories": [],
+      "preferred_job_types": [
+        "single-color functional parts",
+        "engineering test prints"
+      ],
+      "notes": "No AMS currently installed - do not assume multicolor capability for jobs planned on this printer unless the fleet configuration above is updated. Elegoo's AMS-equivalent ecosystem is not compatible with Bambu AMS/AMS 2 Pro units."
+    }
+  },
+  "primary_printer": "bambu_h2d",
+  "notes": [
+    "This file is local reference data for manufacturing planning and dimension sanity checks only.",
+    "It is never used to send print jobs, discover printers over LAN/USB, connect to a printer, or connect to any manufacturer cloud.",
+    "Always verify printer specs against the manufacturer/physical unit before trusting a hard pass/fail on build volume.",
+    "This fleet list is expected to change; add, remove, or edit printer entries here as hardware changes rather than assuming it is fixed."
+  ]
+}
