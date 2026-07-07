@@ -28,9 +28,16 @@ call them:
   review after generation. `factory check-future-tools` (read-only)
   reports its current, always-disabled gate status from
   `../../../config/future_cloud_tools.json`.
-- **Blender** requires the "Blender local repair/render track" (not yet
-  phase-numbered - see `../../../docs/roadmap.md`) - a future local,
-  non-interactive automation pass, no add-ons, no MCP.
+- **Blender** requires the full gate documented in
+  `../../../docs/blender-local-track.md` (planned in Phase 21, not
+  implemented) - explicit human approval, a local Blender path/version
+  check, dry-run mode, output directory isolation, no overwriting
+  original meshes, provenance metadata, and before/after
+  validation/render. `factory check-local-tools` (read-only) reports its
+  current, always-disabled gate status from
+  `../../../config/future_local_tools.json`. This is the (not yet
+  phase-numbered) "Blender local repair/render track" - see
+  `../../../docs/roadmap.md`.
 
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this

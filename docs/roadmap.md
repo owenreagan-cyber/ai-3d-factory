@@ -595,6 +595,43 @@ track names (not numbers) for unscheduled future work.
 implementation - this phase only changes how future work is *labeled*,
 not what exists.
 
+## Phase 21 — Blender local track planning scaffold (started)
+
+Plans (but does not implement) the "Blender local repair/render track" -
+mirroring how Phase 16 planned the Meshy approval/cost gate before any
+Meshy code existed. No Blender execution, automation, add-ons, or MCP.
+See `docs/blender-local-track.md`.
+
+**Started:** `docs/blender-local-track.md` documents the full required
+future gate checklist (explicit human approval to enable Blender
+automation, a local Blender path/version check, dry-run mode, output
+directory isolation, no overwriting original meshes, repaired-mesh
+provenance metadata, before/after validation reports, before/after
+render previews, continued `review-gate`/human slicer review, and no
+slicer/printer communication) and the intended future uses (local mesh
+repair planning, higher-quality local renders, exploded/multipart
+assembly views, organic-model cleanup after a future Meshy pass -
+always local, never cloud). `config/future_local_tools.json` is a local,
+non-secret policy scaffold recording Blender's gate state (`enabled:
+false`, `status: "future_track_required"`, `local_blender_path: null` -
+this repo never reads or stores the user's actual installed Blender
+path) - no subprocess call, no `/Applications` scan, no add-on/MCP
+config. `factory check-local-tools` (`factory/future_local_tools.py`) is
+a small, read-only, additive command that reports this state; it never
+launches Blender, never searches for an installed Blender, and never
+enables anything. `examples/future-organic-models/{car-concept,
+animal-concept,human-figure-study}/` (Phase 14) now each reference this
+gate directly from their `README.md` and `concept_brief.json`, alongside
+the existing Meshy references.
+
+**Not yet started:** any actual Blender invocation, add-on, MCP
+configuration, mesh repair, or render logic - none of the approvals the
+checklist requires have been granted, and this phase deliberately grants
+none of them. `config/future_local_tools.json`'s `enabled` flag stays
+`false` until a human edits it as a separate, explicit, reviewed
+decision. The "Blender local repair/render track" below remains
+unscheduled - this phase only wrote its required gate down in advance.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide
@@ -619,7 +656,11 @@ starting this track.
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity
 preview renders, as a local subprocess call — no Blender add-ons, no
-Blender MCP.
+Blender MCP. The full required gate this track must satisfy before
+implementation was written down in advance in Phase 21
+(`docs/blender-local-track.md`); `config/future_local_tools.json`'s
+`blender.enabled` stays `false` until a human flips it as a separate,
+explicit, reviewed decision - not as part of starting this track.
 
 ### 3MF packaging experiments track
 

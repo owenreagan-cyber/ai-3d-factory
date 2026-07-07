@@ -20,6 +20,7 @@ from factory.cad import cadquery_backend
 from factory.cad.router import route_cad
 from factory.examples_library import UnknownExampleError, get_example, list_examples
 from factory.future_cloud_tools import list_future_cloud_tools
+from factory.future_local_tools import list_future_local_tools
 from factory.manufacturing import knowledge
 from factory.manufacturing.check import check_manufacturing_knowledge_base
 from factory.manufacturing.inspect import (
@@ -91,6 +92,7 @@ AVAILABLE_COMMANDS = (
     "list-examples",
     "show-example <example_name>",
     "check-future-tools",
+    "check-local-tools",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -961,6 +963,35 @@ def check_future_tools_cmd() -> None:
         "\nThis command only reads config/future_cloud_tools.json - it did not contact any network, "
         "read .env, validate credentials, install a dependency, or enable anything. See "
         "docs/meshy-approval-gate.md."
+    )
+
+
+@app.command(name="check-local-tools")
+def check_local_tools_cmd() -> None:
+    """Read-only report of future local (non-cloud) tool gates (e.g. Blender). Never launches a
+    tool, never searches for an installed application, never calls subprocess, never installs or
+    enables anything. See docs/blender-local-track.md."""
+    tools = list_future_local_tools()
+    console.print(f"[bold]future local tools[/bold] ({len(tools)}):")
+    for tool in tools:
+        enabled = tool.get("enabled", False)
+        gate_marker = "[red]ENABLED[/red]" if enabled else "[green]disabled (gated - safe default)[/green]"
+        console.print(f"\n[bold]{tool['tool_id']}[/bold]  {gate_marker}")
+        console.print(f"  status: {tool.get('status')}")
+        console.print(f"  local_blender_path: {tool.get('local_blender_path')}")
+        console.print(f"  requires_explicit_human_approval: {tool.get('requires_explicit_human_approval')}")
+        console.print(f"  requires_local_path_review: {tool.get('requires_local_path_review')}")
+        console.print(f"  allows_automation: {tool.get('allows_automation')}")
+        console.print(f"  allows_addons: {tool.get('allows_addons')}")
+        console.print(f"  allows_mcp: {tool.get('allows_mcp')}")
+        console.print(f"  allows_printer_or_slicer_calls: {tool.get('allows_printer_or_slicer_calls')}")
+        for note in tool.get("notes", []):
+            console.print(f"  note: {note}")
+
+    console.print(
+        "\nThis command only reads config/future_local_tools.json - it did not launch a tool, "
+        "search for an installed application, call subprocess, install a dependency, or enable "
+        "anything. See docs/blender-local-track.md."
     )
 
 

@@ -1,0 +1,37 @@
+{
+  "$schema_note": "Local, non-secret policy scaffold for future local (non-cloud) tool integrations. No local filesystem paths, installed-application discovery results, or real secrets belong in this file - see docs/blender-local-track.md and AGENT.md. Read-only from `factory`'s point of view: no command in this repo enables, launches, or automates any tool listed here.",
+  "version": 1,
+  "tools": {
+    "blender": {
+      "enabled": false,
+      "status": "future_track_required",
+      "category": "mesh_repair_and_render",
+      "local_blender_path": null,
+      "requires_explicit_human_approval": true,
+      "requires_local_path_review": true,
+      "requires_dry_run_mode": true,
+      "requires_output_directory_isolation": true,
+      "requires_provenance_metadata": true,
+      "requires_before_after_validation": true,
+      "requires_before_after_render": true,
+      "allows_automation": false,
+      "allows_addons": false,
+      "allows_mcp": false,
+      "allows_background_execution": false,
+      "allows_automatic_repair_acceptance": false,
+      "allows_automatic_render_trust": false,
+      "allows_automatic_print_readiness": false,
+      "allows_automatic_human_approved": false,
+      "allows_printer_or_slicer_calls": false,
+      "allows_overwriting_original_meshes": false,
+      "notes": [
+        "Not implemented in this repo. This entry only records the gate a future implementation must satisfy.",
+        "local_blender_path is intentionally null - this repo never reads or stores the user's actual installed Blender path.",
+        "Every use requires a separate, explicit, human-initiated approval - never a default or inferred one.",
+        "See docs/blender-local-track.md for the full required future gate checklist.",
+        "Blender-repaired or Blender-rendered output still requires factory validate, factory render, factory review-gate, and human slicer review before it may be treated as human_approved - same pipeline as every other part.",
+        "review-gate remains required and this track never contacts a printer or slicer."
+      ]
+    }
+  }
+}

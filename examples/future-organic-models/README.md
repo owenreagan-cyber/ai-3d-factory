@@ -46,6 +46,21 @@ read-only via `factory check-future-tools`. **This is a design document
 and a config scaffold only** - no Meshy code, API key, SDK, or network
 call was added to build it.
 
+### The Blender track itself is now planned (Phase 21), not implemented
+
+`docs/blender-local-track.md` documents the full required future gate
+checklist a future phase must satisfy before any Blender automation may
+be added - explicit human approval, a local Blender path/version check,
+dry-run mode, output directory isolation, no overwriting original
+meshes, repaired-mesh provenance metadata, before/after validation
+reports, before/after render previews, and continued `review-gate`/human
+slicer review. `config/future_local_tools.json` records Blender's current
+state (`enabled: false`, `status: "future_track_required"`, no local
+Blender path stored), inspectable read-only via `factory
+check-local-tools`. **This is a planning document and a config scaffold
+only** - no Blender automation, add-on, MCP configuration, or execution
+was added to build it.
+
 ## Why `concept_brief.json`, not `brief.json`
 
 Every command that treats a directory as a real project

@@ -110,6 +110,14 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   credentials, never makes a network call, and never enables anything -
   it only reports what's already recorded as disabled/future-gated. See
   `docs/meshy-approval-gate.md`.
+- `factory/future_local_tools.py` — the same pattern as
+  `future_cloud_tools.py`, for future *local* (non-cloud) tool
+  integrations (currently just Blender): reads `config/
+  future_local_tools.json` (`list_future_local_tools()`/
+  `get_future_local_tool()`) and reports each tool's gate status. Never
+  launches a tool, never searches the filesystem for an installed
+  application, never calls `subprocess`, and never enables anything. See
+  `docs/blender-local-track.md`.
 
 ### Shared inspection layer (Phase 13)
 

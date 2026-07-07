@@ -31,7 +31,8 @@ whenever a phase completes.
 | 17 | Fix example test side effect | a1b1116 | complete | Stopped `preview-project` tests from mutating committed `examples/`. |
 | 18 | Guard tests from mutating committed examples | a5d02c3 | complete | `tests/test_examples_write_safety.py` static guard. |
 | 19 | Storage bin lid example project | c1895ad | complete | `examples/storage-bin-lid/`. |
-| 20 | Roadmap numbering and phase registry cleanup | (this phase) | complete | This document; roadmap numbering policy; future tracks unnumbered. |
+| 20 | Roadmap numbering and phase registry cleanup | 5ed4f1f | complete | This document; roadmap numbering policy; future tracks unnumbered. |
+| 21 | Blender local track planning scaffold | (this phase) | complete | `docs/blender-local-track.md`, `config/future_local_tools.json`, `factory check-local-tools`. Planning only - no Blender implementation. |
 
 ## Future tracks (not phase-numbered)
 
