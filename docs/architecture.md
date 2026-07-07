@@ -26,6 +26,12 @@ a schema in `schemas/`:
 | Preview | `factory render <mesh>` | `renders/*.png` | n/a |
 | Slicer review | (human, in Bambu Studio/OrcaSlicer) | `slicer_review/*.json` | `slicer_review.schema.json` |
 
+`factory list-printers`/`show-printer`/`list-accessories`/`show-accessory`/
+`list-materials`/`show-material`/`fleet-summary`/`check-manufacturing` sit
+outside this per-project flow: they read `config/manufacturing/*.json`
+directly (not a `projects/<slug>/` file) and never write anything - see
+`docs/manufacturing-knowledge-base.md`.
+
 ## Package layout
 
 - `factory/cli.py` — the Typer app; wires all commands, no business logic.
@@ -35,8 +41,9 @@ a schema in `schemas/`:
 - `factory/manufacturing/` — manufacturing knowledge base loader
   (`knowledge.py`), deterministic manufacturing-option decision engine
   (`decision_engine.py`), planning-time part_manifest seeding and
-  assembly-intent computation (`manifest.py`), and the human
-  option-selection workflow (`selection.py`). See
+  assembly-intent computation (`manifest.py`), the human option-selection
+  workflow (`selection.py`), read-only knowledge lookups (`inspect.py`), and
+  knowledge-base internal-consistency validation (`check.py`). See
   `docs/manufacturing-knowledge-base.md`.
 - `factory/validators/` — mesh geometry checks, dimension/build-volume fit,
   multi-part manifest sanity checks.

@@ -54,6 +54,10 @@ def get_accessory(accessory_id: str) -> dict[str, Any] | None:
     return load_accessories().get(accessory_id)
 
 
+def get_material(material_id: str) -> dict[str, Any] | None:
+    return load_materials().get(material_id)
+
+
 def _tokens(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
 

@@ -42,10 +42,17 @@ def test_tolerances_do_not_use_a_single_universal_value():
 
 
 def test_printer_config_flags_unverified_build_volume():
-    printers = project_store.load_json(project_store.CONFIG_DIR / "printers.json")
+    printers = project_store.load_json(project_store.MANUFACTURING_CONFIG_DIR / "printers.json")
     primary = printers["printers"][printers["primary_printer"]]
     assert "verified" in primary
     assert "verification_note" in primary
+
+
+def test_legacy_config_printers_json_no_longer_exists():
+    # config/manufacturing/printers.json is the sole canonical printer source
+    # (Phase 5); the old single-printer config/printers.json must not come back
+    # as a second, competing source of truth.
+    assert not (project_store.CONFIG_DIR / "printers.json").is_file()
 
 
 def test_no_real_env_file_committed():

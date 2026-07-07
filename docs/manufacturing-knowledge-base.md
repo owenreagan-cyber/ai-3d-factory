@@ -1,4 +1,4 @@
-# Manufacturing knowledge base (Phase 3/4)
+# Manufacturing knowledge base (Phase 3/4/5)
 
 `config/manufacturing/` is a local, hand-maintained reference database that
 `factory plan` and `factory report` read to give printer-aware, explained
@@ -15,11 +15,19 @@ See `AGENT.md` and `docs/safety-gates.md` for the boundaries this respects.
 | `config/manufacturing/accessories.json` | The accessory catalog: AMS/AMS 2 Pro, build plates, nozzle sizes. Each accessory declares the capabilities it *adds* (e.g. AMS adds `multicolor`). |
 | `config/manufacturing/planning_rules.json` | The manufacturing-option catalog (single-piece, multipart variants, replaceable components) with advantages/disadvantages and keyword hints, plus the list of decision factors the engine considers. |
 
-`config/printers.json` and `config/materials.json` (no `manufacturing/`
-subdirectory) still exist unchanged from Phase 0/1 and are still used by
-`factory validate`'s build-volume-fit check against a single "primary
-printer". The two systems aren't merged yet - see **Future extensibility**
-below.
+**`config/manufacturing/printers.json` is the sole canonical printer source**
+(Phase 5). The old Phase 0/1 `config/printers.json` has been removed -
+`factory validate`'s build-volume-fit check now reads its "primary printer"
+from `config/manufacturing/printers.json`'s `primary_printer` field via
+`factory.manufacturing.knowledge.get_primary_printer_id()`/`get_printer()`,
+the same functions every other manufacturing command uses. There is exactly
+one printer source in this repo now, not two competing ones.
+
+`config/materials.json` (no `manufacturing/` subdirectory) still exists
+unchanged from Phase 0/1 as a simpler reference file; it is not read by any
+Phase 3+ manufacturing code path. Reconciling it with
+`config/manufacturing/materials.json` is still a **Future extensibility**
+item below.
 
 ## Printer profiles
 
@@ -30,8 +38,9 @@ capability fields (`build_volume_mm`, `multicolor_supported`,
 `supported_materials`, ...), and `installed_accessories` - a list of
 accessory IDs currently attached, hand-maintained by a human as hardware
 changes. Every printer also carries a `verified: false/true` flag with a
-`verification_note`, the same pattern Phase 0/1 used in `config/printers.json`:
-treat unverified numbers as advisory placeholders, not a hard go/no-go.
+`verification_note`, the same pattern Phase 0/1's (now-removed)
+`config/printers.json` used: treat unverified numbers as advisory
+placeholders, not a hard go/no-go.
 
 The fleet as configured today: a Bambu Lab H2D (with AMS 2 Pro), two Bambu
 Lab P1S units (each with an original AMS), and an Elegoo Centauri Carbon (no
@@ -168,6 +177,69 @@ status" still tops out at `slicer_review_ready` and always ends with "Human
 slicer review required." / "Project is NOT print-ready." - see
 `docs/safety-gates.md`.
 
+## Knowledge inspection commands (Phase 5)
+
+Seven read-only commands make the knowledge base directly inspectable
+without opening JSON files, for a human today and for a future UI/launcher
+(see `docs/product-vision.md`) tomorrow. All seven only read
+`config/manufacturing/*.json`: none writes a file, modifies project state,
+contacts a printer/slicer, or touches the network - see
+`factory.manufacturing.inspect`.
+
+| Command | Shows |
+|---|---|
+| `factory list-printers` | Every printer's full detail (id, manufacturer/model, build volume, installed accessories, AMS/multicolor capability, supported materials, preferred job types, notes). |
+| `factory show-printer <printer_id>` | The same detail for one printer; errors clearly (exit 1) if the id is unknown, listing valid ids. |
+| `factory list-accessories` | Every accessory (id, type/category, capabilities it adds, compatible models, notes). |
+| `factory show-accessory <accessory_id>` | The same detail for one accessory; errors clearly if unknown. |
+| `factory list-materials` | Every material (id, type/category, recommended uses, notes). |
+| `factory show-material <material_id>` | The same detail for one material, plus paintability/strength class; errors clearly if unknown. |
+| `factory fleet-summary` | A compact, one-line-per-printer view of all four printers - build volume, installed accessories, multicolor capability, verified flag. |
+
+## Manufacturing config validation (Phase 5)
+
+**`factory check-manufacturing`** validates that
+`config/manufacturing/*.json` is internally consistent - it does not check
+against a live printer or the network. It reports PASS/WARN/FAIL per check
+(see `factory.manufacturing.check`):
+
+- **FAIL** (structurally broken config): a `*.json` file fails to load;
+  duplicate `printer_id`/`accessory_id`/`material_id` values; a printer
+  entry's own id field doesn't match its JSON key; a printer is missing one
+  of the required printer fields; a non-positive/invalid build volume or
+  nozzle size; a printer's `installed_accessories` references an accessory
+  id that doesn't exist; `primary_printer` doesn't match any printer id.
+- **WARN** (softer, non-blocking): a printer's `supported_materials`
+  references a material id not (yet) in `materials.json`;
+  `planning_rules.json`'s manufacturing-option ids don't match
+  `factory.manufacturing.decision_engine`'s known set.
+
+Missing optional fields (e.g. `notes`) never fail a check. Run this after
+hand-editing any `config/manufacturing/*.json` file, and before relying on
+`factory plan`/`list-options`/`fleet-summary` output for a new printer or
+accessory.
+
+## Capability vs. current setup
+
+`config/manufacturing/printers.json` describes what a printer **can do**
+(its fixed capabilities: build volume, supported nozzle sizes/materials,
+which accessories it supports). It deliberately does not describe what's
+loaded on it *right now* (which nozzle is actually mounted, which filament
+color is in which AMS slot, how much is left on a spool) - that would go
+stale immediately and isn't needed for the planning/decision-engine work
+this repo does today.
+
+`config/manufacturing/fleet_state.example.json` is a documented, example-only
+structure for that *current setup* tracking, if a future phase wants it:
+per-printer `installed_nozzle_mm`, `installed_build_plate`,
+`loaded_materials` (per AMS/spool slot), `available_spool_slots`, freeform
+`notes`, and `last_updated_by_human`. **This is not live data and not read
+by any `factory` command in Phase 5.** It is human-maintained (or, in the
+future, editable by a launcher/UI - see `docs/product-vision.md`) - nothing
+here polls, discovers, or connects to a printer to populate it. Copy it to
+`fleet_state.json` and edit by hand if you want to start tracking this
+yourself; the planner does not depend on that file existing.
+
 ## Future extensibility
 
 New printers, accessories, and materials can be added by editing the JSON
@@ -179,9 +251,10 @@ implemented (see `docs/roadmap.md`):
   entries without hand-editing JSON.
 - Additional accessory categories (filament dryers, cameras, laser/cutter
   modules) and additional printer models, as the fleet changes.
-- Reconciling `config/printers.json`/`config/materials.json` (Phase 0/1,
-  single-printer) with `config/manufacturing/` (Phase 3, fleet-aware) into
-  one system.
+- Reconciling `config/materials.json` (Phase 0/1, simpler) with
+  `config/manufacturing/materials.json` (Phase 3+, richer) into one system -
+  `config/printers.json` was this same kind of duplication and was already
+  resolved in Phase 5 (see above).
 - Automatically proposing a `required_parts` breakdown once a human confirms
   a multi-part `manufacturing_option`, instead of leaving that as a manual
   follow-up step.

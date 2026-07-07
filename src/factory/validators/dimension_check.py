@@ -1,8 +1,10 @@
 """Build-volume fit check against local printer config.
 
 This never produces a hard FAIL by itself when the printer spec is marked
-unverified in config/printers.json - only WARN. Treat this as advisory,
-not authoritative. See config/printers.json verification_note.
+unverified in config/manufacturing/printers.json (the canonical printer
+source - see docs/manufacturing-knowledge-base.md) - only WARN. Treat this
+as advisory, not authoritative. See that file's per-printer
+verification_note.
 """
 
 from __future__ import annotations

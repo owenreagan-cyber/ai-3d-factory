@@ -1,0 +1,25 @@
+{
+  "$schema_note": "EXAMPLE ONLY - not live hardware data, not read by any factory command yet. Copy to fleet_state.json and edit by hand if/when you want to track each printer's current physical setup (as opposed to what it's capable of - see printers.json). This file is never populated by hardware discovery: nothing in this repo scans a network, a USB port, or a printer's own status API to fill it in. A human (today) or a future launcher/UI (see docs/product-vision.md) edits it directly.",
+  "fleet_state_version": "0.1.0",
+  "printers": {
+    "bambu_h2d": {
+      "printer_id": "bambu_h2d",
+      "installed_nozzle_mm": 0.4,
+      "installed_build_plate": "build_plate_textured_pei",
+      "loaded_materials": [
+        { "slot": "ams_2_pro_slot_1", "material_id": "pla", "color": "white", "spool_remaining_percent": 80 },
+        { "slot": "ams_2_pro_slot_2", "material_id": "pla", "color": "black", "spool_remaining_percent": 45 }
+      ],
+      "available_spool_slots": 2,
+      "notes": "Example row only - not this printer's real current state.",
+      "last_updated_by_human": "Owen",
+      "last_updated_at": "2026-01-01T00:00:00Z"
+    }
+  },
+  "notes": [
+    "This is a human-maintained snapshot of current setup, distinct from printers.json's fixed capabilities.",
+    "installed_nozzle_mm/installed_build_plate must be one of the printer's supported_nozzle_sizes_mm/supported_build_plates in config/manufacturing/printers.json - this file doesn't currently cross-check that (no code reads this file yet).",
+    "This does not connect to, discover, or poll any printer. Update it by hand (or via a future launcher/UI) whenever you physically change a nozzle, plate, or loaded spool.",
+    "factory.manufacturing planning code does not read this file (Phase 5) - it exists as a documented, ready-to-use structure for a future phase to opt into, not a live dependency today."
+  ]
+}

@@ -15,6 +15,20 @@ import typer
 from rich.console import Console
 
 from factory import project_store
+from factory.manufacturing import knowledge
+from factory.manufacturing.check import check_manufacturing_knowledge_base
+from factory.manufacturing.inspect import (
+    UnknownAccessoryError,
+    UnknownMaterialError,
+    UnknownPrinterError,
+    fleet_summary,
+    get_accessory_or_raise,
+    get_material_or_raise,
+    get_printer_or_raise,
+    list_accessories,
+    list_materials,
+    list_printers,
+)
 from factory.manufacturing.manifest import compute_assembly_intent
 from factory.manufacturing.selection import (
     NEW_STATUS_AFTER_SELECTION,
@@ -44,6 +58,14 @@ AVAILABLE_COMMANDS = (
     "plan <brief.json>",
     "list-options <project_dir>",
     "choose-option <project_dir> <option_id>",
+    "list-printers",
+    "show-printer <printer_id>",
+    "list-accessories",
+    "show-accessory <accessory_id>",
+    "list-materials",
+    "show-material <material_id>",
+    "fleet-summary",
+    "check-manufacturing",
     "generate-openscad <project_dir> --template <name> [--text ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
@@ -59,18 +81,23 @@ def _icon(status: str) -> str:
 
 
 def _load_primary_printer() -> dict | None:
-    printers_path = project_store.CONFIG_DIR / "printers.json"
-    if not printers_path.is_file():
+    """Return the manufacturing knowledge base's primary printer, if configured.
+
+    config/manufacturing/printers.json is the sole canonical printer source
+    (see docs/manufacturing-knowledge-base.md); there is no separate
+    config/printers.json to fall back to.
+    """
+    primary_id = knowledge.get_primary_printer_id()
+    if not primary_id:
         return None
-    data = project_store.load_json(printers_path)
-    primary = data.get("primary_printer")
-    return data.get("printers", {}).get(primary)
+    return knowledge.get_printer(primary_id)
 
 
 @app.command()
 def status() -> None:
     """Print repo/environment status and safety posture."""
-    config_files = ["printers.json", "materials.json", "tolerances.json", "agent_policy.json"]
+    config_files = ["materials.json", "tolerances.json", "agent_policy.json"]
+    manufacturing_config_files = ["printers.json", "materials.json", "accessories.json", "planning_rules.json"]
     schema_files = [
         "project_brief.schema.json",
         "build_plan.schema.json",
@@ -86,6 +113,11 @@ def status() -> None:
     for name in config_files:
         exists = (project_store.CONFIG_DIR / name).is_file()
         console.print(f"  {_icon('PASS') if exists else _icon('FAIL')}  config/{name}")
+
+    console.print("[bold]manufacturing config files[/bold]:")
+    for name in manufacturing_config_files:
+        exists = (project_store.MANUFACTURING_CONFIG_DIR / name).is_file()
+        console.print(f"  {_icon('PASS') if exists else _icon('FAIL')}  config/manufacturing/{name}")
 
     console.print("[bold]schema files[/bold]:")
     for name in schema_files:
@@ -222,6 +254,158 @@ def choose_option_cmd(
         "\nThis only recorded your choice in build_plan.json/part_manifest.json - it did not generate or "
         "modify CAD, export an STL, invoke OpenSCAD, or contact any printer/slicer/network."
     )
+
+
+def _print_printer_detail(printer: dict) -> None:
+    capabilities = knowledge.printer_capabilities(printer)
+    console.print(f"[bold]{printer.get('printer_id')}[/bold] - {printer.get('display_name')}")
+    console.print(f"  manufacturer/model: {printer.get('manufacturer')} / {printer.get('model')}")
+    build_volume = printer.get("build_volume_mm") or {}
+    console.print(
+        f"  build volume: {build_volume.get('x')} x {build_volume.get('y')} x {build_volume.get('z')} mm "
+        f"(verified: {printer.get('verified', False)})"
+    )
+    accessory_names = [a.get("display_name", "?") for a in capabilities["installed_accessories"]]
+    console.print(f"  installed accessories: {', '.join(accessory_names) if accessory_names else 'none'}")
+    console.print(
+        f"  AMS supported: {printer.get('ams_supported', False)}  |  "
+        f"multicolor capable: {capabilities['multicolor_supported']}"
+    )
+    console.print(f"  supported materials: {', '.join(printer.get('supported_materials', [])) or 'none listed'}")
+    console.print(f"  preferred job types: {', '.join(printer.get('preferred_job_types', [])) or 'none listed'}")
+    if printer.get("notes"):
+        console.print(f"  notes: {printer['notes']}")
+
+
+@app.command(name="list-printers")
+def list_printers_cmd() -> None:
+    """List every printer in the manufacturing knowledge base (read-only)."""
+    printers = list_printers()
+    console.print(f"[bold]printers[/bold] ({len(printers)}):")
+    for printer in printers:
+        console.print("")
+        _print_printer_detail(printer)
+    console.print("\nThis command only reads config/manufacturing/printers.json - no hardware was contacted.")
+
+
+@app.command(name="show-printer")
+def show_printer_cmd(printer_id: str = typer.Argument(..., help="A printer id from `factory list-printers`")) -> None:
+    """Show full detail for one printer (read-only)."""
+    try:
+        printer = get_printer_or_raise(printer_id)
+    except UnknownPrinterError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    _print_printer_detail(printer)
+
+
+@app.command(name="list-accessories")
+def list_accessories_cmd() -> None:
+    """List every accessory in the manufacturing knowledge base (read-only)."""
+    accessories = list_accessories()
+    console.print(f"[bold]accessories[/bold] ({len(accessories)}):")
+    for accessory in accessories:
+        console.print(f"\n[bold]{accessory.get('accessory_id')}[/bold] - {accessory.get('display_name')}")
+        console.print(f"  type: {accessory.get('category', 'unknown')}")
+        console.print(f"  adds capabilities: {', '.join(accessory.get('adds_capabilities', [])) or 'none listed'}")
+        compatible = accessory.get("compatible_models") or accessory.get("compatible_manufacturers")
+        if compatible:
+            console.print(f"  compatible: {', '.join(compatible)}")
+        if accessory.get("notes"):
+            console.print(f"  notes: {accessory['notes']}")
+    console.print("\nThis command only reads config/manufacturing/accessories.json - no hardware was contacted.")
+
+
+@app.command(name="show-accessory")
+def show_accessory_cmd(
+    accessory_id: str = typer.Argument(..., help="An accessory id from `factory list-accessories`"),
+) -> None:
+    """Show full detail for one accessory (read-only)."""
+    try:
+        accessory = get_accessory_or_raise(accessory_id)
+    except UnknownAccessoryError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[bold]{accessory.get('accessory_id')}[/bold] - {accessory.get('display_name')}")
+    console.print(f"  type: {accessory.get('category', 'unknown')}")
+    console.print(f"  manufacturer: {accessory.get('manufacturer', 'unspecified')}")
+    console.print(f"  adds capabilities: {', '.join(accessory.get('adds_capabilities', [])) or 'none listed'}")
+    compatible = accessory.get("compatible_models") or accessory.get("compatible_manufacturers")
+    console.print(f"  compatible: {', '.join(compatible) if compatible else 'not specified'}")
+    if accessory.get("notes"):
+        console.print(f"  notes: {accessory['notes']}")
+
+
+@app.command(name="list-materials")
+def list_materials_cmd() -> None:
+    """List every material in the manufacturing knowledge base (read-only)."""
+    materials = list_materials()
+    console.print(f"[bold]materials[/bold] ({len(materials)}):")
+    for material in materials:
+        console.print(f"\n[bold]{material.get('material_id')}[/bold] - {material.get('display_name')}")
+        console.print(f"  type: {material.get('category', 'unknown')}")
+        console.print(f"  recommended use (good_for): {', '.join(material.get('good_for', [])) or 'none listed'}")
+        if material.get("notes"):
+            console.print(f"  notes: {material['notes']}")
+    console.print("\nThis command only reads config/manufacturing/materials.json - no hardware was contacted.")
+
+
+@app.command(name="show-material")
+def show_material_cmd(
+    material_id: str = typer.Argument(..., help="A material id from `factory list-materials`"),
+) -> None:
+    """Show full detail for one material (read-only)."""
+    try:
+        material = get_material_or_raise(material_id)
+    except UnknownMaterialError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[bold]{material.get('material_id')}[/bold] - {material.get('display_name')}")
+    console.print(f"  type: {material.get('category', 'unknown')}")
+    console.print(f"  recommended use (good_for): {', '.join(material.get('good_for', [])) or 'none listed'}")
+    console.print(f"  paintable: {material.get('paintable', 'unspecified')}")
+    console.print(f"  strength class: {material.get('strength_class', 'unspecified')}")
+    if material.get("surface_finish_notes"):
+        console.print(f"  surface finish: {material['surface_finish_notes']}")
+    if material.get("notes"):
+        console.print(f"  notes (cautions): {material['notes']}")
+
+
+@app.command(name="fleet-summary")
+def fleet_summary_cmd() -> None:
+    """Compact summary of every printer in the fleet (read-only)."""
+    summaries = fleet_summary()
+    console.print(f"[bold]fleet summary[/bold] ({len(summaries)} printer(s)):")
+    for summary in summaries:
+        build_volume = summary["build_volume_mm"] or {}
+        label = summary["unit_label"] or summary["display_name"]
+        accessories = ", ".join(summary["installed_accessories"]) or "none"
+        console.print(
+            f"  - {label}  [{summary['printer_id']}]  "
+            f"{build_volume.get('x')}x{build_volume.get('y')}x{build_volume.get('z')}mm  "
+            f"accessories: {accessories}  "
+            f"multicolor: {summary['multicolor_supported']}  "
+            f"(verified: {summary['verified']})"
+        )
+    console.print("\nThis command only reads config/manufacturing/printers.json - no hardware was contacted.")
+
+
+@app.command(name="check-manufacturing")
+def check_manufacturing_cmd() -> None:
+    """Validate config/manufacturing/*.json for internal consistency (read-only)."""
+    checks = check_manufacturing_knowledge_base()
+    for check in checks:
+        console.print(f"{_icon(check['status'])}  {check['name']}: {check['detail']}")
+
+    fail_count = sum(1 for c in checks if c["status"] == "FAIL")
+    warn_count = sum(1 for c in checks if c["status"] == "WARN")
+    console.print(f"\n{len(checks)} check(s): {fail_count} FAIL, {warn_count} WARN")
+    console.print("This command only reads config/manufacturing/*.json - no hardware was contacted.")
+
+    if fail_count:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="generate-openscad")

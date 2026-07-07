@@ -74,6 +74,13 @@ These describe *what a future UI needs to show*, not how to build it:
    buttons/checklist - a visual front-end for the exact decision `factory
    choose-option` already records as text.
 
+Phase 5's `factory list-printers`/`show-printer`/`list-accessories`/
+`show-accessory`/`list-materials`/`show-material`/`fleet-summary` (see
+`docs/manufacturing-knowledge-base.md`) are the read-only data layer a
+future Planning board or fleet view would call - they already return
+structured, human-readable knowledge-base data; a future UI renders it
+instead of printing it.
+
 ## Future reserved commands (documented, not implemented)
 
 These command names are reserved for the future UI/launcher track. **They do

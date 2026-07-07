@@ -1,7 +1,7 @@
 import ast
 import inspect
 
-from factory.manufacturing import decision_engine, knowledge, manifest, selection
+from factory.manufacturing import check, decision_engine, inspect as manufacturing_inspect, knowledge, manifest, selection
 
 FORBIDDEN = [
     "import subprocess",
@@ -30,7 +30,7 @@ def _strip_docstrings(tree: ast.AST) -> ast.AST:
 
 
 def test_manufacturing_modules_have_no_network_or_process_calls():
-    for module in (knowledge, decision_engine, manifest, selection):
+    for module in (knowledge, decision_engine, manifest, selection, manufacturing_inspect, check):
         tree = _strip_docstrings(ast.parse(inspect.getsource(module)))
         code_only_source = ast.unparse(tree)
         for forbidden_term in FORBIDDEN:
@@ -45,3 +45,11 @@ def test_accessory_catalog_never_grants_print_or_control_capabilities():
     for accessory in accessories.values():
         capabilities = set(accessory.get("adds_capabilities", []))
         assert not (forbidden_capabilities & capabilities)
+
+
+def test_fleet_state_example_is_not_referenced_by_any_manufacturing_module():
+    # fleet_state.example.json is documentation/scaffolding only (Phase 5) -
+    # no code path may read it yet, since it isn't live hardware data.
+    for module in (knowledge, decision_engine, manifest, selection, manufacturing_inspect, check):
+        source = inspect.getsource(module)
+        assert "fleet_state" not in source, f"{module.__name__} must not read fleet_state yet"

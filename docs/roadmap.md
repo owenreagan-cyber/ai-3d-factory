@@ -48,11 +48,12 @@ missing-CAD-source, invalid-quantity, and shared-origin-consistency checks.
 every manufacturing option, the recommendation, manifest/multipart/
 validation summaries, and every remaining human decision.
 
-**Not yet started:** `factory add-printer` / `factory add-accessory`
-commands (the knowledge base is hand-edited JSON for now), automatically
-proposing a `required_parts` breakdown once a human confirms a multi-part
-option, and reconciling the Phase 0/1 single-printer `config/printers.json`
-with the Phase 3 fleet-aware `config/manufacturing/printers.json`.
+**Not yet started (at the time):** `factory add-printer` / `factory
+add-accessory` commands (the knowledge base is hand-edited JSON for now),
+automatically proposing a `required_parts` breakdown once a human confirms
+a multi-part option, and reconciling the Phase 0/1 single-printer
+`config/printers.json` with the Phase 3 fleet-aware
+`config/manufacturing/printers.json` (resolved in Phase 5 - see below).
 
 ## Phase 4 — human manufacturing decision workflow + product vision foundations (started)
 
@@ -87,27 +88,57 @@ proposing a `required_parts` breakdown once multipart is confirmed (still a
 manual follow-up by design - see Phase 3's "not yet started" list), and
 `factory add-printer`/`factory add-accessory`.
 
-## Phase 5 — Blender repair/render automation
+## Phase 5 — manufacturing knowledge maintenance (started)
+
+Makes the manufacturing knowledge base inspectable, validated, and ready for
+future UI/launcher workflows - no CadQuery, no UI, no printer control or
+hardware discovery. See `docs/manufacturing-knowledge-base.md`.
+
+**Started:** `config/manufacturing/printers.json` is now the sole canonical
+printer source - the old Phase 0/1 `config/printers.json` was removed once
+`factory validate`'s build-volume-fit check was redirected to read from the
+canonical fleet via `factory.manufacturing.knowledge`. Seven new read-only
+commands make the knowledge base directly inspectable: `factory
+list-printers`/`show-printer <id>`, `list-accessories`/`show-accessory <id>`,
+`list-materials`/`show-material <id>`, and `fleet-summary` (a compact view of
+all four printers). `factory check-manufacturing` validates
+`config/manufacturing/*.json` for internal consistency (unique/consistent
+ids, required printer fields, positive build volumes/nozzle sizes, known
+accessory/material references, planning-rule option ids) with PASS/WARN/FAIL
+output - see `factory.manufacturing.check`. All of the above are read-only:
+no file writes, no project-state changes, no hardware discovery, no network.
+`config/manufacturing/fleet_state.example.json` documents (as an example
+only, not live data) a future structure for tracking each printer's current
+setup (installed nozzle/build plate, loaded materials, spool slots) as
+distinct from its fixed capabilities - not read by any command yet.
+
+**Not yet started:** `factory add-printer` / `factory add-accessory`
+commands; wiring `fleet_state`/current-setup data into the planner or
+decision engine; reconciling `config/materials.json` with
+`config/manufacturing/materials.json`; CadQuery generation helpers (still
+Phase 2); any UI/launcher code (still the Future track below).
+
+## Phase 6 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity
 preview renders, as a local subprocess call — no Blender add-ons, no
 Blender MCP.
 
-## Phase 6 — optional Meshy, with approval/cost gates
+## Phase 7 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 7 — 3MF packaging experiments
+## Phase 8 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 8 — advanced slicer review automation
+## Phase 9 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at

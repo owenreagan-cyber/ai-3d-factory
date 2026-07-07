@@ -14,6 +14,11 @@ issue with yourself (or ask the assisting agent to fix both together).
   `PATH` — never by launching or configuring them.
 - Validate JSON files against the schemas in `schemas/`.
 - Scaffold new project directories under `projects/`.
+- Inspect and validate the local manufacturing knowledge base
+  (`config/manufacturing/*.json`) via `factory list-printers`/`show-printer`/
+  `list-accessories`/`show-accessory`/`list-materials`/`show-material`/
+  `fleet-summary`/`check-manufacturing` — all read-only, never hardware
+  discovery.
 - Use OpenSCAD/CadQuery/Blender/Bambu/Orca **discovery or generation
   helpers** added in later phases — not printing.
 

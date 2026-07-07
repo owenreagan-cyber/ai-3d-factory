@@ -243,7 +243,7 @@ def validate_mesh(file_path: Path, printer: dict | None = None) -> dict:
     if printer and not printer.get("verified", False):
         limitations.append(
             f"Printer '{printer.get('display_name', '?')}' build volume is an unverified placeholder "
-            "(see config/printers.json)."
+            "(see config/manufacturing/printers.json)."
         )
 
     overall = _overall_status(checks)
