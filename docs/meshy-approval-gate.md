@@ -2,18 +2,22 @@
 
 **This document is a design and safety scaffold. It does not implement
 Meshy.** No code in this repo calls Meshy, imports a Meshy SDK, or reads a
-Meshy API key. This phase exists to write down, in advance, exactly what
-must be true before any future phase is allowed to add that integration -
-so the gate is designed before the feature, not after.
+Meshy API key. Phase 16 exists to write down, in advance, exactly what
+must be true before the (not yet scheduled) Meshy approval/cost-gated
+implementation track is allowed to add that integration - so the gate is
+designed before the feature, not after.
 
 ## What Meshy is, in this repo's context
 
-Meshy is a third-party, paid, cloud-hosted generative-mesh API - reserved
-in `docs/roadmap.md` (Phase 16, "optional Meshy, with approval/cost
-gates") and `docs/tool-routing.md` for **organic concept generation
-only** (cars, animals, people, and other sculptural/organic forms that
-don't fit parametric CAD - see `docs/tool-routing.md`'s "Prefer
-parametric CAD for measured parts" note in `AGENT.md`).
+Meshy is a third-party, paid, cloud-hosted generative-mesh API - its
+approval/cost gate was designed in `docs/roadmap.md` Phase 16 ("Meshy
+approval/cost gate design"), and it's reserved by `docs/tool-routing.md`
+for **organic concept generation only** (cars, animals, people, and other
+sculptural/organic forms that don't fit parametric CAD - see
+`docs/tool-routing.md`'s "Prefer parametric CAD for measured parts" note
+in `AGENT.md`). The actual Meshy-calling implementation is the
+(not yet phase-numbered) "Meshy approval/cost-gated implementation track"
+- see `docs/roadmap.md`'s "Future tracks, not yet phase-numbered" section.
 
 - **Future-only.** `factory.cad.backend.get_backend_registry()` already
   lists `meshy` with `status: "future_gated"` - it has never been

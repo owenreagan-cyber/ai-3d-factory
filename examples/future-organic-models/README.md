@@ -16,13 +16,16 @@ people, and other organic/sculptural forms are a poor fit for parametric
 primitives; the intended future backends for that kind of geometry are:
 
 - **Blender**, for freeform/organic modeling and higher-fidelity renders -
-  reserved for Phase 20 ("Blender repair/render automation") and still
-  requiring a local, non-interactive, add-on-free invocation. See
-  `docs/roadmap.md` and `AGENT.md` ("No installing Blender add-ons").
-- **Meshy**, for AI-assisted mesh generation - reserved for a dedicated
-  future phase, gated behind an explicit per-use human approval step and a
-  visible cost/credit estimate *before* any call is made. Off by default.
-  See `docs/roadmap.md`, `docs/tool-routing.md`, and
+  reserved for the "Blender local repair/render track" (not yet
+  phase-numbered - see `docs/roadmap.md`'s "Future tracks, not yet
+  phase-numbered" section) and still requiring a local, non-interactive,
+  add-on-free invocation. See `AGENT.md` ("No installing Blender
+  add-ons").
+- **Meshy**, for AI-assisted mesh generation - reserved for the "Meshy
+  approval/cost-gated implementation track" (also not yet phase-numbered),
+  gated behind an explicit per-use human approval step and a visible
+  cost/credit estimate *before* any call is made. Off by default. See
+  `docs/roadmap.md`, `docs/tool-routing.md`, and
   `docs/licensing-policy.md`.
 
 Neither gate exists yet in this repo. Until they do, nothing under

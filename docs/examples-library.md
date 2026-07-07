@@ -83,13 +83,13 @@ container objects, not just signage.
 
 `examples/future-organic-models/{car-concept,animal-concept,
 human-figure-study}/` are concept-only placeholders for organic/freeform
-modeling directions (cars, animals, people) this repo may support once a
-future Blender local-automation phase (`docs/roadmap.md` Phase 20) and/or
-the Meshy safety/cost approval gate (`docs/roadmap.md` Phase 16,
-**designed in Phase 16 but not implemented** - see
-`docs/meshy-approval-gate.md`) exist. Each `concept_brief.json` now points
-at `docs/meshy-approval-gate.md` and `config/future_cloud_tools.json`
-directly.
+modeling directions (cars, animals, people) this repo may support once
+the (not yet phase-numbered) Blender local repair/render track and/or
+Meshy approval/cost-gated implementation track (`docs/roadmap.md`) are
+scheduled and completed. Meshy's approval/cost gate itself was **designed
+in Phase 16 but not implemented** - see `docs/meshy-approval-gate.md`.
+Each `concept_brief.json` now points at `docs/meshy-approval-gate.md` and
+`config/future_cloud_tools.json` directly.
 
 **No CAD, mesh, render, or generated asset exists for any of them.** Each
 concept directory contains only a `README.md` and a `concept_brief.json`
@@ -120,7 +120,7 @@ Each entry reports:
 | `path` | Path relative to the repo root. |
 | `exists` | Whether that path is currently a directory on disk (a static registry entry could in principle drift from disk; this flags it). |
 | `type` | `working` or `future-concept`. |
-| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see `docs/roadmap.md` Phase 16/20). |
+| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see the Meshy and Blender future tracks in `docs/roadmap.md`; Meshy's approval/cost gate was designed in Phase 16). |
 | `status` | `demo_only`, `concept_only`, `slicer_review_ready_possible`, or `cad_generated` (the last used for both multi-part examples, `multipart-classroom-sign` and `storage-bin-lid` - see below). |
 | `safety_notes` | Plain-language notes on what was and wasn't done to build this example. |
 

@@ -4,6 +4,41 @@ Automatic printing is never a default behavior in any phase below. Every
 phase adds capability up through "ready for human slicer review" — the
 human-approval and print-initiation boundary in `AGENT.md` does not move.
 
+## Roadmap numbering policy (Phase 20)
+
+Several early phases assigned fixed numbers to not-yet-started future work
+(Meshy, Blender, 3MF, slicer-review automation). As soon as an ad hoc
+phase actually needed one of those numbers, the placeholder had to be
+renumbered - which then broke every doc/README that had already cited the
+old number. This happened repeatedly (Phase 15, Phase 16, and Phase 19 each
+displaced an already-numbered placeholder). The policy below exists to
+stop that churn:
+
+1. **Completed (or in-progress/"started") phases keep their assigned
+   number, permanently.** Never renumber a phase that has already been
+   implemented, even partially - see "Completed phases" below. Cross-references
+   to a completed phase's number (e.g. "see Phase 16") are stable and safe
+   to keep.
+2. **A new ad hoc phase uses the next integer after the highest number in
+   "Completed phases" below** - not a number "reserved" for a future idea.
+   Check `docs/phase-registry.md` (or the bottom of "Completed phases"
+   here) for the current highest number before assigning a new one.
+3. **Future work that has no scheduled start does not get a phase number
+   at all.** It goes in "Future tracks, not yet phase-numbered" below,
+   named as a track (e.g. "Blender local repair/render track"), and is
+   only promoted to a numbered phase once someone actually starts it - at
+   which point it takes the next available number per rule 2, not a number
+   pre-reserved for it earlier.
+4. **Docs referencing a future track use the track's name, not a phase
+   number.** Only cite a phase number for work that has actually started
+   (rule 1).
+
+See `docs/phase-registry.md` for a flat, at-a-glance list of every
+completed phase (number, title, commit, status) kept in sync with the
+"Completed phases" section below.
+
+## Completed phases
+
 ## Phase 0/1 (this repo, current)
 
 Foundation: CLI (`factory`), JSON schemas, local mesh validation, local
@@ -361,10 +396,10 @@ that integration remains a separate, deliberate future decision.
 
 A permanent local `examples/` library demonstrating the `ai-3d-factory`
 workflow with safe, committed sample projects — deliberately inserted
-ahead of Meshy (renumbered to Phase 16 below) as a safe, dependency-free
-detour: it exercises the existing CAD/preview/review-gate/preview-board
-commands against real committed examples before any organic-generation
-backend exists. See `docs/examples-library.md`.
+ahead of Meshy (Phase 16 below) as a safe, dependency-free detour: it
+exercises the existing CAD/preview/review-gate/preview-board commands
+against real committed examples before any organic-generation backend
+exists. See `docs/examples-library.md`.
 
 **Started:** `examples/simple-nameplate/` and `examples/mechanical-plate/`
 are real, runnable workflow examples — the first built with `factory
@@ -377,9 +412,11 @@ are compatible with `factory preview-index`/`preview-project`/
 there's no STL yet). `examples/future-organic-models/{car-concept,
 animal-concept,human-figure-study}/` are concept-only roadmap placeholders
 (`concept_brief.json`, not `brief.json`, so existing commands don't treat
-them as real projects) for the organic-modeling directions Phase 16/20
-below will eventually implement — no CAD, mesh, render, or generated asset
-exists for any of them. `factory list-examples`/`show-example <name>`
+them as real projects) for the organic-modeling directions the Meshy
+approval/cost-gated implementation track and the Blender local
+repair/render track (both below, neither phase-numbered yet) will
+eventually implement — no CAD, mesh, render, or generated asset exists
+for any of them. `factory list-examples`/`show-example <name>`
 (`factory/examples_library.py`) is a small, read-only, statically
 registered inspection command for the whole library. No example sets
 `human_approved`/`print_ready`; the highest status any example reaches
@@ -387,10 +424,12 @@ automatically is `cad_generated` (a human can locally advance a working
 example to `slicer_review_ready` — see each example's own `README.md`).
 
 **Not yet started (at the time):** growing the library further (richer 3D
-models, Blender workflows once Phase 20 exists, Meshy-gated concepts once
-Phase 16 exists, multipart classroom/manufacturing demos) — this phase was
-deliberately just the structure and first two working examples. (A
-multipart example was added later, in Phase 15 — see below.)
+models, Blender workflows once the Blender local repair/render track is
+scheduled, Meshy-gated concepts once the Meshy approval/cost-gated
+implementation track is scheduled, multipart classroom/manufacturing
+demos) — this phase was deliberately just the structure and first two
+working examples. (A multipart example was added later, in Phase 15 —
+see below.)
 
 ## Phase 15 — multipart example project (started)
 
@@ -419,18 +458,23 @@ Phase 14's three) and `ExampleInfo.status`'s allowed values were extended
 to include it.
 
 **Not yet started (at the time):** any further growth of the library
-(richer 3D models, Blender workflows once Phase 20 exists, Meshy-gated
-concepts once Phase 16 exists) — this phase was deliberately just the one
-new multipart example. (A second multipart example, a practical
+(richer 3D models, Blender workflows once the Blender local repair/render
+track is scheduled, Meshy-gated concepts once the Meshy approval/cost-gated
+implementation track is scheduled) — this phase was deliberately just the
+one new multipart example. (A second multipart example, a practical
 household/classroom utility object, was added later, in Phase 19 - see
 below.)
 
-## Phase 16 — optional Meshy, with approval/cost gates (design scaffold started)
+## Phase 16 — Meshy approval/cost gate design (started)
 
-Optional Meshy integration for organic concept generation, gated behind an
-explicit per-use human approval step and a visible cost/credit estimate
-before any call is made. Off by default; see `docs/licensing-policy.md`
-and `docs/tool-routing.md`.
+Designs (but does not implement) the approval/cost gate a future,
+not-yet-scheduled Meshy integration for organic concept generation would
+have to satisfy - gated behind an explicit per-use human approval step and
+a visible cost/credit estimate before any call is made, off by default.
+See `docs/licensing-policy.md` and `docs/tool-routing.md`. The actual
+Meshy-calling implementation is tracked as the (unnumbered) "Meshy
+approval/cost-gated implementation track" below, not as a future numbered
+phase - see "Roadmap numbering policy" above.
 
 **Started (design only - no Meshy implementation):** `docs/meshy-approval-gate.md`
 documents the full required future gate checklist (explicit human
@@ -456,17 +500,45 @@ checklist requires have been granted, and this phase deliberately grants
 none of them. `config/future_cloud_tools.json`'s `enabled` flag stays
 `false` until a human edits it as a separate, explicit, reviewed decision.
 
-## Phase 17 — 3MF packaging experiments
+## Phase 17 — fix example test side effect (started)
 
-Experimental packaging of multi-part projects into a single `.3mf` with
-embedded per-part color/material assignments, as an alternative to the
-separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
+Test hygiene: `tests/test_examples_library.py`'s `preview-project` CLI
+test had been invoking the real `factory preview-project` command
+directly against the committed `examples/multipart-classroom-sign/`
+path, regenerating that example's `preview_package/{index.json,
+preview_report.md}` `generated_at`/`Generated:` timestamp on every test
+run and leaving the working tree dirty. No product behavior changed.
 
-## Phase 18 — advanced slicer review automation
+**Started:** the offending test now copies the example into `tmp_path`
+first (`shutil.copytree`) and runs `factory preview-project` against that
+copy - never against the committed path directly. A companion regression
+test hashes the committed `preview_package/` files before/after to prove
+they're untouched.
 
-Richer slicer-review package generation (e.g. auto-populated checklists
-from validation reports, plate-layout suggestions) — still ending at
-human review, never at auto-slice or auto-print.
+**Not yet started (at the time):** a repo-wide guard preventing the same
+mistake elsewhere in the test suite - added next, in Phase 18.
+
+## Phase 18 — guard tests from mutating committed examples (started)
+
+Test hygiene: a lightweight, repo-wide static guard so no future test can
+accidentally repeat Phase 17's mistake. No product behavior changed.
+
+**Started:** `tests/test_examples_write_safety.py` scans every
+`tests/test_*.py` file's source text for the call shape `runner.invoke(
+app, ["<write-capable-command>", "examples/...")` (also catching
+f-strings) - a write-capable `factory` CLI command (`plan`,
+`choose-option`, `generate-openscad`, `generate-cadquery`, `validate`,
+`render`, `preview-project`, `preview-board`) invoked directly against a
+literal committed `examples/...` path. Read-only commands
+(`list-examples`, `show-example`, `review-gate`, `preview-index`,
+`check-future-tools`, ...) are always allowed against `examples/` and
+never flagged. The module's own self-tests exercise the detector against
+sample source strings, including the exact Phase 17 bug pattern.
+
+**Not yet started:** semantic (non-regex) analysis - the guard can't see
+through variable indirection, and only guards `CliRunner`-level
+invocations, not a test calling a write function directly. Accepted gaps
+for a lightweight, explainable guard.
 
 ## Phase 19 — storage bin lid example project (started)
 
@@ -497,18 +569,77 @@ unmodified - no test invokes a write-capable command against this
 example's committed path directly.
 
 **Not yet started:** any further growth of the library (richer 3D models,
-Blender workflows once Phase 20 exists, Meshy-gated concepts once Phase 16
-exists) - this phase is deliberately just the one new practical-utility
-example.
+Blender workflows once the Blender local repair/render track is
+scheduled, Meshy-gated concepts once the Meshy approval/cost-gated
+implementation track is scheduled) - this phase is deliberately just the
+one new practical-utility example.
 
-## Phase 20 — Blender repair/render automation
+## Phase 20 — roadmap numbering and phase registry cleanup (started)
+
+Documentation/test-hygiene only - no product behavior changes. Several
+recent phases collided with already-numbered placeholder phases for
+not-yet-started future work (Meshy, Blender, 3MF, slicer-review
+automation), forcing repeated renumbering. See "Roadmap numbering policy"
+near the top of this document.
+
+**Started:** added the roadmap numbering policy above; converted every
+not-yet-started, not-yet-scheduled placeholder phase (previously fixed
+numbers) into named, unnumbered entries under "Future tracks, not yet
+phase-numbered" below; added `docs/phase-registry.md`, a flat manually
+maintained list of every completed phase; updated cross-references
+throughout `docs/`, `README.md`, and `examples/future-organic-models/` to
+cite completed-phase numbers only where a phase actually started, and
+track names (not numbers) for unscheduled future work.
+
+**Not yet started:** any actual Meshy, Blender, 3MF, or slicer-automation
+implementation - this phase only changes how future work is *labeled*,
+not what exists.
+
+## Future tracks, not yet phase-numbered
+
+Named so future docs can cite them without a number that might collide
+with a later ad hoc phase (see "Roadmap numbering policy" above). None of
+these have a scheduled start; each will take the next available phase
+number, per the policy above, once someone actually begins it.
+
+### Meshy approval/cost-gated implementation track
+
+The actual Meshy-calling implementation - uploads, generation calls,
+mesh acceptance - gated behind everything `docs/meshy-approval-gate.md`
+(written in Phase 16) requires: explicit human approval, a cost/budget
+cap, per-run confirmation, input review before upload, output review
+after generation, a local storage policy, license/ownership notes,
+student/privacy/data notes, and a local-only fallback. `config/
+future_cloud_tools.json`'s `meshy.enabled` stays `false` until a human
+flips it as a separate, explicit, reviewed decision - not as part of
+starting this track.
+
+### Blender local repair/render track
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity
 preview renders, as a local subprocess call — no Blender add-ons, no
 Blender MCP.
 
-## Future track — visual workspace / launcher (not scheduled to a phase number)
+### 3MF packaging experiments track
+
+Experimental packaging of multi-part projects into a single `.3mf` with
+embedded per-part color/material assignments, as an alternative to the
+separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
+
+### Advanced slicer review automation track
+
+Richer slicer-review package generation (e.g. auto-populated checklists
+from validation reports, plate-layout suggestions) — still ending at
+human review, never at auto-slice or auto-print.
+
+### Rich organic examples track
+
+Real (not concept-only) car/animal/human-figure examples under
+`examples/future-organic-models/` - blocked on the Meshy and/or Blender
+tracks above actually being implemented first.
+
+### Mac launcher/dashboard track
 
 The Mac app launcher, Dock icon, Shortcuts/Automator wrapper, "Chief of
 Staff" command, local visual dashboard, and the visual preview requirements
