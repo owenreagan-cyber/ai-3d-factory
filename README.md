@@ -58,6 +58,8 @@ factory generate-openscad projects/my-part --template test-cube
 factory generate-cadquery projects/my-part --template mechanical-plate
 factory validate path/to/model.stl
 factory render path/to/model.stl
+factory render-coverage projects/my-part  # read-only STL/render coverage report
+factory plan-renders projects/my-part     # lists suggested `factory render` commands, runs none
 factory preview-index projects/my-part    # read-only visual-artifact summary
 factory preview-project projects/my-part  # build/refresh preview_package/
 factory preview-board projects/           # static local board across all projects
@@ -88,6 +90,15 @@ later. `factory generate-cadquery` is a CadQuery starter backend
 (`mechanical-plate` template): CadQuery is optional and never installed by
 this repo, so the command fails cleanly if it isn't already available. See
 `docs/cad-backends.md`.
+
+`factory render-coverage` compares `stl/*.stl` against `renders/*.png` for
+one project - which meshes have a matching render, which are missing one,
+which renders are stale or orphaned. `factory plan-renders` only lists the
+`factory render <stl_path>` commands a human could run to fix gaps; it
+never runs them. Both feed the same coverage data into
+`preview_package/index.json` (`render_coverage`, `missing_renders`,
+`all_meshes_have_renders`) and into `factory preview-board`. See
+`docs/render-coverage.md`.
 
 `factory preview-board` aggregates every project under a `projects_root`
 into one static local board (`preview_board/index.json` +

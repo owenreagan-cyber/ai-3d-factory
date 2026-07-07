@@ -61,6 +61,13 @@ elsewhere), not scaffolded by `factory init-project`.
   current geometry.
 - **Orphaned renders**: a render image whose corresponding STL no longer
   exists (e.g. after a rename) - noted for awareness, never deleted.
+- **Render coverage** (Phase 9, see `docs/render-coverage.md`):
+  `render_coverage` (the full `factory.render_coverage.compute_render_coverage()`
+  output - per-mesh coverage, missing/stale/orphan renders, and the two
+  summary flags below), plus top-level convenience copies `missing_renders`
+  and `all_meshes_have_renders`. `preview_report.md` gets a matching
+  "Render coverage" section. These are additive fields - every field that
+  existed before Phase 9 is unchanged.
 - A static **human visual inspection checklist** (see below).
 
 ## Render preview vs. visual approval

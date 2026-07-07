@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from factory import preview_package, project_store
+from factory.render_coverage import compute_render_coverage
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -92,7 +93,8 @@ def classify_visual_readiness(
     manifest_status: str,
     cad_files: list[str],
     mesh_files: list[str],
-    render_files: list[str],
+    missing_renders: list[str],
+    stale_renders: list[str],
     missing_visual_artifacts: list[str],
     stale_previews: list[str],
 ) -> str:
@@ -105,6 +107,16 @@ def classify_visual_readiness(
     for slicer review" - same meaning here). Never returns/implies
     `human_approved` or `print_ready` - those aren't visual-readiness states
     and are never computed by this module.
+
+    `missing_renders`/`stale_renders` come from `factory.render_coverage` -
+    any mesh missing (or with a stale) render, whether that's every mesh or
+    just one of several, resolves to `needs_render` (conservative: it's
+    still just "run `factory render`", not a deeper problem). Orphan
+    renders never block readiness by themselves (see docs/render-coverage.md);
+    they're surfaced as an advisory warning instead. `missing_visual_artifacts`/
+    `stale_previews` (from `factory.preview_package`, manifest-aware) remain
+    the catch-all for anything render-coverage's directory-only view can't
+    see, e.g. a manifest part whose file lives outside `stl/`.
     """
     if brief_status == "missing":
         return "needs_brief"
@@ -114,9 +126,9 @@ def classify_visual_readiness(
         return "cad_source_ready"
     if not mesh_files:
         return "needs_stl_export"
-    if not render_files:
+    if missing_renders:
         return "needs_render"
-    if missing_visual_artifacts or stale_previews:
+    if stale_renders or missing_visual_artifacts or stale_previews:
         return "blocked_or_incomplete"
     return "slicer_review_ready"
 
@@ -143,9 +155,13 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
 
     cad_files = index.get("cad_files", [])
     mesh_files = index.get("mesh_files", [])
-    render_files = index.get("render_files", [])
     missing_visual_artifacts = index.get("missing_visual_artifacts", [])
     stale_previews = index.get("stale_previews", [])
+
+    # Always computed fresh (cheap, read-only) rather than trusting whatever
+    # a possibly-stale on-disk preview_package/index.json happens to have -
+    # avoids any legacy-schema gap if that file predates this field.
+    render_coverage = compute_render_coverage(project_dir)
 
     warnings: list[str] = []
     if brief_status == "missing":
@@ -163,6 +179,7 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         )
     warnings.extend(missing_visual_artifacts)
     warnings.extend(stale_previews)
+    warnings.extend(f"Orphan render (no matching STL): {r}" for r in render_coverage["orphan_renders"])
 
     project_name = index.get("project_name") or project_dir.name
 
@@ -176,7 +193,8 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         manifest_status=manifest_status,
         cad_files=cad_files,
         mesh_files=mesh_files,
-        render_files=render_files,
+        missing_renders=render_coverage["missing_renders"],
+        stale_renders=render_coverage["stale_renders"],
         missing_visual_artifacts=missing_visual_artifacts,
         stale_previews=stale_previews,
     )
@@ -190,10 +208,11 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "manufacturing_status": build_plan.get("status") if build_plan else None,
         "selected_manufacturing_option": index.get("selected_manufacturing_option"),
         "manifest_exists": manifest_status != "missing",
+        "render_coverage": render_coverage,
         "preview_package_exists": preview_package_exists,
         "cad_files": list(cad_files),
         "mesh_files": list(mesh_files),
-        "render_files": list(render_files),
+        "render_files": list(index.get("render_files", [])),
         "visual_readiness_state": visual_readiness_state,
         "warnings": warnings,
     }
@@ -258,6 +277,18 @@ def build_board_html(board: dict[str, Any]) -> str:
             if project["warnings"]
             else "<span class=\"none\">none</span>"
         )
+        coverage = project["render_coverage"]
+        coverage_text = f"{coverage['covered_count']}/{coverage['total_meshes']}"
+        coverage_details = []
+        if coverage["missing_renders"]:
+            coverage_details.append(f"{len(coverage['missing_renders'])} missing")
+        if coverage["stale_renders"]:
+            coverage_details.append(f"{len(coverage['stale_renders'])} stale")
+        if coverage["orphan_renders"]:
+            coverage_details.append(f"{len(coverage['orphan_renders'])} orphan")
+        if coverage_details:
+            coverage_text += " (" + ", ".join(coverage_details) + ")"
+
         rows.append(
             "<tr>"
             f"<td>{_escape_html(project['project_name'])}<br><code>{_escape_html(project['project_dir'])}</code></td>"
@@ -268,6 +299,7 @@ def build_board_html(board: dict[str, Any]) -> str:
             f"<td>{len(project['cad_files'])}</td>"
             f"<td>{len(project['mesh_files'])}</td>"
             f"<td>{len(project['render_files'])}</td>"
+            f"<td>{_escape_html(coverage_text)}</td>"
             f"<td>{'yes' if project['preview_package_exists'] else 'no'}</td>"
             f"<td>{'yes' if project['manifest_exists'] else 'no'}</td>"
             f"<td>{warnings_html}</td>"
@@ -279,7 +311,7 @@ def build_board_html(board: dict[str, Any]) -> str:
         for state in VISUAL_READINESS_STATES
     )
 
-    rows_html = "\n".join(rows) if rows else "<tr><td colspan=\"11\">No projects found under this projects_root.</td></tr>"
+    rows_html = "\n".join(rows) if rows else "<tr><td colspan=\"12\">No projects found under this projects_root.</td></tr>"
 
     notes_html = "".join(f"<li>{_escape_html(n)}</li>" for n in board["notes"])
 
@@ -325,6 +357,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   <th>CAD files</th>
   <th>STL files</th>
   <th>Renders</th>
+  <th>Render coverage</th>
   <th>Preview package</th>
   <th>Manifest</th>
   <th>Warnings / missing artifacts</th>

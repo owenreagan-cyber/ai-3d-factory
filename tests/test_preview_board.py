@@ -77,7 +77,8 @@ def test_classify_needs_brief_when_missing():
         manifest_status="missing",
         cad_files=[],
         mesh_files=[],
-        render_files=[],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -90,7 +91,8 @@ def test_classify_blocked_when_brief_unreadable():
         manifest_status="ok",
         cad_files=["cad/a.scad"],
         mesh_files=[],
-        render_files=[],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -103,7 +105,8 @@ def test_classify_blocked_when_manifest_unreadable():
         manifest_status="unreadable",
         cad_files=[],
         mesh_files=[],
-        render_files=[],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -116,7 +119,8 @@ def test_classify_cad_source_ready_when_no_cad_yet():
         manifest_status="ok",
         cad_files=[],
         mesh_files=[],
-        render_files=[],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -129,7 +133,8 @@ def test_classify_needs_stl_export_when_cad_but_no_mesh():
         manifest_status="ok",
         cad_files=["cad/part.scad"],
         mesh_files=[],
-        render_files=[],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -144,7 +149,8 @@ def test_classify_needs_render_when_mesh_present_without_local_cad_source():
         manifest_status="ok",
         cad_files=[],
         mesh_files=["stl/imported.stl"],
-        render_files=[],
+        missing_renders=["stl/imported.stl"],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -157,7 +163,24 @@ def test_classify_needs_render_when_mesh_but_no_render():
         manifest_status="ok",
         cad_files=["cad/part.scad"],
         mesh_files=["stl/part.stl"],
-        render_files=[],
+        missing_renders=["stl/part.stl"],
+        stale_renders=[],
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert state == "needs_render"
+
+
+def test_classify_needs_render_when_only_some_meshes_are_missing_a_render():
+    # Partial coverage - one of two meshes still has no render - must stay
+    # the simple "needs_render" fix, not escalate to blocked_or_incomplete.
+    state = classify_visual_readiness(
+        brief_status="ok",
+        manifest_status="ok",
+        cad_files=["cad/a.scad", "cad/b.scad"],
+        mesh_files=["stl/a.stl", "stl/b.stl"],
+        missing_renders=["stl/b.stl"],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
@@ -170,11 +193,26 @@ def test_classify_slicer_review_ready_when_everything_present_and_clean():
         manifest_status="ok",
         cad_files=["cad/part.scad"],
         mesh_files=["stl/part.stl"],
-        render_files=["renders/part_preview.png"],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=[],
     )
     assert state == "slicer_review_ready"
+
+
+def test_classify_blocked_when_render_is_stale():
+    state = classify_visual_readiness(
+        brief_status="ok",
+        manifest_status="ok",
+        cad_files=["cad/part.scad"],
+        mesh_files=["stl/part.stl"],
+        missing_renders=[],
+        stale_renders=["renders/part_preview.png"],
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert state == "blocked_or_incomplete"
 
 
 def test_classify_blocked_when_stale_preview_despite_all_files_present():
@@ -183,11 +221,28 @@ def test_classify_blocked_when_stale_preview_despite_all_files_present():
         manifest_status="ok",
         cad_files=["cad/part.scad"],
         mesh_files=["stl/part.stl"],
-        render_files=["renders/part_preview.png"],
+        missing_renders=[],
+        stale_renders=[],
         missing_visual_artifacts=[],
         stale_previews=["renders/part_preview.png is older than stl/part.stl"],
     )
     assert state == "blocked_or_incomplete"
+
+
+def test_classify_not_blocked_by_orphan_renders_alone():
+    # Orphan renders are advisory-only (see docs/render-coverage.md) - they
+    # must never by themselves prevent slicer_review_ready.
+    state = classify_visual_readiness(
+        brief_status="ok",
+        manifest_status="ok",
+        cad_files=["cad/part.scad"],
+        mesh_files=["stl/part.stl"],
+        missing_renders=[],
+        stale_renders=[],
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert state == "slicer_review_ready"
 
 
 def test_all_documented_states_are_reachable():
@@ -195,27 +250,33 @@ def test_all_documented_states_are_reachable():
     reachable = {
         classify_visual_readiness(
             brief_status="missing", manifest_status="missing",
-            cad_files=[], mesh_files=[], render_files=[], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=[], mesh_files=[], missing_renders=[], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
         classify_visual_readiness(
             brief_status="unreadable", manifest_status="ok",
-            cad_files=[], mesh_files=[], render_files=[], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=[], mesh_files=[], missing_renders=[], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
         classify_visual_readiness(
             brief_status="ok", manifest_status="ok",
-            cad_files=[], mesh_files=[], render_files=[], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=[], mesh_files=[], missing_renders=[], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
         classify_visual_readiness(
             brief_status="ok", manifest_status="ok",
-            cad_files=["x"], mesh_files=[], render_files=[], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=["x"], mesh_files=[], missing_renders=[], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
         classify_visual_readiness(
             brief_status="ok", manifest_status="ok",
-            cad_files=["x"], mesh_files=["y"], render_files=[], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=["x"], mesh_files=["y"], missing_renders=["y"], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
         classify_visual_readiness(
             brief_status="ok", manifest_status="ok",
-            cad_files=["x"], mesh_files=["y"], render_files=["z"], missing_visual_artifacts=[], stale_previews=[],
+            cad_files=["x"], mesh_files=["y"], missing_renders=[], stale_renders=[],
+            missing_visual_artifacts=[], stale_previews=[],
         ),
     }
     assert reachable == set(VISUAL_READINESS_STATES)
@@ -406,6 +467,24 @@ def _minimal_board(projects=None):
     }
 
 
+def _empty_render_coverage(project_dir: str = "/tmp/projects/demo") -> dict:
+    return {
+        "project_dir": project_dir,
+        "mesh_files": [],
+        "render_files": [],
+        "covered": [],
+        "missing_renders": [],
+        "orphan_renders": [],
+        "stale_renders": [],
+        "total_meshes": 0,
+        "total_renders": 0,
+        "covered_count": 0,
+        "all_meshes_have_renders": False,
+        "visually_complete_for_slicer_review": False,
+        "notes": [],
+    }
+
+
 def test_build_board_html_empty_projects_message():
     html = build_board_html(_minimal_board())
     assert "No projects found under this projects_root." in html
@@ -425,6 +504,7 @@ def test_build_board_html_renders_project_row():
         "cad_files": ["cad/part.scad"],
         "mesh_files": [],
         "render_files": [],
+        "render_coverage": _empty_render_coverage(),
         "visual_readiness_state": "needs_stl_export",
         "warnings": ["some warning"],
     }
@@ -449,6 +529,7 @@ def test_build_board_html_escapes_project_name():
         "cad_files": [],
         "mesh_files": [],
         "render_files": [],
+        "render_coverage": _empty_render_coverage(),
         "visual_readiness_state": "cad_source_ready",
         "warnings": [],
     }

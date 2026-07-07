@@ -7,6 +7,7 @@ No printing, no cloud calls. See AGENT.md.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -45,6 +46,7 @@ from factory.planner import plan_from_brief_path
 from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
+from factory.render_coverage import build_text_report, compute_render_coverage, plan_render_commands
 from factory.slicer.local_slicer_probe import probe_slicers
 from factory.validators.mesh_validate import validate_mesh
 from factory.validators.multipart_check import check_manifest
@@ -75,6 +77,8 @@ AVAILABLE_COMMANDS = (
     "generate-cadquery <project_dir> --template <name> [--length-mm ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
+    "render-coverage <project_dir> [--json]",
+    "plan-renders <project_dir>",
     "preview-index <project_dir>",
     "preview-project <project_dir>",
     "preview-board <projects_root> [--output <path>] [--format json|html|both]",
@@ -573,6 +577,57 @@ def render(mesh_file: Path = typer.Argument(..., help="Path to a mesh file to re
 
     if result["status"] == "FAIL":
         raise typer.Exit(code=1)
+
+
+@app.command(name="render-coverage")
+def render_coverage_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only comparison of stl/*.stl against renders/*.png. Never renders, exports, or contacts anything."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    coverage = compute_render_coverage(project_dir)
+
+    if as_json:
+        print(json.dumps(coverage, indent=2, sort_keys=False))
+        return
+
+    for line in build_text_report(coverage):
+        console.print(line)
+    console.print(
+        "\nThis command only read existing stl/renders files under this project - it did not render, "
+        "generate, export, or contact anything."
+    )
+
+
+@app.command(name="plan-renders")
+def plan_renders_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+) -> None:
+    """List local `factory render` commands a human could run. Never runs them."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    coverage = compute_render_coverage(project_dir)
+    commands = plan_render_commands(coverage)
+
+    if not commands:
+        console.print("No missing or stale renders detected - nothing to plan.")
+    else:
+        console.print(f"[bold]suggested commands[/bold] ({len(commands)}) - none of these are run automatically:")
+        for cmd in commands:
+            console.print(f"  {cmd}")
+
+    console.print(
+        "\nThis command only read existing stl/renders files under this project - it did not render, "
+        "generate, export, or run any of the commands listed above."
+    )
 
 
 def _print_preview_index_summary(index: dict) -> None:

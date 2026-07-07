@@ -192,3 +192,73 @@ def test_write_preview_package_never_touches_brief_status(project_root):
     write_preview_package(project_root)
     brief_after = project_store.load_json(project_root / "brief.json")
     assert brief_before == brief_after
+
+
+# ---- render_coverage integration (Phase 9) ----
+
+
+def test_gather_preview_data_includes_render_coverage_fields_on_empty_project(project_root):
+    index = gather_preview_data(project_root)
+    assert "render_coverage" in index
+    assert index["render_coverage"]["total_meshes"] == 0
+    assert index["missing_renders"] == []
+    assert index["all_meshes_have_renders"] is False
+
+
+def test_gather_preview_data_render_coverage_reflects_missing_render(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl bytes")
+    index = gather_preview_data(project_root)
+    assert index["render_coverage"]["missing_renders"] == ["stl/part.stl"]
+    assert index["missing_renders"] == ["stl/part.stl"]
+    assert index["all_meshes_have_renders"] is False
+
+
+def test_gather_preview_data_render_coverage_reflects_complete_pairing(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl bytes")
+    (project_root / "renders" / "part_preview.png").write_bytes(b"fake png bytes")
+    index = gather_preview_data(project_root)
+    assert index["render_coverage"]["missing_renders"] == []
+    assert index["missing_renders"] == []
+    assert index["all_meshes_have_renders"] is True
+    assert index["render_coverage"]["visually_complete_for_slicer_review"] is True
+
+
+def test_gather_preview_data_render_coverage_reflects_orphan_render(project_root):
+    (project_root / "stl" / "a.stl").write_bytes(b"a")
+    (project_root / "renders" / "a_preview.png").write_bytes(b"a-png")
+    (project_root / "renders" / "leftover_preview.png").write_bytes(b"leftover")
+    index = gather_preview_data(project_root)
+    assert index["render_coverage"]["orphan_renders"] == ["renders/leftover_preview.png"]
+
+
+def test_gather_preview_data_existing_fields_unchanged_by_render_coverage_addition(project_root):
+    # Backward compatibility: every field that existed before Phase 9 must
+    # still be present with its previous meaning.
+    index = gather_preview_data(project_root)
+    for key in (
+        "project_name", "project_dir", "generated_at", "project_status", "target_printer",
+        "selected_manufacturing_option", "cad_files", "mesh_files", "render_files",
+        "manifest_parts", "multipart_state", "missing_visual_artifacts", "stale_previews",
+        "orphaned_renders", "human_visual_inspection_checklist", "notes",
+    ):
+        assert key in index
+
+
+def test_markdown_report_includes_render_coverage_section(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl bytes")
+    index = gather_preview_data(project_root)
+    markdown = build_markdown_report(index)
+    assert "## Render coverage" in markdown
+    assert "Meshes with a matching render: 0/1" in markdown
+    assert "factory render-coverage" in markdown
+
+
+def test_write_preview_package_persists_render_coverage(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl bytes")
+    (project_root / "renders" / "part_preview.png").write_bytes(b"fake png bytes")
+    result = write_preview_package(project_root)
+    index_path, _ = preview_package_paths(project_root)
+    loaded = project_store.load_json(index_path)
+    assert loaded["all_meshes_have_renders"] is True
+    assert loaded["render_coverage"]["covered_count"] == 1
+    assert result["index"]["render_coverage"]["covered_count"] == 1

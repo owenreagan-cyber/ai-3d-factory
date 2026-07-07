@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from factory import project_store
+from factory.render_coverage import compute_render_coverage
 
 PREVIEW_PACKAGE_DIRNAME = "preview_package"
 INDEX_FILENAME = "index.json"
@@ -135,6 +136,8 @@ def gather_preview_data(project_dir: Path) -> dict[str, Any]:
         if Path(name).stem.removesuffix("_preview") not in {Path(m).stem for m in mesh_files}
     )
 
+    render_coverage = compute_render_coverage(project_dir)
+
     manifest_parts_summary = [
         {
             "part_name": part.get("part_name"),
@@ -161,6 +164,9 @@ def gather_preview_data(project_dir: Path) -> dict[str, Any]:
         "missing_visual_artifacts": missing_visual_artifacts,
         "stale_previews": stale_previews,
         "orphaned_renders": [f"renders/{name}" for name in orphaned_renders],
+        "render_coverage": render_coverage,
+        "missing_renders": list(render_coverage["missing_renders"]),
+        "all_meshes_have_renders": render_coverage["all_meshes_have_renders"],
         "human_visual_inspection_checklist": list(HUMAN_VISUAL_INSPECTION_CHECKLIST),
         "notes": [
             "This index only references existing local files by relative path; it never copies renders "
@@ -222,6 +228,22 @@ def build_markdown_report(index: dict[str, Any]) -> str:
         f"part_count={index['multipart_state']['part_count']}"
     )
     lines.append("")
+
+    coverage = index.get("render_coverage") or {}
+    if coverage:
+        lines.append("## Render coverage")
+        lines.append("")
+        lines.append(
+            f"Meshes with a matching render: {coverage.get('covered_count', 0)}/{coverage.get('total_meshes', 0)} "
+            f"(all meshes have a render: {coverage.get('all_meshes_have_renders')}; "
+            f"visually complete for human slicer review: {coverage.get('visually_complete_for_slicer_review')})"
+        )
+        lines.append("")
+        lines.append(
+            "This is advisory only - see `factory render-coverage <project_dir>` for the full "
+            "per-mesh breakdown and `factory plan-renders <project_dir>` for suggested local commands."
+        )
+        lines.append("")
 
     lines.append("## Missing visual artifacts")
     lines.append("")

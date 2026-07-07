@@ -205,26 +205,55 @@ implies `human_approved`/`print_ready`.
 static HTML file itself (still the Future track below); a `--watch`/
 auto-refresh mode (deliberately out of scope - static-only by design).
 
-## Phase 9 — optional Meshy, with approval/cost gates
+## Phase 9 — local render coverage and multi-part preview improvements (started)
+
+Improves local visual trust for projects with multiple STL files: a
+read-only comparison of `stl/*.stl` against `renders/*.png` so it's
+immediately clear which meshes are missing a preview, which previews are
+stale, and which render files are orphaned - without generating or
+rendering anything itself. See `docs/render-coverage.md`.
+
+**Started:** `factory.render_coverage.compute_render_coverage()` is the
+single shared implementation both `factory render-coverage <project_dir>`
+(human-readable report, or `--json` for machine-readable output) and
+`factory plan-renders <project_dir>` (lists suggested `factory render
+<stl_path>` commands - never runs them) are built on. It's deterministic
+(pure `Path.glob`/`Path.stat`, no writes) and reused - not duplicated - by
+`factory.preview_package.gather_preview_data()` (three new additive
+fields: `render_coverage`, `missing_renders`, `all_meshes_have_renders`;
+every pre-Phase-9 field is unchanged) and by `factory preview-board`
+(each project's card gets a `render_coverage` field, always freshly
+computed). The board's visual-readiness classification was refined:
+partial render coverage (some, not all, meshes missing a render) now
+correctly resolves to `needs_render` rather than being missed; a stale
+render moves a project to `blocked_or_incomplete`; an orphan render never
+blocks readiness by itself (advisory warning only). `human_approved`/
+`print_ready` are never computed or implied anywhere in this phase - the
+highest automatic status remains `slicer_review_ready`.
+
+**Not yet started:** any UI/dashboard rendering this data beyond the
+existing static preview board and CLI text/JSON output.
+
+## Phase 10 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 10 — 3MF packaging experiments
+## Phase 11 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 11 — advanced slicer review automation
+## Phase 12 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 12 — Blender repair/render automation
+## Phase 13 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

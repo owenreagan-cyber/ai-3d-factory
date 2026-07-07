@@ -65,6 +65,11 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   `index.html` (no server, no external assets); reuses
   `factory/preview_package.py` per-project instead of duplicating its file
   scan. See `docs/preview-board.md`.
+- `factory/render_coverage.py` — read-only `stl/*.stl` vs. `renders/*.png`
+  comparison for one project (missing/stale/orphan renders); the single
+  shared implementation `factory/preview_package.py` and
+  `factory/preview_board.py` both call rather than reimplementing. See
+  `docs/render-coverage.md`.
 
 ## Why local-first
 
