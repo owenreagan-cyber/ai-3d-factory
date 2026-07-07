@@ -36,8 +36,10 @@ scripting a quick pre-flight check without parsing output.
 ## How it reuses existing logic
 
 `factory.review_gate.evaluate_review_gate()` is a thin layer over
-`factory.preview_board.summarize_project()` (Phase 8-11) - it does not
-re-derive brief/manifest/render/validation status itself. It reads the
+`factory.project_inspection.summarize_project()` (Phase 8-11 logic,
+extracted into its own module in Phase 13 - see `docs/architecture.md`) -
+it does not re-derive brief/manifest/render/validation status itself, and
+does not import `factory.preview_board`. It reads the
 already-computed `health_signals` items **by `kind`** and applies its own
 pass/warn/fail policy on top, because this gate's purpose (readiness for
 human slicer review specifically) is narrower and in one place stricter
@@ -143,24 +145,33 @@ policies on top.
 ```
 
 `suggested_actions` is passed through directly from
-`factory.preview_board.build_suggested_actions()` - the same deterministic,
-`"safety": "manual_only"` action list the preview board itself shows for
+`factory.project_inspection.build_suggested_actions()` - the same
+deterministic, `"safety": "manual_only"` action list the preview board
+itself shows for
 this project. Nothing in `review_gate` (or anything it calls) ever
 executes one of these commands.
 
 ## Why this isn't merged into `factory preview-board`
 
-`factory.preview_board.summarize_project()` already computes everything
-`review_gate` needs, and `review_gate` calls it directly. Wiring a compact
-`review_gate` field back into each board card, however, would require
-`preview_board.py` to import from `review_gate.py` while `review_gate.py`
-already imports `summarize_project` from `preview_board.py` - a circular
-module import. Rather than work around that with a deferred/lazy import
-(a design smell not worth taking on for a "nice to have" field), Phase 12
-keeps `review_gate` as an independent, single-project command. Run
+At Phase 12, `review_gate` called `factory.preview_board.summarize_project()`
+directly, which meant wiring a compact `review_gate` field back into each
+board card would have required `preview_board.py` to import from
+`review_gate.py` while `review_gate.py` already imported from
+`preview_board.py` - a circular module import. Phase 13 resolved that by
+extracting the shared inspection logic (`summarize_project()`,
+`classify_visual_readiness()`, `build_health_signals()`,
+`build_suggested_actions()`) into `factory.project_inspection` - both
+`preview_board.py` and `review_gate.py` now depend on that module
+independently, and `review_gate.py` no longer imports `preview_board.py`
+at all (see `docs/architecture.md`'s "Shared inspection layer" note).
+
+The circular-import blocker is gone, but `review_gate` still isn't merged
+into board cards - that remains a deliberate scope decision (not a
+technical necessity) so each phase stays small and reviewable. Run
 `factory review-gate` alongside `factory preview-board` for now; a future
-phase could resolve this cleanly by extracting the shared classification
-into a third module both depend on, if that turns out to be worth doing.
+phase could add a compact `review_gate` field to board cards cheaply,
+since both already sit on the same shared layer.
 
 See also `docs/preview-board.md` (the board this reuses),
-`docs/render-coverage.md`, and `docs/roadmap.md` Phase 12.
+`docs/render-coverage.md`, `docs/architecture.md`, and `docs/roadmap.md`
+Phase 12 (this command) / Phase 13 (the shared-layer refactor).

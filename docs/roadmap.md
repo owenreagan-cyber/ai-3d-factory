@@ -320,35 +320,63 @@ slicer review" - the status ceiling stays `slicer_review_ready`, and
 `human_approved`/`print_ready` are never computed or implied. Exit code
 is `0` for pass/warn, `1` for fail.
 
-**Not yet started:** wiring a compact `review_gate` field back into
-`factory preview-board`'s per-project cards - doing so would need
-`preview_board.py` to import from `review_gate.py` while `review_gate.py`
-already imports `summarize_project` from `preview_board.py`, a circular
-module import not worth working around with a lazy import for a "nice to
-have" field. `review_gate` stays an independent, single-project command
-for now; see `docs/review-gate.md`'s "Why this isn't merged into `factory
-preview-board`" section.
+**Not yet started (at the time):** wiring a compact `review_gate` field
+back into `factory preview-board`'s per-project cards - at Phase 12,
+doing so would have needed `preview_board.py` to import from
+`review_gate.py` while `review_gate.py` already imported
+`summarize_project` from `preview_board.py`, a circular module import.
+(Resolved in Phase 13 - see below - though the board integration itself
+remains a deliberate scope decision, not yet done.)
 
-## Phase 13 — optional Meshy, with approval/cost gates
+## Phase 13 — shared project inspection refactor (started)
+
+An internal architecture cleanup: extracts the shared, read-only,
+single-project classification logic out of `preview_board.py` into its
+own module, so `review_gate.py` no longer needs to import
+`preview_board.py` at all - removing the circular-import pressure noted
+in Phase 12. No user-facing behavior change; existing CLI output and
+JSON shapes are unchanged (verified by tests). See `docs/architecture.md`'s
+"Shared inspection layer" note.
+
+**Started:** `factory/project_inspection.py` now owns
+`summarize_project()`, `classify_visual_readiness()`,
+`build_suggested_actions()`, `build_health_signals()`, and the
+`VISUAL_READINESS_STATES`/`HEALTH_SEVERITIES`/`ACTION_SAFETY` constants -
+moved out of `preview_board.py` unchanged (same logic, same behavior).
+`preview_board.py` now imports these from `project_inspection.py` (and
+re-exports them for backward compatibility with existing
+`from factory.preview_board import ...` call sites - the literal same
+function/constant objects, not copies) and keeps only project discovery,
+board aggregation, and JSON/HTML rendering. `review_gate.py` now imports
+`summarize_project` from `project_inspection.py` directly and no longer
+imports `preview_board.py` at all. The dependency graph is one-directional
+and acyclic: `render_coverage`/`preview_package` → `project_inspection` →
+{`preview_board`, `review_gate`}.
+
+**Not yet started:** actually wiring a compact `review_gate` field into
+board cards - the circular-import blocker that prevented it is gone, but
+that integration remains a separate, deliberate future decision.
+
+## Phase 14 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 14 — 3MF packaging experiments
+## Phase 15 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 15 — advanced slicer review automation
+## Phase 16 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 16 — Blender repair/render automation
+## Phase 17 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

@@ -2,22 +2,25 @@
 
 Deterministically answers one narrow question: does this project have
 everything a human needs on disk to sit down and review it in a slicer?
-This reuses `factory.preview_board.summarize_project()` (which itself
+This reuses `factory.project_inspection.summarize_project()` (which itself
 reuses `factory.preview_package` and `factory.render_coverage`) instead of
 re-deriving brief/manifest/render/validation state - the gate reads the
 already-computed `health_signals` items by `kind` and applies its own
 pass/warn/fail policy on top, tailored specifically to "is this ready to
-put in front of a human in a slicer" (stricter about renders than the
-general-purpose board, since a missing render means there's nothing to
-look at yet).
+put in front of a human in a slicer" (stricter about renders than
+`factory.preview_board`'s general-purpose health check, since a missing
+render means there's nothing to look at yet). This module depends only on
+`factory.project_inspection`, not on `factory.preview_board` - the two
+surfaces (single-project gate, multi-project board) share the inspection
+layer without either depending on the other.
 
 This module never renders, validates, exports, generates CAD, invokes a
 slicer, contacts a printer, or contacts a network - it only reads files
 `summarize_project()` already reads. Passing this gate ("result": "pass")
 means only "ready for human slicer review" - it never sets, implies, or
 computes `human_approved` or `print_ready`. The highest status ceiling
-this gate ever names is `slicer_review_ready`. See docs/review-gate.md
-and AGENT.md.
+this gate ever names is `slicer_review_ready`. See docs/review-gate.md,
+docs/architecture.md, and AGENT.md.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from factory.preview_board import summarize_project
+from factory.project_inspection import summarize_project
 
 GATE_NAME = "human_slicer_review"
 STATUS_CEILING = "slicer_review_ready"
@@ -38,7 +41,7 @@ REQUIRED_SAFETY_LINES = (
     "This project is NOT print-ready.",
 )
 
-# Health-signal `kind`s (see factory.preview_board.build_health_signals) that
+# Health-signal `kind`s (see factory.project_inspection.build_health_signals) that
 # this gate treats as hard blockers ("fail"), regardless of the severity
 # build_health_signals itself assigned - the two modules serve different
 # purposes and are allowed to disagree. Notably `render_missing` is only a

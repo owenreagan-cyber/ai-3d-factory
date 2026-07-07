@@ -15,8 +15,8 @@ this repo knows about, each with a `status`:
 |---|---|---|
 | `openscad` | `available` | Implemented since Phase 2 — see `docs/openscad-generation.md`. |
 | `cadquery` | `available` if the `cadquery` package is importable, else `not_installed` | Implemented since Phase 7 — see below. |
-| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 16. |
-| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 13 and `docs/licensing-policy.md`. |
+| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 17. |
+| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 14 and `docs/licensing-policy.md`. |
 
 The registry is recomputed on every call (not cached at import time), so
 `cadquery`'s status always reflects the current environment. Nothing in

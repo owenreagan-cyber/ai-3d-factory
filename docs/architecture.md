@@ -60,31 +60,70 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   (`backend.py`, `router.py`), and the CadQuery starter backend
   (`cadquery_backend.py`, `manifest.py`); CadQuery is an optional
   dependency this repo never installs. See `docs/cad-backends.md`.
-- `factory/preview_board.py` — aggregates every project under a
-  `projects_root` into one static, local `preview_board/index.json` +
-  `index.html` (no server, no external assets); reuses
-  `factory/preview_package.py` per-project instead of duplicating its file
-  scan. Each project also gets a deterministic `suggested_actions` list
-  (advisory-only, `"safety": "manual_only"`, never executed) rendered as
-  plain `<pre><code>` blocks in a "Suggested next steps" section, and a
+- `factory/render_coverage.py` — read-only `stl/*.stl` vs. `renders/*.png`
+  comparison for one project (missing/stale/orphan renders); the single
+  shared implementation both `factory/project_inspection.py` and
+  `factory/preview_package.py` call rather than reimplementing. See
+  `docs/render-coverage.md`.
+- `factory/project_inspection.py` — the shared, read-only, single-project
+  inspection layer both `factory/preview_board.py` and
+  `factory/review_gate.py` build on (extracted from `preview_board.py` in
+  Phase 13 specifically to remove circular-import pressure). Its
+  `summarize_project()` reads one project's `brief.json`/`build_plan.json`/
+  `part_manifest.json`/`cad/`/`stl/`/`renders/`/`validation/` (reusing
+  `factory/preview_package.py` and `factory/render_coverage.py`, never
+  duplicating their file scans) and returns `visual_readiness_state`
+  (`classify_visual_readiness()`), a deterministic `suggested_actions`
+  list (advisory-only, `"safety": "manual_only"`, never executed), and a
   deterministic `health_signals` rollup (`summary` +
   `info`/`warning`/`blocked`/`ready` items, including local
   `validation/`-report-coverage checking - `factory validate` is never run
-  automatically) rendered in a "Health signals" section - no JavaScript,
-  no copy button. See `docs/preview-board.md`.
-- `factory/render_coverage.py` — read-only `stl/*.stl` vs. `renders/*.png`
-  comparison for one project (missing/stale/orphan renders); the single
-  shared implementation `factory/preview_package.py` and
-  `factory/preview_board.py` both call rather than reimplementing. See
-  `docs/render-coverage.md`.
+  automatically). Never writes a file. See `docs/architecture.md`'s
+  "Shared inspection layer" note below.
+- `factory/preview_board.py` — aggregates every project under a
+  `projects_root` into one static, local `preview_board/index.json` +
+  `index.html` (no server, no external assets), using
+  `factory/project_inspection.py`'s `summarize_project()` for each
+  project's data. This module owns only project discovery, board
+  aggregation, and JSON/HTML rendering (`suggested_actions` render as
+  plain `<pre><code>` blocks in a "Suggested next steps" section,
+  `health_signals` in a "Health signals" section - no JavaScript, no copy
+  button). See `docs/preview-board.md`.
 - `factory/review_gate.py` — a read-only pass/warn/fail pre-flight check
   ("is this project ready for a **human** to review it in a slicer?")
-  built directly on `factory/preview_board.py`'s `summarize_project()`
-  rather than re-deriving state; applies its own, purpose-specific
-  stricter policy on top (e.g. a missing render is a hard blocker here,
-  not just a warning). `pass` never implies `human_approved`/`print_ready`
-  - the status ceiling stays `slicer_review_ready`. See
-  `docs/review-gate.md`.
+  built directly on `factory/project_inspection.py`'s `summarize_project()`
+  - it does **not** import `factory/preview_board.py`. It reads the
+  already-computed `health_signals` items by `kind` and applies its own,
+  purpose-specific stricter policy on top (e.g. a missing render is a hard
+  blocker here, not just a warning). `pass` never implies
+  `human_approved`/`print_ready` - the status ceiling stays
+  `slicer_review_ready`. See `docs/review-gate.md`.
+
+### Shared inspection layer (Phase 13)
+
+`factory/project_inspection.py` is the single source of truth both
+single-project (`review_gate`) and multi-project (`preview_board`)
+surfaces read from, so the two can never silently disagree about the same
+underlying facts. The dependency graph is one-directional and acyclic:
+
+```
+factory/render_coverage.py   factory/preview_package.py
+             \                        /
+              \                      /
+             factory/project_inspection.py
+              /                            \
+             /                              \
+factory/preview_board.py          factory/review_gate.py
+```
+
+`project_inspection.py` imports only `preview_package`/`render_coverage`/
+`project_store` - never `preview_board` or `review_gate`. `preview_board.py`
+still re-exports `project_inspection`'s public names
+(`summarize_project`, `classify_visual_readiness`, `build_suggested_actions`,
+`build_health_signals`, `VISUAL_READINESS_STATES`, `HEALTH_SEVERITIES`,
+`ACTION_SAFETY`) for backward compatibility with existing
+`from factory.preview_board import ...` call sites - they are the literal
+same function/constant objects, not copies.
 
 ## Why local-first
 

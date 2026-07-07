@@ -47,13 +47,23 @@ By default, output is written to `<projects_root>/preview_board/`:
 Re-running the command is safe and deterministic given the same project
 files - it only reads and then overwrites the two board output files.
 
-## How it reuses `preview_package`
+## How it's built
 
-Rather than re-scanning `cad/`/`stl/`/`renders/` itself, the board reuses
-`factory.preview_package`:
+The board does no per-project file scanning itself. Each project's row
+comes entirely from `factory.project_inspection.summarize_project()`
+(Phase 13 - see `docs/architecture.md`'s "Shared inspection layer" note),
+the same function `factory review-gate` builds on independently - so a
+project's row on the board and its `review-gate` result can never
+silently disagree about the same underlying facts. `preview_board.py`
+itself is responsible only for discovering projects under `projects_root`
+(`discover_projects()`), aggregating their summaries
+(`gather_board_data()`), and rendering the JSON/HTML.
+
+`summarize_project()`, in turn, reuses `factory.preview_package` rather
+than re-scanning `cad/`/`stl/`/`renders/` itself:
 
 - If a project already has `preview_package/index.json` (from a prior
-  `factory preview-project` run), the board reads that file directly.
+  `factory preview-project` run), it reads that file directly.
 - Otherwise it calls `factory.preview_package.gather_preview_data()` - the
   same read-only function `preview-project` itself uses - to compute an
   equivalent summary on the fly, without writing anything into that
