@@ -176,26 +176,55 @@ step; nothing here imports or executes the CadQuery source it writes.
 **Not yet started:** any CadQuery template beyond `mechanical-plate`;
 automated, locally-validated CadQuery export.
 
-## Phase 8 — optional Meshy, with approval/cost gates
+## Phase 8 — local visual preview board foundation (started)
+
+A local, static, multi-project preview board that helps Owen visually
+inspect project state across the whole workspace before trusting generated
+CAD/STL output - one step short of the full Future-track visual
+workspace/launcher, and deliberately not a server or cloud app. See
+`docs/preview-board.md`.
+
+**Started:** `factory preview-board <projects_root>` (`factory.preview_board`)
+scans every project subdirectory under `projects_root` and writes a static
+`preview_board/index.json` + `preview_board/index.html` (self-contained:
+inline CSS only, no external JS/CDN/remote assets/tracking). It reuses
+`factory.preview_package` for the per-project file scan (reads an existing
+`preview_package/index.json` when present, otherwise computes an
+equivalent summary on the fly via `gather_preview_data()` without writing
+into that project) instead of duplicating the scan, and classifies each
+project into one of six deterministic visual-readiness states
+(`needs_brief`, `cad_source_ready`, `needs_stl_export`, `needs_render`,
+`slicer_review_ready`, `blocked_or_incomplete`). It never writes to a
+project's `brief.json`/`build_plan.json`/`part_manifest.json`, never
+generates CAD, renders, or exports geometry, never invokes OpenSCAD,
+CadQuery, a slicer, or Blender, and never contacts a printer/network. The
+highest state it reports is `slicer_review_ready` - it never computes or
+implies `human_approved`/`print_ready`.
+
+**Not yet started:** wiring the board into any UI/dashboard beyond the
+static HTML file itself (still the Future track below); a `--watch`/
+auto-refresh mode (deliberately out of scope - static-only by design).
+
+## Phase 9 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 9 — 3MF packaging experiments
+## Phase 10 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 10 — advanced slicer review automation
+## Phase 11 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 11 — Blender repair/render automation
+## Phase 12 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

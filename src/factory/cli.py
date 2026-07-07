@@ -42,6 +42,7 @@ from factory.manufacturing.selection import (
 from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitializedError, generate_openscad
 from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
+from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
 from factory.slicer.local_slicer_probe import probe_slicers
@@ -76,6 +77,7 @@ AVAILABLE_COMMANDS = (
     "render <mesh_file>",
     "preview-index <project_dir>",
     "preview-project <project_dir>",
+    "preview-board <projects_root> [--output <path>] [--format json|html|both]",
     "inspect-slicer",
     "report <project_dir>",
 )
@@ -646,6 +648,42 @@ def preview_project_cmd(
         "\nThis only used existing cad/stl/render files already on disk - it did not render new images, "
         "invoke OpenSCAD, export an STL, or contact any printer/slicer/network."
     )
+
+
+@app.command(name="preview-board")
+def preview_board_cmd(
+    projects_root: Path = typer.Argument(..., help="Directory containing project subdirectories (e.g. this repo's projects/)"),
+    output: Optional[Path] = typer.Option(None, "--output", help="Output directory for the board (default: <projects_root>/preview_board/)"),
+    fmt: str = typer.Option("both", "--format", help="One of: json, html, both"),
+) -> None:
+    """Build/refresh a local static preview board summarizing every project under projects_root."""
+    projects_root = Path(projects_root)
+    if not projects_root.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {projects_root}")
+        raise typer.Exit(code=1)
+
+    try:
+        result = write_preview_board(projects_root, output_dir=output, fmt=fmt)
+    except ValueError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    board = result["board"]
+    console.print(f"[bold]preview board[/bold]: {board['project_count']} project(s) under {board['projects_root']}")
+    for state in VISUAL_READINESS_STATES:
+        console.print(f"  {state}: {board['state_counts'][state]}")
+
+    if result["index_path"]:
+        console.print(f"\n[green]wrote[/green] {result['index_path']}")
+    if result["html_path"]:
+        console.print(f"[green]wrote[/green] {result['html_path']}")
+
+    console.print(
+        "\nThis only read existing project files under projects_root - it did not render new images, "
+        "export STLs, run OpenSCAD/CadQuery, invoke a slicer, launch Blender, or contact any "
+        "printer/network."
+    )
+    console.print("Local static preview only. Not an approval. Not a print-readiness signal.")
 
 
 @app.command(name="inspect-slicer")

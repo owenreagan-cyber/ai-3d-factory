@@ -60,6 +60,7 @@ factory validate path/to/model.stl
 factory render path/to/model.stl
 factory preview-index projects/my-part    # read-only visual-artifact summary
 factory preview-project projects/my-part  # build/refresh preview_package/
+factory preview-board projects/           # static local board across all projects
 factory inspect-slicer               # read-only slicer discovery
 factory report projects/my-part      # includes manufacturing + preview package summary
 ```
@@ -87,6 +88,14 @@ later. `factory generate-cadquery` is a CadQuery starter backend
 (`mechanical-plate` template): CadQuery is optional and never installed by
 this repo, so the command fails cleanly if it isn't already available. See
 `docs/cad-backends.md`.
+
+`factory preview-board` aggregates every project under a `projects_root`
+into one static local board (`preview_board/index.json` +
+`preview_board/index.html` - no server, no cloud, plain HTML you open
+directly). Each project is classified into a visual-readiness state
+(`needs_brief`, `cad_source_ready`, `needs_stl_export`, `needs_render`,
+`slicer_review_ready`, `blocked_or_incomplete`) - a visual inspection aid,
+never an approval or print-readiness signal. See `docs/preview-board.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

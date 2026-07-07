@@ -60,6 +60,11 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   (`backend.py`, `router.py`), and the CadQuery starter backend
   (`cadquery_backend.py`, `manifest.py`); CadQuery is an optional
   dependency this repo never installs. See `docs/cad-backends.md`.
+- `factory/preview_board.py` — aggregates every project under a
+  `projects_root` into one static, local `preview_board/index.json` +
+  `index.html` (no server, no external assets); reuses
+  `factory/preview_package.py` per-project instead of duplicating its file
+  scan. See `docs/preview-board.md`.
 
 ## Why local-first
 
