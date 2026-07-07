@@ -81,7 +81,8 @@ selected option (or the unresolved-decision state), that assembly-intent
 summary, and whether CAD generation can proceed safely.
 `docs/product-vision.md` documents the intended long-term visual
 app/launcher direction and reserves (but does not implement) `factory
-serve`/`open`/`preview-project`/`launcher-info`.
+serve`/`open`/`preview-project`/`launcher-info`. (`preview-project` was
+later implemented in Phase 6 - see below.)
 
 **Not yet started:** any actual UI/launcher/dashboard code, automatically
 proposing a `required_parts` breakdown once multipart is confirmed (still a
@@ -118,27 +119,55 @@ decision engine; reconciling `config/materials.json` with
 `config/manufacturing/materials.json`; CadQuery generation helpers (still
 Phase 2); any UI/launcher code (still the Future track below).
 
-## Phase 6 — Blender repair/render automation
+## Phase 6 — visual preview package foundation (started)
+
+Strengthens the visual review workflow without building the full UI: a
+project-level preview package that aggregates existing CAD/STL/render/
+manifest state for a human (and a future dashboard) to review. See
+`docs/visual-preview-package.md`.
+
+**Started:** `factory preview-index <project_dir>` (read-only) and
+`factory preview-project <project_dir>` (writes) build/refresh
+`preview_package/index.json` + `preview_package/preview_report.md` -
+project name/status, target printer, selected manufacturing option, CAD/
+mesh/render file lists, manifest parts, multipart state, missing visual
+artifacts, stale-preview detection (by comparing a render's file mtime
+against its source STL's), and a static, advisory human visual inspection
+checklist (`factory.preview_package`). Neither command renders a new image,
+invokes OpenSCAD, exports an STL, or contacts a printer/slicer/network; the
+package only references existing files by relative path, never copies a
+render. `factory report` now shows whether a preview package exists and its
+CAD/mesh/render/missing-item counts. Every preview command/report ends with
+"Human visual inspection required." in addition to the existing "Human
+slicer review required."/"Project is NOT print-ready." lines.
+
+**Not yet started:** any UI/dashboard actually rendering `index.json`
+(still the Future track below); CAD-source-to-image or manufacturing-option
+visual rendering (still speculative Future-track requirements); wiring
+staleness/missing-artifact detection into a blocking gate (it stays
+advisory-only by design).
+
+## Phase 7 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity
 preview renders, as a local subprocess call — no Blender add-ons, no
 Blender MCP.
 
-## Phase 7 — optional Meshy, with approval/cost gates
+## Phase 8 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 8 — 3MF packaging experiments
+## Phase 9 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 9 — advanced slicer review automation
+## Phase 10 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at

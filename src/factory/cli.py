@@ -40,6 +40,7 @@ from factory.manufacturing.selection import (
 from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitializedError, generate_openscad
 from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
+from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
 from factory.slicer.local_slicer_probe import probe_slicers
 from factory.validators.mesh_validate import validate_mesh
@@ -69,6 +70,8 @@ AVAILABLE_COMMANDS = (
     "generate-openscad <project_dir> --template <name> [--text ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
+    "preview-index <project_dir>",
+    "preview-project <project_dir>",
     "inspect-slicer",
     "report <project_dir>",
 )
@@ -477,6 +480,81 @@ def render(mesh_file: Path = typer.Argument(..., help="Path to a mesh file to re
         raise typer.Exit(code=1)
 
 
+def _print_preview_index_summary(index: dict) -> None:
+    console.print(f"[bold]project[/bold]: {index['project_name']} ({index['project_dir']})")
+    console.print(f"  status: {index['project_status']}")
+    target_printer = index.get("target_printer") or {}
+    console.print(f"  target printer: {target_printer.get('display_name') or '(not planned yet)'}")
+    console.print(f"  selected manufacturing option: {index['selected_manufacturing_option']!r}")
+    console.print(f"  CAD source files: {len(index['cad_files'])}")
+    console.print(f"  mesh/STL files: {len(index['mesh_files'])}")
+    console.print(f"  render/preview images: {len(index['render_files'])}")
+    console.print(
+        f"  manifest parts: {len(index['manifest_parts'])} "
+        f"(multi-part: {index['multipart_state']['multi_part']})"
+    )
+
+    if index["missing_visual_artifacts"]:
+        console.print(f"  [yellow]missing visual artifacts[/yellow] ({len(index['missing_visual_artifacts'])}):")
+        for item in index["missing_visual_artifacts"]:
+            console.print(f"    - {item}")
+    else:
+        console.print("  missing visual artifacts: none")
+
+    if index["stale_previews"]:
+        console.print(f"  [yellow]stale previews[/yellow] ({len(index['stale_previews'])}):")
+        for item in index["stale_previews"]:
+            console.print(f"    - {item}")
+    else:
+        console.print("  stale previews: none detected")
+
+    console.print("\n[bold]human visual inspection checklist[/bold] (advisory only):")
+    for item in index["human_visual_inspection_checklist"]:
+        console.print(f"  - [ ] {item}")
+
+    console.print("\nHuman visual inspection required.")
+    console.print("Human slicer review required.")
+    console.print("Project is NOT print-ready.")
+
+
+@app.command(name="preview-index")
+def preview_index_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+) -> None:
+    """Print a read-only visual-artifact summary. Never renders, writes, or exports anything."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    index = gather_preview_data(project_dir)
+    _print_preview_index_summary(index)
+    console.print(
+        "\nThis command only read existing project files - it did not render, generate, export, "
+        "or write anything."
+    )
+
+
+@app.command(name="preview-project")
+def preview_project_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+) -> None:
+    """Build/refresh preview_package/index.json and preview_report.md from existing project files."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    result = write_preview_package(project_dir)
+    _print_preview_index_summary(result["index"])
+    console.print(f"\n[green]wrote[/green] {result['index_path']}")
+    console.print(f"[green]wrote[/green] {result['report_path']}")
+    console.print(
+        "\nThis only used existing cad/stl/render files already on disk - it did not render new images, "
+        "invoke OpenSCAD, export an STL, or contact any printer/slicer/network."
+    )
+
+
 @app.command(name="inspect-slicer")
 def inspect_slicer() -> None:
     """Read-only discovery of locally installed slicers. Never launches or slices."""
@@ -554,12 +632,34 @@ def report(project_dir: Path = typer.Argument(..., help="Path to a project direc
     _print_validation_summary(validation_reports)
     console.print(f"  slicer review packages: {len(slicer_review_files)}")
     console.print(f"  human approval on record: {human_approved}")
+    _print_preview_package_summary(project_dir)
     console.print(f"\n[bold]current safe status[/bold]: {safe_status}")
 
     _print_remaining_human_decisions(build_plan)
 
     console.print("\nHuman slicer review required.")
     console.print("Project is NOT print-ready.")
+
+
+def _print_preview_package_summary(project_dir: Path) -> None:
+    index_path, report_path = preview_package_paths(project_dir)
+    index = _safe_load(index_path)
+    if not index:
+        console.print(
+            "  preview package: missing - run `factory preview-project <project_dir>` to build it"
+        )
+        return
+
+    console.print(f"  preview package: {index_path}")
+    console.print(f"    preview report: {report_path}")
+    console.print(
+        f"    CAD files: {len(index.get('cad_files', []))}  |  "
+        f"mesh files: {len(index.get('mesh_files', []))}  |  "
+        f"renders: {len(index.get('render_files', []))}"
+    )
+    missing_count = len(index.get("missing_visual_artifacts", []))
+    stale_count = len(index.get("stale_previews", []))
+    console.print(f"    missing preview items: {missing_count}  |  stale previews: {stale_count}")
 
 
 def _print_target_printer_summary(build_plan: dict | None) -> None:

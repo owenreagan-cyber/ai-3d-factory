@@ -56,8 +56,10 @@ factory check-manufacturing           # validate config/manufacturing/*.json
 factory generate-openscad projects/my-part --template test-cube
 factory validate path/to/model.stl
 factory render path/to/model.stl
+factory preview-index projects/my-part    # read-only visual-artifact summary
+factory preview-project projects/my-part  # build/refresh preview_package/
 factory inspect-slicer               # read-only slicer discovery
-factory report projects/my-part      # includes manufacturing summary + open decisions
+factory report projects/my-part      # includes manufacturing + preview package summary
 ```
 
 `factory plan` reads a local manufacturing knowledge base
@@ -71,6 +73,11 @@ canonical printer source; `factory list-printers`/`show-printer`/
 `fleet-summary` inspect it directly (all read-only), and
 `factory check-manufacturing` validates it for internal consistency. See
 `docs/manufacturing-knowledge-base.md`.
+
+`factory preview-project` aggregates a project's existing CAD/STL/render/
+manifest files into `preview_package/index.json` + `preview_report.md` - a
+visual-artifact summary and advisory human inspection checklist, never a
+new render or an automatic approval. See `docs/visual-preview-package.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

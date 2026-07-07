@@ -81,6 +81,12 @@ future Planning board or fleet view would call - they already return
 structured, human-readable knowledge-base data; a future UI renders it
 instead of printing it.
 
+Phase 6's `preview_package/index.json` (see `docs/visual-preview-package.md`)
+is the read/write data layer for requirements 1, 2, and 4 above: it already
+lists every CAD/mesh/render file, every manifest part, and every missing or
+stale artifact by relative path - a future UI reads that file and renders
+the images it references, instead of re-deriving this file-scanning logic.
+
 ## Future reserved commands (documented, not implemented)
 
 These command names are reserved for the future UI/launcher track. **They do
@@ -92,8 +98,15 @@ surface area this repo doesn't need yet):
 |---|---|
 | `factory serve` | Would start a local (not internet-exposed) web server hosting the visual dashboard - reads project JSON, never a print/slicer/network gateway. |
 | `factory open` | Would open the Mac app launcher or local dashboard for a given project. |
-| `factory preview-project` | Would generate the visual previews described above (mesh, CAD source, manufacturing options, exploded view) for a whole project at once. |
 | `factory launcher-info` | Would report what launcher/UI surfaces are installed and how to reach them (analogous to `factory inspect-slicer`, but for this repo's own future UI, not a slicer). |
+
+`factory preview-project` was reserved here in Phase 4 but is now implemented
+(Phase 6) - see `docs/visual-preview-package.md`. Its actual scope is
+narrower than originally speculated above: it aggregates existing
+CAD/STL/render/manifest files into a `preview_package/index.json` +
+`preview_report.md` for a human (or future UI) to read; it does not itself
+render new mesh/CAD-source/exploded-view images - those remain future UI
+work per the visual requirements above.
 
 ## What does not change
 

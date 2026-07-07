@@ -19,6 +19,11 @@ issue with yourself (or ask the assisting agent to fix both together).
   `list-accessories`/`show-accessory`/`list-materials`/`show-material`/
   `fleet-summary`/`check-manufacturing` — all read-only, never hardware
   discovery.
+- Build a project's visual preview package (`preview_package/index.json` +
+  `preview_report.md`) via `factory preview-index` (read-only) /
+  `factory preview-project` (writes only those two files) — referencing
+  existing CAD/STL/render files, never rendering new images, invoking
+  OpenSCAD, or exporting an STL. See `docs/visual-preview-package.md`.
 - Use OpenSCAD/CadQuery/Blender/Bambu/Orca **discovery or generation
   helpers** added in later phases — not printing.
 
@@ -66,6 +71,16 @@ the explicit human decision this status records, so the CLI command is
 allowed to set it directly - unlike `human_approved`/`print_ready`, which no
 `factory` command may ever set regardless of what the human typed. See
 `docs/manufacturing-knowledge-base.md`.
+
+### The visual inspection checklist is not an approval gate
+
+`preview_report.md`'s human visual inspection checklist (Phase 6, see
+`docs/visual-preview-package.md`) is plain Markdown text - checking a box
+there does not change any file, status, or field, and no `factory` command
+reads or acts on it. It is advisory only, same spirit as the two gates
+above: only a human's actual review in a slicer (`human_approved`) or
+explicit sign-off (`print_ready`) can ever move a project past
+`slicer_review_ready`.
 
 ## If a task asks for a blocked action
 

@@ -52,7 +52,9 @@ def test_reserved_commands_do_not_exist_in_cli():
     from factory.cli import app
 
     registered = set(typer.main.get_command(app).commands.keys())
-    for reserved in ("serve", "open", "preview-project", "launcher-info"):
+    # `factory preview-project` was reserved in Phase 4 but is now implemented
+    # (Phase 6) - see docs/product-vision.md's note on that command.
+    for reserved in ("serve", "open", "launcher-info"):
         assert reserved not in registered, f"{reserved!r} should not be implemented yet"
 
 

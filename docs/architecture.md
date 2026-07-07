@@ -24,6 +24,7 @@ a schema in `schemas/`:
 | Parts | `factory plan` seeds it; `factory choose-option` adds an `assembly_intent` summary; `factory generate-openscad` fills in CAD-time fields; manual edit for the rest | `part_manifest.json` | `part_manifest.schema.json` |
 | Validation | `factory validate <mesh>` | `validation/*.json` | `validation_report.schema.json` |
 | Preview | `factory render <mesh>` | `renders/*.png` | n/a |
+| Preview package | `factory preview-index` (read-only) then `factory preview-project` | `preview_package/index.json`, `preview_package/preview_report.md` | n/a |
 | Slicer review | (human, in Bambu Studio/OrcaSlicer) | `slicer_review/*.json` | `slicer_review.schema.json` |
 
 `factory list-printers`/`show-printer`/`list-accessories`/`show-accessory`/
@@ -48,6 +49,11 @@ directly (not a `projects/<slug>/` file) and never write anything - see
 - `factory/validators/` — mesh geometry checks, dimension/build-volume fit,
   multi-part manifest sanity checks.
 - `factory/previews/` — trimesh + matplotlib preview rendering.
+- `factory/preview_package.py` — aggregates existing CAD/STL/render/manifest
+  files into a project-level `preview_package/index.json` +
+  `preview_report.md` (missing/stale detection, human inspection checklist).
+  Never renders new images or exports geometry itself. See
+  `docs/visual-preview-package.md`.
 - `factory/slicer/` — read-only local slicer discovery.
 - `factory/openscad/` — local, deterministic OpenSCAD source generation.
 
