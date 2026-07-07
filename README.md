@@ -136,12 +136,14 @@ direction.
 
 `examples/` is a permanent, committed library of example projects (unlike
 `projects/`, which is gitignored) demonstrating this workflow end to end:
-`examples/simple-nameplate/` and `examples/mechanical-plate/` are real,
-runnable demos built with the actual CLI/OpenSCAD source (stopping at the
-CAD-source stage, no STL committed); `examples/future-organic-models/` is
-a set of concept-only roadmap placeholders (no CAD/mesh/render) for future
-Blender/Meshy-backed organic modeling. `factory list-examples`/
-`show-example <name>` inspect the library (read-only). See
+`examples/simple-nameplate/`, `examples/mechanical-plate/`, and
+`examples/multipart-classroom-sign/` (a 3-part base+text+badge assembly)
+are real, runnable demos built with the actual CLI/OpenSCAD source
+(stopping at the CAD-source stage, no STL/PNG committed);
+`examples/future-organic-models/` is a set of concept-only roadmap
+placeholders (no CAD/mesh/render) for future Blender/Meshy-backed organic
+modeling. `factory list-examples`/`show-example <name>` inspect the
+library (read-only). See
 `docs/examples-library.md`.
 
 ## Workflow

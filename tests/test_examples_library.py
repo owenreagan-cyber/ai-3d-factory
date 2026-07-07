@@ -4,12 +4,15 @@ from typer.testing import CliRunner
 from factory import project_inspection, project_store
 from factory.cli import app
 from factory.examples_library import EXAMPLES_DIR, UnknownExampleError, get_example, list_examples
+from factory.preview_board import discover_projects, gather_board_data
 from factory.preview_package import gather_preview_data
 from factory.review_gate import evaluate_review_gate
 
 runner = CliRunner()
 
 WORKING_EXAMPLES = ("simple-nameplate", "mechanical-plate")
+MULTIPART_EXAMPLE = "multipart-classroom-sign"
+ALL_WORKING_EXAMPLES = WORKING_EXAMPLES + (MULTIPART_EXAMPLE,)
 CONCEPT_EXAMPLES = (
     "future-organic-models/car-concept",
     "future-organic-models/animal-concept",
@@ -45,7 +48,7 @@ def test_future_organic_models_readme_exists():
     assert (EXAMPLES_DIR / "future-organic-models" / "README.md").is_file()
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_has_required_local_files(name):
     root = EXAMPLES_DIR / name
     assert (root / "README.md").is_file()
@@ -66,14 +69,14 @@ def test_mechanical_plate_cad_source_is_the_named_file():
     assert (EXAMPLES_DIR / "mechanical-plate" / "cad" / "mechanical_plate.scad").is_file()
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_brief_is_valid_json_with_non_final_status(name):
     brief = project_store.load_json(EXAMPLES_DIR / name / "brief.json")
     assert brief["status"] not in ("human_approved", "print_ready")
     assert brief["required_human_approval"] is True
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_manifest_part_has_no_stl_on_disk(name):
     root = EXAMPLES_DIR / name
     manifest = project_store.load_json(root / "part_manifest.json")
@@ -83,6 +86,54 @@ def test_working_example_manifest_part_has_no_stl_on_disk(name):
         assert not mesh_path.exists(), (
             f"{name} should not ship a committed STL ({mesh_path}) - working examples stop at the CAD-source stage"
         )
+
+
+# ---- multipart-classroom-sign specifics ----
+
+
+def test_multipart_example_cad_files_are_named_as_expected():
+    cad_dir = EXAMPLES_DIR / MULTIPART_EXAMPLE / "cad"
+    for filename in ("base.scad", "text_layer.scad", "badge.scad"):
+        assert (cad_dir / filename).is_file(), f"missing {filename}"
+
+
+def test_multipart_example_cad_files_are_plain_text_source_only():
+    cad_dir = EXAMPLES_DIR / MULTIPART_EXAMPLE / "cad"
+    scad_files = list(cad_dir.glob("*.scad"))
+    assert len(scad_files) == 3
+    for path in scad_files:
+        # Must decode cleanly as UTF-8 text (no binary CAD/mesh payload) and
+        # contain no null bytes (a reliable indicator of a binary blob).
+        raw = path.read_bytes()
+        assert b"\x00" not in raw, f"{path} looks like a binary file, not OpenSCAD text source"
+        text = raw.decode("utf-8")
+        assert text.strip(), f"{path} is empty"
+        assert "module" in text or "cube" in text or "cylinder" in text, f"{path} doesn't look like OpenSCAD source"
+
+
+def test_multipart_example_manifest_has_multiple_parts_with_shared_origin():
+    manifest = project_store.load_json(EXAMPLES_DIR / MULTIPART_EXAMPLE / "part_manifest.json")
+    parts = manifest["parts"]
+    assert len(parts) >= 3
+    part_names = {p["part_name"] for p in parts}
+    assert {"base_plate", "sign_text", "accent_badge"}.issubset(part_names)
+    for part in parts:
+        assert part["shared_origin"] is True, f"{part['part_name']} must declare shared_origin: true"
+        assert part["transform_notes"], f"{part['part_name']} must document transform_notes"
+
+
+def test_multipart_example_badge_is_optional():
+    manifest = project_store.load_json(EXAMPLES_DIR / MULTIPART_EXAMPLE / "part_manifest.json")
+    badge = next(p for p in manifest["parts"] if p["part_name"] == "accent_badge")
+    assert badge["required_for_assembly"] is False
+
+
+def test_multipart_example_preview_data_reports_multi_part_true():
+    index = gather_preview_data(EXAMPLES_DIR / MULTIPART_EXAMPLE)
+    assert index["multipart_state"]["multi_part"] is True
+    assert index["multipart_state"]["part_count"] == 3
+    assert len(index["cad_files"]) == 3
+    assert index["mesh_files"] == []
 
 
 # ---- future concepts ----
@@ -168,7 +219,7 @@ def test_no_example_ships_stl_or_png_files():
 # ---- integration with preview_package / project_inspection / review_gate ----
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_preview_data_reflects_cad_only_state(name):
     root = EXAMPLES_DIR / name
     index = gather_preview_data(root)
@@ -177,14 +228,14 @@ def test_working_example_preview_data_reflects_cad_only_state(name):
     assert index["missing_visual_artifacts"]
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_summarize_project_needs_stl_export(name):
     summary = project_inspection.summarize_project(EXAMPLES_DIR / name)
     assert summary["brief_exists"] is True
     assert summary["visual_readiness_state"] == "needs_stl_export"
 
 
-@pytest.mark.parametrize("name", WORKING_EXAMPLES)
+@pytest.mark.parametrize("name", ALL_WORKING_EXAMPLES)
 def test_working_example_review_gate_fails_cleanly_without_stl(name):
     gate = evaluate_review_gate(EXAMPLES_DIR / name)
     assert gate["result"] == "fail"
@@ -212,7 +263,7 @@ def test_concept_example_review_gate_fails_and_is_not_printable_or_approved(rela
 def test_list_examples_returns_every_registered_example_and_all_exist_on_disk():
     examples = list_examples()
     names = {e["name"] for e in examples}
-    assert names == set(WORKING_EXAMPLES) | set(CONCEPT_EXAMPLES)
+    assert names == set(ALL_WORKING_EXAMPLES) | set(CONCEPT_EXAMPLES)
     for example in examples:
         assert example["exists"] is True, f"{example['name']} registry entry points at a missing path"
 
@@ -224,6 +275,15 @@ def test_working_example_registry_entry_shape(name):
     assert example["backend"] == "openscad"
     assert example["status"] == "slicer_review_ready_possible"
     assert example["safety_notes"]
+
+
+def test_multipart_example_registry_entry_shape():
+    example = get_example(MULTIPART_EXAMPLE)
+    assert example["type"] == "working"
+    assert example["backend"] == "openscad"
+    assert example["status"] == "cad_generated"
+    assert example["safety_notes"]
+    assert any("multi-part" in note.lower() for note in example["safety_notes"])
 
 
 @pytest.mark.parametrize("relative", CONCEPT_EXAMPLES)
@@ -246,7 +306,7 @@ def test_get_example_unknown_name_raises():
 def test_list_examples_cli_lists_every_registered_example():
     result = runner.invoke(app, ["list-examples"])
     assert result.exit_code == 0
-    for name in WORKING_EXAMPLES + CONCEPT_EXAMPLES:
+    for name in ALL_WORKING_EXAMPLES + CONCEPT_EXAMPLES:
         assert name in result.stdout
 
 
@@ -256,6 +316,15 @@ def test_show_example_cli_working_example():
     assert "type: working" in result.stdout
     assert "backend: openscad" in result.stdout
     assert "review-gate examples/simple-nameplate" in result.stdout
+
+
+def test_show_example_cli_multipart_example():
+    result = runner.invoke(app, ["show-example", MULTIPART_EXAMPLE])
+    assert result.exit_code == 0
+    assert "type: working" in result.stdout
+    assert "backend: openscad" in result.stdout
+    assert "cad_generated" in result.stdout
+    assert f"review-gate examples/{MULTIPART_EXAMPLE}" in result.stdout
 
 
 def test_show_example_cli_concept_example():
@@ -278,3 +347,32 @@ def test_status_cli_lists_examples_commands():
     assert result.exit_code == 0
     assert "list-examples" in result.stdout
     assert "show-example" in result.stdout
+
+
+def test_review_gate_cli_fails_safely_for_multipart_example():
+    result = runner.invoke(app, ["review-gate", f"examples/{MULTIPART_EXAMPLE}"])
+    assert result.exit_code == 1
+    assert "No STL files exist yet" in result.stdout
+    assert "NOT print-ready" in result.stdout
+
+
+def test_preview_project_cli_reports_multipart_state():
+    result = runner.invoke(app, ["preview-project", f"examples/{MULTIPART_EXAMPLE}"])
+    assert result.exit_code == 0
+    assert "multi-part: True" in result.stdout
+
+
+# ---- preview-board across examples/ ----
+
+
+def test_preview_board_discovers_multipart_example_under_examples_root():
+    project_dirs = discover_projects(EXAMPLES_DIR)
+    names = {p.name for p in project_dirs}
+    assert MULTIPART_EXAMPLE in names
+
+
+def test_preview_board_gathers_multipart_example_without_crashing():
+    board = gather_board_data(EXAMPLES_DIR)
+    project = next(p for p in board["projects"] if p["slug"] == MULTIPART_EXAMPLE)
+    assert project["visual_readiness_state"] == "needs_stl_export"
+    assert project["manifest_exists"] is True

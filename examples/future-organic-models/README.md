@@ -16,7 +16,7 @@ people, and other organic/sculptural forms are a poor fit for parametric
 primitives; the intended future backends for that kind of geometry are:
 
 - **Blender**, for freeform/organic modeling and higher-fidelity renders -
-  reserved for Phase 18 ("Blender repair/render automation") and still
+  reserved for Phase 19 ("Blender repair/render automation") and still
   requiring a local, non-interactive, add-on-free invocation. See
   `docs/roadmap.md` and `AGENT.md` ("No installing Blender add-ons").
 - **Meshy**, for AI-assisted mesh generation - reserved for a dedicated

@@ -1,4 +1,4 @@
-# Local example project library (Phase 14)
+# Local example project library (Phase 14, extended in Phase 15)
 
 `examples/` is a permanent local library of example `ai-3d-factory`
 projects, committed to this repo (unlike `projects/`, which is
@@ -23,19 +23,20 @@ requiring anyone to first create their own project.
 
 ### Working local demo examples
 
-`examples/simple-nameplate/` and `examples/mechanical-plate/` are real,
-runnable workflow examples - every file was produced by actually running
-the `factory` CLI (or, for `mechanical-plate/`, by hand-authoring a
-`.scad` file the CLI is designed to accept directly, since this repo
+`examples/simple-nameplate/`, `examples/mechanical-plate/`, and
+`examples/multipart-classroom-sign/` are real, runnable workflow examples
+- every file was produced by actually running the `factory` CLI (or, for
+`mechanical-plate/`/`multipart-classroom-sign/`, by hand-authoring
+`.scad` files the CLI is designed to accept directly, since this repo
 already documents `cad/*.scad`/`cad/*.py` as human-editable, not only
 generator output).
 
-Both:
+All three:
 
 - Have a real `brief.json`, `part_manifest.json`, and `cad/` source.
 - Stop at the CAD-source stage - `brief.json` status `cad_generated`, **no
-  STL committed** - so they stay small, reviewable text diffs instead of
-  shipping committed binary meshes.
+  STL/PNG committed** - so they stay small, reviewable text diffs instead
+  of shipping committed binary meshes.
 - Are compatible with `factory preview-index`, `factory preview-project`,
   `factory review-gate`, and `factory preview-board` - none of these
   commands crash or behave differently against an `examples/` path than
@@ -49,13 +50,28 @@ Both:
   validate`, `factory render`, `factory preview-project`) to continue it
   to `slicer_review_ready` yourself, entirely locally.
 
+`examples/multipart-classroom-sign/` (Phase 15) is the library's first
+**multi-part assembly** example: a base plate, a raised room-number text
+layer, and an optional accent badge - `cad/base.scad`,
+`cad/text_layer.scad`, `cad/badge.scad` - all sharing one origin per
+`docs/slicer-review-workflow.md`, with a matching 3-entry
+`part_manifest.json` (`shared_origin: true`, matching `transform_notes`
+on every part, the badge marked `required_for_assembly: false` since it's
+optional). `factory.preview_package.gather_preview_data()` correctly
+reports `multipart_state.multi_part: true` for it. It exists as a
+baseline pattern for richer future multi-part models (cars, animals,
+people, classroom/manufacturing demos) - no built-in `factory
+generate-openscad` template currently covers more than the 2-part
+`multipart-nameplate` shape, so this example intentionally shows how to
+hand-author a 3-part assembly using the same shared-origin convention.
+
 ### Future / roadmap concept examples
 
 `examples/future-organic-models/{car-concept,animal-concept,
 human-figure-study}/` are concept-only placeholders for organic/freeform
 modeling directions (cars, animals, people) this repo may support once a
-future Blender local-automation phase (`docs/roadmap.md` Phase 18) and/or
-a Meshy safety/cost approval gate (`docs/roadmap.md` Phase 15) exist.
+future Blender local-automation phase (`docs/roadmap.md` Phase 19) and/or
+a Meshy safety/cost approval gate (`docs/roadmap.md` Phase 16) exist.
 
 **No CAD, mesh, render, or generated asset exists for any of them.** Each
 concept directory contains only a `README.md` and a `concept_brief.json`
@@ -86,8 +102,8 @@ Each entry reports:
 | `path` | Path relative to the repo root. |
 | `exists` | Whether that path is currently a directory on disk (a static registry entry could in principle drift from disk; this flags it). |
 | `type` | `working` or `future-concept`. |
-| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see `docs/roadmap.md` Phase 15/18). |
-| `status` | `demo_only`, `concept_only`, or `slicer_review_ready_possible`. |
+| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see `docs/roadmap.md` Phase 16/19). |
+| `status` | `demo_only`, `concept_only`, `slicer_review_ready_possible`, or `cad_generated` (the last used for `multipart-classroom-sign` - see below). |
 | `safety_notes` | Plain-language notes on what was and wasn't done to build this example. |
 
 `factory show-example` additionally prints ready-to-copy next commands
@@ -109,6 +125,14 @@ examples/
 │   └── preview_package/{index.json,preview_report.md}
 ├── mechanical-plate/           # working demo (hand-authored OpenSCAD)
 │   └── ... (same shape as simple-nameplate/)
+├── multipart-classroom-sign/   # working demo (hand-authored OpenSCAD, 3-part assembly)
+│   ├── README.md
+│   ├── brief.json
+│   ├── build_plan.json
+│   ├── part_manifest.json      # 3 parts: base_plate, sign_text, accent_badge
+│   ├── cad/{base.scad,text_layer.scad,badge.scad,README.md}
+│   ├── slicer_review/openscad_export_instructions.md
+│   └── preview_package/{index.json,preview_report.md}
 ├── future-organic-models/      # roadmap/spec only - no CAD, mesh, or render
 │   ├── README.md
 │   ├── car-concept/{README.md,concept_brief.json}
@@ -123,12 +147,13 @@ examples/
 
 Building this library used only already-installed local tools: the
 `factory` CLI itself (`generate-openscad`, `preview-project`), and the
-OpenSCAD binary already present on this machine (used once, outside the
-repo, in a scratch path, only to confirm `mechanical_plate.scad` exports a
-valid manifold solid - that check's output was not committed). No package
-was installed. No network call was made. No printer, slicer, Bambu Cloud,
-Meshy, or paid/cloud API was contacted. No MCP was configured. No Blender
-add-on was touched.
+OpenSCAD binary already present on this machine (used a handful of times,
+outside the repo, in a scratch path, only to confirm each hand-authored
+`.scad` file exports a valid solid - that check's output was never
+committed). No package was installed. No network call was made. No
+printer, slicer, Bambu Cloud, Meshy, or paid/cloud API was contacted. No
+MCP was configured. No Blender add-on was touched. No STL, PNG, or other
+binary generated asset is committed anywhere under `examples/`.
 
-See `AGENT.md`, `docs/safety-gates.md`, and `docs/roadmap.md` Phase 14 for
-the full context.
+See `AGENT.md`, `docs/safety-gates.md`, and `docs/roadmap.md` Phase 14/15
+for the full context.

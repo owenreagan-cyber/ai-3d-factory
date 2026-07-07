@@ -1,0 +1,13 @@
+{
+  "project_name": "multipart-classroom-sign-example",
+  "status": "cad_generated",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "A committed, permanent local example of the ai-3d-factory multi-part assembly workflow: a classroom sign with a base plate, a separately-colored raised room-number text layer, and a small accent badge/icon, all sharing one origin per docs/slicer-review-workflow.md. Hand-authored in OpenSCAD (no built-in generate-openscad template covers a 3-part sign with a badge accent yet - only the 2-part multipart-nameplate template exists). This is a demo/reference project living under examples/, meant as a baseline pattern future richer multi-part models (cars, animals, people, manufacturing demos) can build on - see examples/multipart-classroom-sign/README.md.",
+  "constraints": [
+    "Original design only - no franchise/copyrighted logos or characters (see docs/licensing-policy.md).",
+    "Demo scale only (150mm x 50mm base plate) - not sized against any real classroom door or sign holder.",
+    "This is a workflow example, not a print order: no STL has been exported, and this example is not slicer_review_ready, human_approved, or print_ready."
+  ],
+  "required_human_approval": true
+}

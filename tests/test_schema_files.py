@@ -31,6 +31,7 @@ EXAMPLE_BRIEFS = [
     "gv60_plate_frame/brief.json",
     "simple-nameplate/brief.json",
     "mechanical-plate/brief.json",
+    "multipart-classroom-sign/brief.json",
 ]
 
 
@@ -83,6 +84,7 @@ def test_project_brief_schema_allows_manufacturing_option_selected_status():
 EXAMPLE_MANIFESTS = [
     "simple-nameplate/part_manifest.json",
     "mechanical-plate/part_manifest.json",
+    "multipart-classroom-sign/part_manifest.json",
 ]
 
 

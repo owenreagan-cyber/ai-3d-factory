@@ -15,8 +15,8 @@ this repo knows about, each with a `status`:
 |---|---|---|
 | `openscad` | `available` | Implemented since Phase 2 — see `docs/openscad-generation.md`. |
 | `cadquery` | `available` if the `cadquery` package is importable, else `not_installed` | Implemented since Phase 7 — see below. |
-| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 18. |
-| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 15 and `docs/licensing-policy.md`. |
+| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 19. |
+| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 16 and `docs/licensing-policy.md`. |
 
 The registry is recomputed on every call (not cached at import time), so
 `cadquery`'s status always reflects the current environment. Nothing in
@@ -126,3 +126,15 @@ CadQuery template above (`length_mm`, `width_mm`, `thickness_mm`,
 `corner_radius_mm`, `hole_diameter_mm`, `hole_margin_mm`), written because
 CadQuery isn't installed in the environment this example was built in. See
 `docs/examples-library.md` and `examples/mechanical-plate/README.md`.
+
+## Example: `examples/multipart-classroom-sign/`
+
+`examples/multipart-classroom-sign/cad/{base.scad,text_layer.scad,
+badge.scad}` hand-authors a 3-part assembly following the same
+shared-origin convention as the built-in `multipart-nameplate` OpenSCAD
+template (`factory/openscad/templates.py`) - same `plate_width`/
+`plate_depth`/`plate_height` parameters across all three files, same
+`(0,0,0)` origin, no re-centering - since no built-in template currently
+covers more than a 2-part base+text pair. See `docs/examples-library.md`,
+`docs/slicer-review-workflow.md`, and
+`examples/multipart-classroom-sign/README.md`.

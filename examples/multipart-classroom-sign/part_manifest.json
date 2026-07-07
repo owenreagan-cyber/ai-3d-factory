@@ -1,0 +1,49 @@
+{
+  "parts": [
+    {
+      "part_name": "base_plate",
+      "file_path": "stl/base.stl",
+      "material": "TBD - human decision",
+      "color": "TBD - base color",
+      "transform_notes": "Shared origin with text_layer.scad/badge.scad: all three parts are modeled from the same (0,0,0) corner and must be imported into the slicer without re-centering any of them.",
+      "export_units": "mm",
+      "source": "ai-3d-factory example - hand-authored OpenSCAD (assembly part 1 of 3)",
+      "license": "original",
+      "role": "base_plate",
+      "required_for_assembly": true,
+      "cad_source": "cad/base.scad",
+      "shared_origin": true,
+      "quantity": 1
+    },
+    {
+      "part_name": "sign_text",
+      "file_path": "stl/text_layer.stl",
+      "material": "TBD - human decision",
+      "color": "TBD - contrasting text color",
+      "transform_notes": "Shared origin with base.scad/badge.scad: all three parts are modeled from the same (0,0,0) corner and must be imported into the slicer without re-centering any of them.",
+      "export_units": "mm",
+      "source": "ai-3d-factory example - hand-authored OpenSCAD (assembly part 2 of 3)",
+      "license": "original",
+      "role": "raised_letters",
+      "required_for_assembly": true,
+      "cad_source": "cad/text_layer.scad",
+      "shared_origin": true,
+      "quantity": 1
+    },
+    {
+      "part_name": "accent_badge",
+      "file_path": "stl/badge.stl",
+      "material": "TBD - human decision",
+      "color": "TBD - accent/badge color",
+      "transform_notes": "Shared origin with base.scad/text_layer.scad: all three parts are modeled from the same (0,0,0) corner and must be imported into the slicer without re-centering any of them.",
+      "export_units": "mm",
+      "source": "ai-3d-factory example - hand-authored OpenSCAD (assembly part 3 of 3)",
+      "license": "original",
+      "role": "accent_badge",
+      "required_for_assembly": false,
+      "cad_source": "cad/badge.scad",
+      "shared_origin": true,
+      "quantity": 1
+    }
+  ]
+}

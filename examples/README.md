@@ -22,11 +22,17 @@ access and no dependency installs.
   holes, hand-authored in OpenSCAD (mirroring the built-in CadQuery
   `mechanical-plate` template's parameters, since CadQuery isn't installed
   in this environment).
+- **`multipart-classroom-sign/`** - a 3-part assembly (base plate + raised
+  room-number text + an optional accent badge, all sharing one origin),
+  hand-authored in OpenSCAD since no built-in template covers a 3-part
+  sign with a badge accent yet (only the 2-part `multipart-nameplate`
+  template exists). A baseline pattern for richer future multi-part models
+  (cars, animals, people, classroom/manufacturing demos) to build on.
 
-Both stop at the CAD-source stage (status `cad_generated`, no STL
+All three stop at the CAD-source stage (status `cad_generated`, no STL
 exported) so they stay small, reviewable text diffs rather than shipping
-committed binary meshes. Both are compatible with `factory preview-index`,
-`factory preview-project`, `factory review-gate`, and
+committed binary meshes. All three are compatible with `factory
+preview-index`, `factory preview-project`, `factory review-gate`, and
 `factory preview-board` - `review-gate` currently (and correctly) reports
 `FAIL` for each, since there's no STL yet to visually review. Each
 example's own `README.md` shows the exact local commands to continue it
@@ -58,4 +64,6 @@ print/send commands, MCP, or Blender automation/add-ons. No example sets
 status any example in this library reaches automatically is
 `slicer_review_ready` - achievable only if you run the manual local export
 steps documented in `simple-nameplate/README.md` /
-`mechanical-plate/README.md` yourself.
+`mechanical-plate/README.md` / `multipart-classroom-sign/README.md`
+yourself. No STL, PNG, or other binary generated asset is committed
+anywhere in this directory.
