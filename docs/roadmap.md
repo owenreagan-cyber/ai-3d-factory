@@ -232,28 +232,55 @@ blocks readiness by itself (advisory warning only). `human_approved`/
 highest automatic status remains `slicer_review_ready`.
 
 **Not yet started:** any UI/dashboard rendering this data beyond the
-existing static preview board and CLI text/JSON output.
+existing static preview board and CLI text/JSON output. (Suggested
+next-step commands were added later, in Phase 10 - see below.)
 
-## Phase 10 — optional Meshy, with approval/cost gates
+## Phase 10 — preview board action suggestions (started)
+
+Makes the static preview board actionable, not just informational: each
+project card gets a deterministic `suggested_actions` list of safe,
+copyable local commands for the human to consider running next. See
+`docs/preview-board.md`'s "Suggested next steps" section.
+
+**Started:** `factory.preview_board.build_suggested_actions()` maps a
+project's already-computed `visual_readiness_state` to exactly one set of
+structured suggestions (`kind`, `label`, `command`, `safety:
+"manual_only"`, `reason`) - `create_brief_missing`, `generate_cad_source`,
+`export_stl_manual`, one `render_missing_mesh` per gap (built on
+`factory.render_coverage.missing_and_stale_mesh_paths()`, the same
+function `factory plan-renders` uses, so the two never drift),
+`review_slicer_manually` (explicitly "do not slice-and-send or print
+yet"), or `inspect_blocked_project` (reason names the actual cause -
+corrupt JSON, a stale render, or a flagged artifact). The board's HTML
+gained a "Suggested next steps" section rendering each command in a
+`<pre><code>` block - plain text only, no JavaScript, no copy button, no
+automatic execution of anything. No action ever suggests printing,
+slicing-and-sending, uploading, or calling a cloud/paid API, Meshy, or
+Blender; none set `human_approved`/`print_ready`.
+
+**Not yet started:** any richer UI around these suggestions (still the
+Future track below) - the board stays a single static HTML file.
+
+## Phase 11 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 11 — 3MF packaging experiments
+## Phase 12 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 12 — advanced slicer review automation
+## Phase 13 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 13 — Blender repair/render automation
+## Phase 14 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

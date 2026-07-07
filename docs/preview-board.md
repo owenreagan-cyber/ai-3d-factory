@@ -96,6 +96,45 @@ surfaced only as an advisory warning on the project's card, per
 module - see `AGENT.md` for why that boundary only moves via explicit
 human action outside any `factory` command.
 
+## Suggested next steps (Phase 10)
+
+Each project's card also carries a `suggested_actions` list - deterministic,
+structured next-step suggestions the human can read and, if they choose,
+copy and run themselves. **Nothing here is ever executed automatically.**
+Each action has this shape:
+
+```jsonc
+{
+  "kind": "render_missing_mesh",
+  "label": "Render missing STL preview",
+  "command": "factory render projects/demo/stl/part_a.stl",
+  "safety": "manual_only",
+  "reason": "STL exists but matching render PNG is missing"
+}
+```
+
+`safety` is always `"manual_only"` - every action in this repo is advisory
+text, never something this module runs. `command` is plain text; the board
+HTML renders it in a `<pre><code>` block for easy copying, never behind a
+JS "copy" button (there is no JavaScript on the page at all).
+
+One suggestion set per project, driven by the same `visual_readiness_state`
+already computed above (so a project never gets a suggestion for a step
+that's already superseded by a more fundamental one):
+
+| State | `kind` | What it suggests |
+|---|---|---|
+| `needs_brief` | `create_brief_missing` | Create `brief.json` (points at `docs/file-lifecycle.md`), then `factory plan`. |
+| `cad_source_ready` | `generate_cad_source` | Run `factory route-cad <path>` (read-only) to pick a backend, then generate CAD source yourself. |
+| `needs_stl_export` | `export_stl_manual` | Review the CAD source, then export it into `stl/` yourself - STL export is always manual in this repo. |
+| `needs_render` | `render_missing_mesh` | One suggestion per mesh still missing (or with a stale) render: `factory render <project_path>/stl/<name>.stl`. Reuses `factory.render_coverage.missing_and_stale_mesh_paths()` - the same function `factory plan-renders` is built on - so the two never drift apart. |
+| `slicer_review_ready` | `review_slicer_manually` | Open the STLs in Bambu Studio/OrcaSlicer for **manual review only** - explicitly "do not slice-and-send or print yet." |
+| `blocked_or_incomplete` | `inspect_blocked_project` | Run `factory report <path>` / `factory render-coverage <path>` (both read-only); the `reason` field explains the actual cause (corrupt JSON, a stale render, or a preview-package-flagged artifact). |
+
+No action ever suggests printing, slicing-and-sending, uploading, calling
+a cloud/paid API, calling Meshy, or launching Blender - and none set
+`human_approved` or `print_ready`.
+
 ## Board JSON shape
 
 ```jsonc
@@ -125,7 +164,18 @@ human action outside any `factory` command.
         "...": "..."
       },
       "visual_readiness_state": "needs_stl_export",
-      "warnings": ["No preview_package/index.json found - ...", "..."]
+      "warnings": ["No preview_package/index.json found - ...", "..."],
+      "suggested_actions": [
+        {
+          "kind": "export_stl_manual",
+          "label": "Export CAD source to STL",
+          "command": "Review the CAD source under projects/demo-bracket/cad/, then export it "
+                       "yourself into projects/demo-bracket/stl/ ...",
+          "safety": "manual_only",
+          "reason": "CAD source exists but no STL has been exported yet. STL export is always a "
+                     "manual, human-run step in this repo."
+        }
+      ]
     }
   ],
   "notes": ["Local static preview only - ...", "..."]
@@ -144,6 +194,10 @@ human action outside any `factory` command.
   `part_manifest.json` - it only writes the two board files described
   above.
 - Does not set `human_approved` or `print_ready` on anything.
+- Does not execute any `suggested_actions` command - ever, automatically
+  or otherwise. There is no "run" button anywhere in the generated HTML.
 
 See also `docs/visual-preview-package.md` (per-project preview package,
-which this board aggregates) and `docs/roadmap.md` Phase 8.
+which this board aggregates), `docs/render-coverage.md` (the render-gap
+detection `needs_render` suggestions are built on), and `docs/roadmap.md`
+Phase 8 (board foundation) / Phase 10 (action suggestions).

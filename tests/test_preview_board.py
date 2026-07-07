@@ -10,8 +10,10 @@ from factory import preview_board as preview_board_module
 from factory import project_store
 from factory.cli import app
 from factory.preview_board import (
+    ACTION_SAFETY,
     VISUAL_READINESS_STATES,
     build_board_html,
+    build_suggested_actions,
     classify_visual_readiness,
     discover_projects,
     gather_board_data,
@@ -19,6 +21,7 @@ from factory.preview_board import (
     summarize_project,
     write_preview_board,
 )
+from factory.render_coverage import compute_render_coverage
 from factory.preview_package import write_preview_package
 
 runner = CliRunner()
@@ -716,3 +719,387 @@ def test_preview_board_module_never_writes_project_state_paths():
     code_only_source = ast.unparse(tree)
     assert "human_approved" not in code_only_source
     assert "print_ready" not in code_only_source
+
+
+# ---- build_suggested_actions (Phase 10) ----
+
+
+# Directive/action phrases that would mean this suggestion tells the human to
+# actually print, send, upload, or call an external service - not merely
+# mentioning "print" defensively (e.g. "do not print yet" is fine and expected).
+_FORBIDDEN_ACTION_LANGUAGE = (
+    "send to printer", "start print", "begin printing", "print now", "click print",
+    "print this", "send this", "upload", "meshy", "blender", "bambu cloud",
+    "api key", "api call", "cloud api",
+)
+
+
+def _assert_actions_are_safe(actions: list[dict]) -> None:
+    for action in actions:
+        assert set(action.keys()) == {"kind", "label", "command", "safety", "reason"}
+        assert action["safety"] == ACTION_SAFETY
+        haystack = " ".join([action["label"], action["command"], action["reason"]]).lower()
+        for forbidden in _FORBIDDEN_ACTION_LANGUAGE:
+            assert forbidden not in haystack, f"found forbidden language {forbidden!r} in action {action!r}"
+
+
+def test_suggested_actions_for_needs_brief():
+    actions = build_suggested_actions(
+        visual_readiness_state="needs_brief",
+        project_path="projects/demo",
+        brief_status="missing",
+        manifest_status="missing",
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "create_brief_missing"
+    assert "projects/demo/brief.json" in actions[0]["command"]
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_cad_source_ready():
+    actions = build_suggested_actions(
+        visual_readiness_state="cad_source_ready",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "generate_cad_source"
+    assert actions[0]["command"] == "factory route-cad projects/demo"
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_needs_stl_export():
+    actions = build_suggested_actions(
+        visual_readiness_state="needs_stl_export",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "export_stl_manual"
+    assert "projects/demo/stl" in actions[0]["command"]
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_needs_render_single_missing():
+    coverage = _empty_render_coverage()
+    coverage["missing_renders"] = ["stl/part_a.stl"]
+    actions = build_suggested_actions(
+        visual_readiness_state="needs_render",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=coverage,
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "render_missing_mesh"
+    assert actions[0]["command"] == "factory render projects/demo/stl/part_a.stl"
+    assert "missing" in actions[0]["reason"].lower()
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_needs_render_multiple_missing():
+    coverage = _empty_render_coverage()
+    coverage["missing_renders"] = ["stl/a.stl", "stl/b.stl"]
+    actions = build_suggested_actions(
+        visual_readiness_state="needs_render",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=coverage,
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    commands = {a["command"] for a in actions}
+    assert commands == {"factory render projects/demo/stl/a.stl", "factory render projects/demo/stl/b.stl"}
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_needs_render_stale():
+    coverage = _empty_render_coverage()
+    coverage["stale_renders"] = ["renders/part_a_preview.png"]
+    actions = build_suggested_actions(
+        visual_readiness_state="needs_render",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=coverage,
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["command"] == "factory render projects/demo/stl/part_a.stl"
+    assert "stale" in actions[0]["reason"].lower() or "older" in actions[0]["reason"].lower()
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_slicer_review_ready_is_manual_review_only():
+    actions = build_suggested_actions(
+        visual_readiness_state="slicer_review_ready",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "review_slicer_manually"
+    assert "do not print" in actions[0]["reason"].lower() or "not for printing" in actions[0]["reason"].lower()
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_blocked_or_incomplete_is_inspection_only():
+    actions = build_suggested_actions(
+        visual_readiness_state="blocked_or_incomplete",
+        project_path="projects/demo",
+        brief_status="unreadable",
+        manifest_status="ok",
+        render_coverage=_empty_render_coverage(),
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "inspect_blocked_project"
+    assert "factory report projects/demo" in actions[0]["command"]
+    assert "approve" not in actions[0]["reason"].lower()
+    assert "print" not in actions[0]["reason"].lower()
+    _assert_actions_are_safe(actions)
+
+
+def test_suggested_actions_for_blocked_reflects_actual_cause():
+    coverage = _empty_render_coverage()
+    coverage["stale_renders"] = ["renders/x_preview.png"]
+    actions = build_suggested_actions(
+        visual_readiness_state="blocked_or_incomplete",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=coverage,
+        missing_visual_artifacts=["Missing STL for part 'x'."],
+        stale_previews=["renders/y_preview.png is older than stl/y.stl"],
+    )
+    reason = actions[0]["reason"]
+    assert "older than their stl" in reason.lower()
+    assert "missing visual artifact" in reason.lower()
+    assert "stale preview" in reason.lower()
+
+
+def test_suggested_actions_are_deterministic():
+    coverage = _empty_render_coverage()
+    coverage["missing_renders"] = ["stl/a.stl", "stl/b.stl"]
+    kwargs = dict(
+        visual_readiness_state="needs_render",
+        project_path="projects/demo",
+        brief_status="ok",
+        manifest_status="ok",
+        render_coverage=coverage,
+        missing_visual_artifacts=[],
+        stale_previews=[],
+    )
+    assert build_suggested_actions(**kwargs) == build_suggested_actions(**kwargs)
+
+
+def test_no_suggested_action_kind_contains_forbidden_execution_behavior():
+    # Exercise every state at least once and check none slip in forbidden wording.
+    coverage_with_gaps = _empty_render_coverage()
+    coverage_with_gaps["missing_renders"] = ["stl/a.stl"]
+    scenarios = [
+        dict(visual_readiness_state="needs_brief", brief_status="missing", manifest_status="missing", render_coverage=_empty_render_coverage()),
+        dict(visual_readiness_state="cad_source_ready", brief_status="ok", manifest_status="ok", render_coverage=_empty_render_coverage()),
+        dict(visual_readiness_state="needs_stl_export", brief_status="ok", manifest_status="ok", render_coverage=_empty_render_coverage()),
+        dict(visual_readiness_state="needs_render", brief_status="ok", manifest_status="ok", render_coverage=coverage_with_gaps),
+        dict(visual_readiness_state="slicer_review_ready", brief_status="ok", manifest_status="ok", render_coverage=_empty_render_coverage()),
+        dict(visual_readiness_state="blocked_or_incomplete", brief_status="unreadable", manifest_status="ok", render_coverage=_empty_render_coverage()),
+    ]
+    for scenario in scenarios:
+        actions = build_suggested_actions(
+            project_path="projects/demo",
+            missing_visual_artifacts=[],
+            stale_previews=[],
+            **scenario,
+        )
+        assert len(actions) >= 1
+        _assert_actions_are_safe(actions)
+
+
+# ---- summarize_project integration: suggested_actions ----
+
+
+def test_summarize_project_includes_suggested_actions_field(project_root):
+    summary = summarize_project(project_root)
+    assert "suggested_actions" in summary
+    assert isinstance(summary["suggested_actions"], list)
+
+
+def test_summarize_bare_directory_suggests_creating_brief(tmp_path):
+    bare = tmp_path / "bare-dir"
+    bare.mkdir()
+    summary = summarize_project(bare)
+    assert summary["suggested_actions"][0]["kind"] == "create_brief_missing"
+    _assert_actions_are_safe(summary["suggested_actions"])
+
+
+def test_summarize_project_with_missing_render_suggests_factory_render(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    summary = summarize_project(project_root)
+    assert summary["visual_readiness_state"] == "needs_render"
+    actions = summary["suggested_actions"]
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "render_missing_mesh"
+    assert str(project_root) in actions[0]["command"]
+    assert "stl/part.stl" in actions[0]["command"]
+    _assert_actions_are_safe(actions)
+
+
+def test_summarize_project_fully_covered_suggests_manual_review_only(project_root):
+    (project_root / "stl" / "part.stl").write_bytes(b"fake stl")
+    (project_root / "renders" / "part_preview.png").write_bytes(b"fake png")
+    summary = summarize_project(project_root)
+    assert summary["visual_readiness_state"] == "slicer_review_ready"
+    actions = summary["suggested_actions"]
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "review_slicer_manually"
+    _assert_actions_are_safe(actions)
+
+
+def test_summarize_project_blocked_suggests_inspection_not_approval(project_root):
+    (project_root / "part_manifest.json").write_text("{not valid json", encoding="utf-8")
+    summary = summarize_project(project_root)
+    assert summary["visual_readiness_state"] == "blocked_or_incomplete"
+    actions = summary["suggested_actions"]
+    assert len(actions) == 1
+    assert actions[0]["kind"] == "inspect_blocked_project"
+    _assert_actions_are_safe(actions)
+
+
+def test_summarize_project_action_command_matches_plan_render_commands(project_root):
+    (project_root / "stl" / "a.stl").write_bytes(b"a")
+    (project_root / "stl" / "b.stl").write_bytes(b"b")
+    (project_root / "renders" / "a_preview.png").write_bytes(b"a-png")
+    summary = summarize_project(project_root)
+    coverage = compute_render_coverage(project_root)
+    from factory.render_coverage import plan_render_commands
+
+    expected_suffixes = {cmd.removeprefix("factory render ") for cmd in plan_render_commands(coverage)}
+    actual_suffixes = {a["command"].removeprefix(f"factory render {project_root}/") for a in summary["suggested_actions"]}
+    assert actual_suffixes == expected_suffixes
+
+
+# ---- HTML: Suggested next steps section ----
+
+
+def test_build_board_html_includes_suggestions_section():
+    html = build_board_html(_minimal_board())
+    assert "Suggested next steps" in html
+
+
+def test_build_board_html_renders_action_command_and_reason():
+    project = {
+        "project_name": "Demo",
+        "project_dir": "demo",
+        "slug": "demo",
+        "brief_exists": True,
+        "brief_status": "cad_generated",
+        "manufacturing_status": "plan_drafted",
+        "selected_manufacturing_option": None,
+        "manifest_exists": True,
+        "preview_package_exists": True,
+        "cad_files": ["cad/part.scad"],
+        "mesh_files": ["stl/part.stl"],
+        "render_files": [],
+        "render_coverage": _empty_render_coverage(),
+        "visual_readiness_state": "needs_render",
+        "warnings": [],
+        "suggested_actions": [
+            {
+                "kind": "render_missing_mesh",
+                "label": "Render missing STL preview",
+                "command": "factory render projects/demo/stl/part.stl",
+                "safety": "manual_only",
+                "reason": "STL exists but the matching render PNG is missing.",
+            }
+        ],
+    }
+    html = build_board_html(_minimal_board([project]))
+    assert "factory render projects/demo/stl/part.stl" in html
+    assert "STL exists but the matching render PNG is missing." in html
+    assert "manual_only" in html
+
+
+def test_build_board_html_suggestions_escape_html():
+    project = {
+        "project_name": "Demo",
+        "project_dir": "demo",
+        "slug": "demo",
+        "brief_exists": True,
+        "brief_status": "idea",
+        "manufacturing_status": None,
+        "selected_manufacturing_option": None,
+        "manifest_exists": True,
+        "preview_package_exists": False,
+        "cad_files": [],
+        "mesh_files": [],
+        "render_files": [],
+        "render_coverage": _empty_render_coverage(),
+        "visual_readiness_state": "cad_source_ready",
+        "warnings": [],
+        "suggested_actions": [
+            {
+                "kind": "generate_cad_source",
+                "label": "<script>alert(1)</script>",
+                "command": "<img onerror=alert(1)>",
+                "safety": "manual_only",
+                "reason": "<b>reason</b>",
+            }
+        ],
+    }
+    html = build_board_html(_minimal_board([project]))
+    assert "<script>alert(1)</script>" not in html
+    assert "<img onerror=alert(1)>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_build_board_html_no_suggestions_when_no_projects():
+    html = build_board_html(_minimal_board())
+    assert "No suggested actions" in html
+
+
+def test_build_board_html_suggestions_have_no_external_assets_or_copy_js():
+    html = build_board_html(_minimal_board())
+    forbidden = ["http://", "https://", "<script", "cdn.", "clipboard", "navigator.clipboard", "onclick="]
+    for term in forbidden:
+        assert term not in html
+
+
+def test_cli_preview_board_json_includes_suggested_actions(isolated_projects_dir):
+    runner.invoke(app, ["init-project", "Demo Project"])
+    result = runner.invoke(app, ["preview-board", str(isolated_projects_dir)])
+    assert result.exit_code == 0, result.stdout
+
+    import json
+
+    board = json.loads((isolated_projects_dir / "preview_board" / "index.json").read_text())
+    assert board["projects"][0]["suggested_actions"]
+
+
+def test_cli_preview_board_html_includes_suggested_next_steps(isolated_projects_dir):
+    runner.invoke(app, ["init-project", "Demo Project"])
+    result = runner.invoke(app, ["preview-board", str(isolated_projects_dir)])
+    assert result.exit_code == 0, result.stdout
+
+    html = (isolated_projects_dir / "preview_board" / "index.html").read_text()
+    assert "Suggested next steps" in html
+    assert "factory route-cad" in html

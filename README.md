@@ -106,7 +106,12 @@ into one static local board (`preview_board/index.json` +
 directly). Each project is classified into a visual-readiness state
 (`needs_brief`, `cad_source_ready`, `needs_stl_export`, `needs_render`,
 `slicer_review_ready`, `blocked_or_incomplete`) - a visual inspection aid,
-never an approval or print-readiness signal. See `docs/preview-board.md`.
+never an approval or print-readiness signal. Each project also gets a
+`suggested_actions` list - safe, copyable next-step commands (e.g. `factory
+render <path>` for a missing preview) shown in a "Suggested next steps"
+section on the board's HTML page as plain text/code blocks. Nothing is
+ever run automatically; the human decides what to copy and execute. See
+`docs/preview-board.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

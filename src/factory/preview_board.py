@@ -16,6 +16,13 @@ network, or contacts a printer. The only files it writes are
 output directory - it never touches `brief.json`, `build_plan.json`,
 `part_manifest.json`, or any file inside an individual project. See
 docs/preview-board.md and AGENT.md.
+
+Each project also gets a deterministic `suggested_actions` list
+(`build_suggested_actions()`, Phase 10) - safe, copyable local commands for
+the human to consider running next (e.g. `factory render <path>` for a
+missing preview). Every action is advisory only (`"safety": "manual_only"`)
+and this module never executes one, never invokes a slicer/printer/
+network/cloud API, never launches Blender, and never calls Meshy.
 """
 
 from __future__ import annotations
@@ -24,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from factory import preview_package, project_store
-from factory.render_coverage import compute_render_coverage
+from factory.render_coverage import compute_render_coverage, missing_and_stale_mesh_paths
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -133,6 +140,129 @@ def classify_visual_readiness(
     return "slicer_review_ready"
 
 
+ACTION_SAFETY = "manual_only"
+
+
+def _action(kind: str, label: str, command: str, reason: str) -> dict[str, str]:
+    return {"kind": kind, "label": label, "command": command, "safety": ACTION_SAFETY, "reason": reason}
+
+
+def build_suggested_actions(
+    *,
+    visual_readiness_state: str,
+    project_path: str,
+    brief_status: str,
+    manifest_status: str,
+    render_coverage: dict[str, Any],
+    missing_visual_artifacts: list[str],
+    stale_previews: list[str],
+) -> list[dict[str, str]]:
+    """Build the deterministic list of safe, human-run next-step suggestions for one project.
+
+    Every action is advisory only (`"safety": "manual_only"`) - this
+    function never executes a command, never invokes a slicer/printer/
+    network/cloud API, never launches Blender, never calls Meshy, and
+    never sets `human_approved`/`print_ready`. `command` is always plain
+    text for a human to read and, at most, copy - nothing here runs it.
+    One suggestion set per project, driven by `visual_readiness_state`
+    (the same precedence `classify_visual_readiness()` already computes),
+    so the board never shows a next step that's already been superseded by
+    a more fundamental one (e.g. it won't suggest rendering a project that
+    doesn't have a brief yet).
+    """
+    if visual_readiness_state == "needs_brief":
+        return [
+            _action(
+                "create_brief_missing",
+                "Create the missing project brief",
+                f"Create {project_path}/brief.json (see docs/file-lifecycle.md for the expected "
+                f"fields), then run `factory plan {project_path}/brief.json`.",
+                "brief.json is missing - this project has no recorded intent to plan or generate from yet.",
+            )
+        ]
+
+    if visual_readiness_state == "cad_source_ready":
+        return [
+            _action(
+                "generate_cad_source",
+                "Check CAD backend, then generate CAD source",
+                f"factory route-cad {project_path}",
+                "No CAD source (.scad/.py) exists yet. `factory route-cad` is read-only and "
+                "recommends a backend without generating anything; run `factory generate-openscad` "
+                "or `factory generate-cadquery` yourself afterward.",
+            )
+        ]
+
+    if visual_readiness_state == "needs_stl_export":
+        return [
+            _action(
+                "export_stl_manual",
+                "Export CAD source to STL",
+                f"Review the CAD source under {project_path}/cad/, then export it yourself into "
+                f"{project_path}/stl/ (see docs/openscad-generation.md / docs/cad-backends.md).",
+                "CAD source exists but no STL has been exported yet. STL export is always a "
+                "manual, human-run step in this repo.",
+            )
+        ]
+
+    if visual_readiness_state == "needs_render":
+        actions: list[dict[str, str]] = []
+        for mesh_rel_path in missing_and_stale_mesh_paths(render_coverage):
+            is_stale = mesh_rel_path not in render_coverage["missing_renders"]
+            full_path = f"{project_path}/{mesh_rel_path}"
+            reason = (
+                "Existing render is older than this STL - re-run render after the mesh changed."
+                if is_stale
+                else "STL exists but the matching render PNG is missing."
+            )
+            actions.append(
+                _action(
+                    "render_missing_mesh",
+                    "Re-render stale STL preview" if is_stale else "Render missing STL preview",
+                    f"factory render {full_path}",
+                    reason,
+                )
+            )
+        return actions
+
+    if visual_readiness_state == "slicer_review_ready":
+        return [
+            _action(
+                "review_slicer_manually",
+                "Open in your slicer for manual review",
+                f"Manually open {project_path}/stl/*.stl in Bambu Studio/OrcaSlicer to review plate "
+                "layout, materials/colors, orientation, and supports. Do not slice-and-send or print yet.",
+                "All meshes have a fresh render and no missing/stale artifacts were detected - "
+                "ready for human slicer review, not for printing.",
+            )
+        ]
+
+    # blocked_or_incomplete
+    reasons: list[str] = []
+    if brief_status == "unreadable":
+        reasons.append("brief.json exists but could not be parsed as JSON.")
+    if manifest_status == "unreadable":
+        reasons.append("part_manifest.json exists but could not be parsed as JSON.")
+    if render_coverage["stale_renders"]:
+        reasons.append(f"{len(render_coverage['stale_renders'])} render(s) are older than their STL.")
+    if missing_visual_artifacts:
+        reasons.append(f"{len(missing_visual_artifacts)} missing visual artifact(s) reported by the preview package.")
+    if stale_previews:
+        reasons.append(f"{len(stale_previews)} stale preview(s) reported by the preview package.")
+    if not reasons:
+        reasons.append("Project state does not yet resolve cleanly to a single next step.")
+
+    return [
+        _action(
+            "inspect_blocked_project",
+            "Investigate blocked/incomplete project state",
+            f"factory report {project_path}  (and/or factory render-coverage {project_path} for "
+            "render-specific detail)",
+            " ".join(reasons),
+        )
+    ]
+
+
 def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -> dict[str, Any]:
     """Read one project's existing files and summarize it for the board.
 
@@ -199,6 +329,20 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         stale_previews=stale_previews,
     )
 
+    # `project_dir` as given (by discover_projects(), it's projects_root
+    # joined with the project's slug) is already in the same relative-to-CWD
+    # form the user typed for projects_root, so suggested commands are
+    # directly copy/paste-runnable without any extra path reconstruction.
+    suggested_actions = build_suggested_actions(
+        visual_readiness_state=visual_readiness_state,
+        project_path=str(project_dir),
+        brief_status=brief_status,
+        manifest_status=manifest_status,
+        render_coverage=render_coverage,
+        missing_visual_artifacts=missing_visual_artifacts,
+        stale_previews=stale_previews,
+    )
+
     return {
         "project_name": project_name,
         "project_dir": rel_dir,
@@ -215,6 +359,7 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "render_files": list(index.get("render_files", [])),
         "visual_readiness_state": visual_readiness_state,
         "warnings": warnings,
+        "suggested_actions": suggested_actions,
     }
 
 
@@ -260,6 +405,41 @@ _STATE_LABELS = {
     "slicer_review_ready": "Slicer review ready",
     "blocked_or_incomplete": "Blocked / incomplete",
 }
+
+
+def _build_suggestions_html(projects: list[dict[str, Any]]) -> str:
+    """Render each project's `suggested_actions` into a static 'Suggested next steps' block.
+
+    Plain text/code blocks only - no external JS, no copy buttons, no
+    automatic execution of anything. The human reads and, at most, copies
+    the command text themselves.
+    """
+    blocks: list[str] = []
+    for project in projects:
+        actions = project.get("suggested_actions") or []
+        if not actions:
+            continue
+        action_items = []
+        for action in actions:
+            action_items.append(
+                "<div class=\"action\">"
+                f"<p class=\"action-label\"><strong>{_escape_html(action['label'])}</strong> "
+                f"<span class=\"safety-tag\">({_escape_html(action['safety'])})</span></p>"
+                f"<pre><code>{_escape_html(action['command'])}</code></pre>"
+                f"<p class=\"action-reason\">{_escape_html(action['reason'])}</p>"
+                "</div>"
+            )
+        blocks.append(
+            "<div class=\"project-suggestions\">"
+            f"<h3>{_escape_html(project['project_name'])} <code>{_escape_html(project['project_dir'])}</code></h3>"
+            + "".join(action_items)
+            + "</div>"
+        )
+
+    if not blocks:
+        return "<p>No suggested actions - either no projects were found, or nothing needs attention.</p>"
+
+    return "".join(blocks)
 
 
 def build_board_html(board: dict[str, Any]) -> str:
@@ -314,6 +494,7 @@ def build_board_html(board: dict[str, Any]) -> str:
     rows_html = "\n".join(rows) if rows else "<tr><td colspan=\"12\">No projects found under this projects_root.</td></tr>"
 
     notes_html = "".join(f"<li>{_escape_html(n)}</li>" for n in board["notes"])
+    suggestions_html = _build_suggestions_html(board["projects"])
 
     return f"""<!doctype html>
 <html lang="en">
@@ -340,6 +521,17 @@ def build_board_html(board: dict[str, Any]) -> str:
   .none {{ color: #999; }}
   .safety {{ margin-top: 1.5rem; padding: 1rem; background: #fff8e1; border: 1px solid #f0e0a0; }}
   .safety li {{ margin-bottom: 0.25rem; }}
+  .suggestions {{ margin-top: 1.5rem; }}
+  .suggestions-intro {{ color: #555; }}
+  .project-suggestions {{ background: #fff; border: 1px solid #ddd; border-radius: 0.35rem; padding: 0.75rem 1rem; margin-bottom: 1rem; }}
+  .project-suggestions h3 {{ margin: 0 0 0.5rem 0; font-size: 1rem; }}
+  .action {{ margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #eee; }}
+  .action:last-child {{ margin-bottom: 0; padding-bottom: 0; border-bottom: none; }}
+  .action-label {{ margin: 0 0 0.25rem 0; }}
+  .safety-tag {{ color: #7a5c00; font-size: 0.8rem; font-weight: normal; }}
+  .action pre {{ margin: 0.25rem 0; padding: 0.5rem 0.75rem; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 0.25rem; overflow-x: auto; }}
+  .action pre code {{ font-size: 0.85rem; color: #1a1a1a; user-select: all; }}
+  .action-reason {{ margin: 0.25rem 0 0 0; color: #555; font-size: 0.85rem; }}
 </style>
 </head>
 <body>
@@ -367,6 +559,12 @@ def build_board_html(board: dict[str, Any]) -> str:
 {rows_html}
 </tbody>
 </table>
+<div class="suggestions">
+<h2>Suggested next steps</h2>
+<p class="suggestions-intro">Advisory only. Nothing on this page runs automatically - commands are
+plain text for you to read, and copy yourself, only if and when you decide to run them.</p>
+{suggestions_html}
+</div>
 <div class="safety">
 <ul>
 {notes_html}

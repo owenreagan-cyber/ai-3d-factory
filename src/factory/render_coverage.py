@@ -139,15 +139,17 @@ def build_text_report(coverage: dict[str, Any]) -> list[str]:
     return lines
 
 
-def plan_render_commands(coverage: dict[str, Any]) -> list[str]:
-    """Return the local `factory render <stl_path>` commands a human could run.
+def missing_and_stale_mesh_paths(coverage: dict[str, Any]) -> list[str]:
+    """Return project-relative `stl/<name>.stl` paths that need a (re-)render.
 
-    Purely a list of suggestions built from `missing_renders` and
-    `stale_renders` - never executes anything itself.
+    Combines `missing_renders` (no render at all) and `stale_renders`
+    (render exists but is older than its mesh) into one de-duplicated,
+    deterministic list, ordered missing-then-stale. This is the single
+    shared source both `plan_render_commands()` (Phase 9) and
+    `factory.preview_board`'s suggested actions (Phase 10) build on, so
+    the two never drift apart.
     """
-    stems_to_render: list[str] = []
-    for entry in coverage["missing_renders"]:
-        stems_to_render.append(entry)
+    stems_to_render: list[str] = list(coverage["missing_renders"])
     for render_path in coverage["stale_renders"]:
         # A stale render's source mesh is the same stem, under stl/.
         mesh_name = Path(render_path).stem.removesuffix(RENDER_SUFFIX) + ".stl"
@@ -155,10 +157,19 @@ def plan_render_commands(coverage: dict[str, Any]) -> list[str]:
 
     # Stable de-duplication, preserving the missing-then-stale order above.
     seen: set[str] = set()
-    commands: list[str] = []
+    result: list[str] = []
     for mesh_path in stems_to_render:
         if mesh_path in seen:
             continue
         seen.add(mesh_path)
-        commands.append(f"factory render {mesh_path}")
-    return commands
+        result.append(mesh_path)
+    return result
+
+
+def plan_render_commands(coverage: dict[str, Any]) -> list[str]:
+    """Return the local `factory render <stl_path>` commands a human could run.
+
+    Purely a list of suggestions built from `missing_and_stale_mesh_paths()`
+    - never executes anything itself.
+    """
+    return [f"factory render {mesh_path}" for mesh_path in missing_and_stale_mesh_paths(coverage)]

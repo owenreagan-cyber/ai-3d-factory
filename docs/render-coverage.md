@@ -58,6 +58,14 @@ else. It never executes those commands, never batch-renders, and never
 launches any external tool. Copy/paste (or manually type) the ones you
 want to run yourself.
 
+Its command list is built from `factory.render_coverage.missing_and_stale_mesh_paths()`
+- the single shared, de-duplicated list of project-relative `stl/<name>.stl`
+paths needing a (re-)render (missing-then-stale order). `factory
+preview-board`'s per-project `render_missing_mesh` suggestions (Phase 10,
+see `docs/preview-board.md`) are built from that same function, just with
+a `<project_path>/` prefix so each command is directly runnable from
+wherever `projects_root` was invoked from - so the two never drift apart.
+
 ## Integration with `factory preview-project` / `preview_package/index.json`
 
 `factory.preview_package.gather_preview_data()` now calls
@@ -95,6 +103,13 @@ render coverage specifically:
   `needs_render`.
 - All meshes have *some* render, but one is stale, or `preview_package`'s
   own manifest-aware check flags something -> `blocked_or_incomplete`.
+
+Each project card also carries `suggested_actions` (Phase 10) - for a
+`needs_render` project, one `render_missing_mesh` action per gap, each
+with a ready-to-copy `factory render <path>` command. See
+`docs/preview-board.md`'s "Suggested next steps" section for the full
+shape and every other state's suggestion. These are advisory text only -
+the board never executes a command itself.
 - All meshes have a fresh render and nothing else is flagged ->
   `slicer_review_ready`.
 - An orphan render never blocks by itself - it's surfaced as an advisory

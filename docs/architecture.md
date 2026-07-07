@@ -64,7 +64,10 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   `projects_root` into one static, local `preview_board/index.json` +
   `index.html` (no server, no external assets); reuses
   `factory/preview_package.py` per-project instead of duplicating its file
-  scan. See `docs/preview-board.md`.
+  scan. Each project also gets a deterministic `suggested_actions` list
+  (advisory-only, `"safety": "manual_only"`, never executed) rendered as
+  plain `<pre><code>` blocks in a "Suggested next steps" section - no
+  JavaScript, no copy button. See `docs/preview-board.md`.
 - `factory/render_coverage.py` — read-only `stl/*.stl` vs. `renders/*.png`
   comparison for one project (missing/stale/orphan renders); the single
   shared implementation `factory/preview_package.py` and
