@@ -632,6 +632,37 @@ none of them. `config/future_local_tools.json`'s `enabled` flag stays
 decision. The "Blender local repair/render track" below remains
 unscheduled - this phase only wrote its required gate down in advance.
 
+## Phase 22 — connect design quality standard to future gates (started)
+
+Docs/planning only - no product behavior changes. Connects
+`docs/design-quality-standard.md` (the "Etsy-worthy" quality bar) to the
+two existing future-gate docs, so a future Meshy or Blender
+implementation must explicitly satisfy it, not merely produce a
+technically valid mesh.
+
+**Started:** `docs/meshy-approval-gate.md` gained a "Design-quality gate"
+section - Meshy output must not be accepted merely because it generated a
+mesh; the existing output-review requirement must explicitly check
+intentional style direction, strong silhouette, recognizable reference
+interpretation, clean proportions, no blobby/generic/artifact look,
+manufacturable geometry, and functional adaptation, with the piggy-bank
+example spelled out explicitly ("a pig reference should not become a
+pig-shaped blob"). `docs/blender-local-track.md` gained a "Design-quality
+review for Blender outputs" section with the same spirit for repair/render
+work (cleanup should improve shape clarity, not erase character; organic
+and functional outputs each checked against their respective
+`docs/design-quality-standard.md` track). Both future-track paragraphs
+above (Meshy, Blender) now cross-reference their respective new sections.
+The piggy-bank and chip-bag-clip concept study READMEs
+(`examples/future-organic-models/piggy-bank-design-study/`,
+`examples/future-functional-designs/chip-bag-clip-study/`) each gained one
+sentence linking to the relevant future gate doc.
+
+**Not yet started:** any actual Meshy or Blender implementation - this
+phase only adds a cross-reference between two already-existing planning
+docs and the design-quality standard; it grants no new approval and
+changes no `factory` command's behavior.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide
@@ -649,7 +680,10 @@ after generation, a local storage policy, license/ownership notes,
 student/privacy/data notes, and a local-only fallback. `config/
 future_cloud_tools.json`'s `meshy.enabled` stays `false` until a human
 flips it as a separate, explicit, reviewed decision - not as part of
-starting this track.
+starting this track. Output review is also a design-quality gate, not
+just a geometry check - see `docs/meshy-approval-gate.md`'s
+"Design-quality gate" (Phase 22) and `docs/design-quality-standard.md`:
+"generated a mesh" and "worth keeping" are different questions.
 
 ### Blender local repair/render track
 
@@ -660,7 +694,10 @@ Blender MCP. The full required gate this track must satisfy before
 implementation was written down in advance in Phase 21
 (`docs/blender-local-track.md`); `config/future_local_tools.json`'s
 `blender.enabled` stays `false` until a human flips it as a separate,
-explicit, reviewed decision - not as part of starting this track.
+explicit, reviewed decision - not as part of starting this track. Repairs
+and renders must also preserve or improve design quality, not just fix
+geometry - see `docs/blender-local-track.md`'s "Design-quality review for
+Blender outputs" (Phase 22) and `docs/design-quality-standard.md`.
 
 ### 3MF packaging experiments track
 
@@ -689,7 +726,11 @@ quality bar (see `docs/design-quality-standard.md`) that the Meshy,
 Blender, and Rich organic examples tracks above should aim for once they
 exist - not a generation pipeline itself, and not a relaxation of any
 existing safety gate. Blocked on the Meshy and/or Blender tracks above for
-any real (non-planning) implementation.
+any real (non-planning) implementation. Phase 22 connected this standard
+into both future-gate docs' review checklists (`docs/meshy-approval-gate.md`'s
+"Design-quality gate", `docs/blender-local-track.md`'s "Design-quality
+review for Blender outputs") - still planning only, still no
+implementation.
 
 ### Mac launcher/dashboard track
 

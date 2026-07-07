@@ -58,3 +58,9 @@ implemented). `factory check-future-tools` / `factory check-local-tools`
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this
 placeholder, and no file has been uploaded anywhere.
+
+Whichever backend a future implementation uses, its output must meet the
+Etsy-worthy standard before being considered - see
+`../../../docs/meshy-approval-gate.md`'s "Design-quality gate" and
+`../../../docs/blender-local-track.md`'s "Design-quality review for
+Blender outputs" (both Phase 22).

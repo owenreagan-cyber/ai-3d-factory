@@ -53,3 +53,9 @@ directory as missing a brief if pointed at it directly; that is expected.
 No CAD, mesh, render, or generated asset exists for this concept, no
 cloud/network call has been made to build this placeholder, and no file
 has been uploaded anywhere.
+
+Whether a future design is CAD-authored or generated, it must satisfy
+function, tension, material, and prototype-review expectations before
+being considered - see `../../../docs/blender-local-track.md`'s
+"Design-quality review for Blender outputs" (Phase 22) and
+`../../../docs/design-quality-standard.md`'s functional/mechanical track.

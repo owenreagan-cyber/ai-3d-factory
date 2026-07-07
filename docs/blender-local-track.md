@@ -138,6 +138,39 @@ gate, not just documentation about one:
     sending a file to a printer, never discovering printers. See
     `config/future_local_tools.json`'s `allows_printer_or_slicer_calls`.
 
+## Design-quality review for Blender outputs
+
+Future Blender work is not just repair/automation - it must preserve or
+improve the design quality `docs/design-quality-standard.md` ("Etsy-worthy":
+polished, intentional, useful, gift-worthy, display-worthy) requires, the
+same standard `docs/meshy-approval-gate.md`'s "Design-quality gate"
+applies to Meshy output:
+
+- Cleanup should improve shape clarity, not erase character - a repair
+  pass that manifolds a mesh by shaving off the features that made it
+  recognizable has traded one failure (bad geometry) for another (a
+  generic blob).
+- Repairs should not destroy intentional style details - the
+  before/after validation/render comparison this doc already requires
+  (see "Required future gates before implementation" above) exists
+  precisely so a human can catch this, not just confirm the mesh is now
+  watertight.
+- Renders should help assess silhouette, proportions, and polish - a
+  higher-fidelity Blender render is only useful if a human actually uses
+  it to judge those things, not just to confirm "something rendered."
+- Organic models (animals, figures, decorative objects) should be
+  checked against the Etsy-worthy standard in
+  `docs/design-quality-standard.md`'s artistic/organic track - the same
+  piggy-bank-style bar `docs/meshy-approval-gate.md` applies to Meshy
+  output applies here too, regardless of which tool touched the mesh
+  last.
+- Functional objects (clips, brackets, organizers) should be checked
+  against `docs/design-quality-standard.md`'s functional/mechanical
+  track - a Blender repair pass on a functional part must not silently
+  change wall thickness, flex geometry, or fit in ways that break the
+  function, and the part remains a prototype until physically tested,
+  same as any other functional design.
+
 ## What this phase does not do
 
 - Does not launch Blender, import a Blender add-on, or configure Blender
@@ -160,5 +193,7 @@ searches for a local Blender installation (not even a read-only
 and never enables anything - see `src/factory/future_local_tools.py`.
 
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
-local repair/render track", `docs/tool-routing.md`, `docs/cad-backends.md`,
-`docs/safety-gates.md`, `config/agent_policy.json`, and `AGENT.md`.
+local repair/render track", `docs/design-quality-standard.md`,
+`docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
+`docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
+and `AGENT.md`.

@@ -7,6 +7,8 @@ from factory import project_store
 DESIGN_QUALITY_STANDARD_PATH = project_store.REPO_ROOT / "docs" / "design-quality-standard.md"
 ROADMAP_PATH = project_store.REPO_ROOT / "docs" / "roadmap.md"
 EXAMPLES_LIBRARY_PATH = project_store.REPO_ROOT / "docs" / "examples-library.md"
+MESHY_GATE_PATH = project_store.REPO_ROOT / "docs" / "meshy-approval-gate.md"
+BLENDER_TRACK_PATH = project_store.REPO_ROOT / "docs" / "blender-local-track.md"
 
 NEW_CONCEPT_DIRS = (
     "future-organic-models/piggy-bank-design-study",
@@ -190,3 +192,104 @@ def test_new_docs_contain_no_secret_like_markers():
         text = path.read_text(encoding="utf-8")
         for marker in suspicious_markers:
             assert marker not in text, f"{path} contains a suspicious secret-like marker: {marker!r}"
+
+
+# ---- Phase 22: future gate docs connected to the design-quality standard ----
+
+
+def test_meshy_gate_doc_references_design_quality_standard():
+    content = _content(MESHY_GATE_PATH)
+    assert "design-quality-standard.md" in content
+    assert "etsy-worthy" in content
+
+
+def test_meshy_gate_doc_says_generated_mesh_is_not_enough():
+    content = _normalized(MESHY_GATE_PATH)
+    assert "must not be accepted merely because it generated a mesh" in content
+
+
+def test_meshy_gate_doc_mentions_piggy_bank_and_avoids_pig_shaped_blob():
+    content = _normalized(MESHY_GATE_PATH)
+    assert "piggy bank" in content
+    assert "pig-shaped blob" in content or "pig shaped blob" in content
+
+
+def test_meshy_gate_doc_has_design_quality_gate_section():
+    content = MESHY_GATE_PATH.read_text(encoding="utf-8")
+    assert "## Design-quality gate" in content
+
+
+def test_meshy_still_disabled_and_future_gated_after_phase22():
+    content = _content(MESHY_GATE_PATH)
+    assert "does not implement" in content
+    assert "no code in this repo calls meshy" in content
+    assert "future_gate_required" in content or "future-gated" in content or "future_gated" in content
+
+
+def test_blender_track_doc_references_design_quality_preservation():
+    content = _content(BLENDER_TRACK_PATH)
+    assert "design-quality-standard.md" in content
+    assert "design-quality review for blender outputs" in content
+
+
+def test_blender_track_doc_says_preserve_or_improve_design_quality():
+    content = _normalized(BLENDER_TRACK_PATH)
+    assert "preserve or improve" in content
+
+
+def test_blender_still_future_only_and_not_automated_after_phase22():
+    content = _content(BLENDER_TRACK_PATH)
+    assert "does not implement blender automation" in _normalized(BLENDER_TRACK_PATH)
+    assert "no code in this repo launches blender" in content
+
+
+def test_roadmap_meshy_and_blender_tracks_reference_design_quality():
+    raw = ROADMAP_PATH.read_text(encoding="utf-8")
+    marker = "## Future tracks, not yet phase-numbered"
+    assert marker in raw
+    # Normalize whitespace - markdown line-wraps prose, so a quoted
+    # multi-word section title can span a line break in the raw source.
+    tracks_section = " ".join(raw.split(marker, 1)[1].lower().split())
+    assert "design-quality gate" in tracks_section
+    assert "design-quality review for blender outputs" in tracks_section
+
+
+def test_roadmap_still_mentions_custom_design_quality_pipeline_unnumbered():
+    content = ROADMAP_PATH.read_text(encoding="utf-8")
+    marker = "## Future tracks, not yet phase-numbered"
+    tracks_section = content.split(marker, 1)[1]
+    assert "Custom Design Quality Pipeline" in tracks_section
+    assert not re.search(r"###\s*phase\s+\d+", tracks_section.lower())
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        project_store.REPO_ROOT / "examples" / "future-organic-models" / "piggy-bank-design-study" / "README.md",
+        project_store.REPO_ROOT / "examples" / "future-functional-designs" / "chip-bag-clip-study" / "README.md",
+    ),
+)
+def test_concept_study_readme_links_to_future_gate_docs(path):
+    text = path.read_text(encoding="utf-8")
+    assert "meshy-approval-gate.md" in text or "blender-local-track.md" in text
+
+
+def test_gate_modules_still_have_no_execution_code_after_phase22():
+    # Phase 22 is docs/planning only - the source modules backing the
+    # existing gate CLI commands should be untouched. Re-runs the same
+    # no-subprocess check test_meshy_gate.py/test_blender_gate.py already
+    # apply, as a cheap cross-check specific to this phase's doc-only claim.
+    import inspect
+
+    from factory import future_cloud_tools, future_local_tools
+
+    for module in (future_cloud_tools, future_local_tools):
+        source = inspect.getsource(module)
+        for forbidden in ("subprocess.run(", "subprocess.call(", "subprocess.Popen("):
+            assert forbidden not in source, f"{module.__name__} must stay execution-free; found {forbidden!r}"
+
+
+def test_examples_dir_still_has_no_stl_or_png_files_after_phase22():
+    examples_dir = project_store.REPO_ROOT / "examples"
+    assert not any(examples_dir.rglob("*.stl"))
+    assert not any(examples_dir.rglob("*.png"))

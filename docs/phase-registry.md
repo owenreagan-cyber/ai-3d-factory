@@ -32,7 +32,8 @@ whenever a phase completes.
 | 18 | Guard tests from mutating committed examples | a5d02c3 | complete | `tests/test_examples_write_safety.py` static guard. |
 | 19 | Storage bin lid example project | c1895ad | complete | `examples/storage-bin-lid/`. |
 | 20 | Roadmap numbering and phase registry cleanup | 5ed4f1f | complete | This document; roadmap numbering policy; future tracks unnumbered. |
-| 21 | Blender local track planning scaffold | (this phase) | complete | `docs/blender-local-track.md`, `config/future_local_tools.json`, `factory check-local-tools`. Planning only - no Blender implementation. |
+| 21 | Blender local track planning scaffold | 1382d57 | complete | `docs/blender-local-track.md`, `config/future_local_tools.json`, `factory check-local-tools`. Planning only - no Blender implementation. |
+| 22 | Connect design quality standard to future gates | (this phase) | complete | Cross-references `docs/design-quality-standard.md` into `docs/meshy-approval-gate.md` and `docs/blender-local-track.md`. Docs only - no implementation. |
 
 ## Future tracks (not phase-numbered)
 
@@ -45,6 +46,7 @@ what's *not* yet a numbered phase, at a glance:
 - 3MF packaging experiments track
 - Advanced slicer review automation track
 - Rich organic examples track
+- Custom Design Quality Pipeline
 - Mac launcher/dashboard track
 
 ## Maintaining this file

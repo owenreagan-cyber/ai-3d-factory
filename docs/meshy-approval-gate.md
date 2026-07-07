@@ -112,6 +112,50 @@ just documentation about one:
     changes *where geometry comes from*, never *what happens to it
     afterward*.
 
+## Design-quality gate
+
+Meshy output must not be accepted merely because it generated a mesh.
+"Generated a mesh" and "worth keeping" are different questions - this
+repo's quality bar for custom objects is defined in
+`docs/design-quality-standard.md` ("Etsy-worthy": polished, intentional,
+useful, gift-worthy, display-worthy - not merely technically printable).
+Before any future Meshy output is stored as a candidate model, the human
+output-review step (requirement 5 above) must explicitly ask whether it
+meets that standard, not just whether it's watertight:
+
+- Intentional style direction - does it read as a deliberate style
+  choice, or as whatever the generator happened to produce?
+- Strong silhouette - recognizable at a glance, from more than one
+  angle.
+- Recognizable reference interpretation, when a reference was provided -
+  does the output actually read as the subject, or as a vaguely
+  similar-shaped blob?
+- Clean proportions - parts sized and placed the way an intentional
+  design would, not arbitrary generator output.
+- No blobby/generic/random-AI-artifact look - see
+  `docs/design-quality-standard.md`'s "The app should avoid" list in
+  full.
+- A manufacturable geometry path - wall thickness, overhangs, and
+  supports that a human could actually work with, not just "closed
+  surface."
+- Clear functional adaptation, if the model has a purpose (a hollow
+  cavity, an opening, a mounting feature) - function doesn't happen by
+  accident.
+- Downstream validation/render/review-gate/human slicer review is still
+  required regardless of how the output-review step above goes - meeting
+  the design-quality bar is a *content* judgment call, never a shortcut
+  around the existing geometry/print-readiness pipeline.
+
+**Piggy bank example:** a pig reference photo should not become a
+pig-shaped blob. The output must support a polished piggy-bank design
+direction - a hollow body plan, a coin slot, a plug/access door,
+intentional snout/ears/legs/tail, believable surface quality, and a
+manufacturability review - exactly the standard
+`docs/design-quality-standard.md`'s "Piggy bank example" and
+`examples/future-organic-models/piggy-bank-design-study/` already spell
+out. A technically-valid mesh that merely resembles a pig from one angle
+has not met this gate.
+
 ## What this phase does not do
 
 - Does not call Meshy, import a Meshy SDK, or add one to
@@ -133,5 +177,6 @@ makes a network call, and never enables anything - see
 `src/factory/future_cloud_tools.py`.
 
 See also `config/future_cloud_tools.json`, `docs/roadmap.md` Phase 16,
-`docs/tool-routing.md`, `docs/licensing-policy.md`, `docs/safety-gates.md`,
+`docs/design-quality-standard.md`, `docs/tool-routing.md`,
+`docs/licensing-policy.md`, `docs/safety-gates.md`,
 `config/agent_policy.json`, and `AGENT.md`.
