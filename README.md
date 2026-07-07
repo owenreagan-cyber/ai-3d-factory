@@ -63,6 +63,7 @@ factory plan-renders projects/my-part     # lists suggested `factory render` com
 factory preview-index projects/my-part    # read-only visual-artifact summary
 factory preview-project projects/my-part  # build/refresh preview_package/
 factory preview-board projects/           # static local board across all projects
+factory review-gate projects/my-part      # pass/warn/fail gate for HUMAN slicer review only
 factory inspect-slicer               # read-only slicer discovery
 factory report projects/my-part      # includes manufacturing + preview package summary
 ```
@@ -117,6 +118,15 @@ files, render/validation coverage gaps - for scanning many projects at a
 glance, shown in a "Health signals" section and a compact "Health" column.
 Nothing is ever run automatically; the human decides what to copy and
 execute. See `docs/preview-board.md`.
+
+`factory review-gate` is a read-only pass/warn/fail pre-flight check for
+one project: does it have everything needed on disk for a **human** to
+review it in a slicer? It reuses the same `preview-board` classification
+(no duplicated logic) but applies its own, slightly stricter policy - a
+missing render is a hard blocker here (nothing to look at yet), not just
+a warning. `pass` means only "ready for human slicer review" - never an
+approval, never print-ready; the status ceiling stays `slicer_review_ready`.
+Exit code is `0` for pass/warn, `1` for fail. See `docs/review-gate.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

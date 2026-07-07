@@ -297,26 +297,58 @@ a compact "Health" column in the summary table. `human_approved`/
 presence/absence (deliberately out of scope - `factory report` already
 does PASS/WARN/FAIL rollup for a single project).
 
-## Phase 12 — optional Meshy, with approval/cost gates
+## Phase 12 — local review gate command (started)
+
+A deterministic local pre-flight check: is a project ready for a
+**human** to review it in a slicer? See `docs/review-gate.md`.
+
+**Started:** `factory review-gate <project_dir>` (`--json` for
+machine-readable output; `factory.review_gate.evaluate_review_gate()`)
+reuses `factory.preview_board.summarize_project()` rather than
+re-deriving brief/manifest/render/validation state - it reads the
+already-computed `health_signals` items by `kind` and applies its own
+pass/warn/fail policy, deliberately stricter in one place than the
+board's general-purpose health check: a missing render is only a
+"warning" on the board (the fix is simple, `factory render`), but is a
+hard blocker for this gate, since there's nothing to visually review in a
+slicer without one yet. Everything else (missing/unreadable brief,
+unreadable manifest, stale renders, an unreadable preview package, orphan
+renders, missing validation, an unselected manufacturing option) keeps
+the same blocking/warning split the health signals already use; "no STL
+files at all" is checked directly. `pass` means only "ready for human
+slicer review" - the status ceiling stays `slicer_review_ready`, and
+`human_approved`/`print_ready` are never computed or implied. Exit code
+is `0` for pass/warn, `1` for fail.
+
+**Not yet started:** wiring a compact `review_gate` field back into
+`factory preview-board`'s per-project cards - doing so would need
+`preview_board.py` to import from `review_gate.py` while `review_gate.py`
+already imports `summarize_project` from `preview_board.py`, a circular
+module import not worth working around with a lazy import for a "nice to
+have" field. `review_gate` stays an independent, single-project command
+for now; see `docs/review-gate.md`'s "Why this isn't merged into `factory
+preview-board`" section.
+
+## Phase 13 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 13 — 3MF packaging experiments
+## Phase 14 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 14 — advanced slicer review automation
+## Phase 15 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 15 — Blender repair/render automation
+## Phase 16 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

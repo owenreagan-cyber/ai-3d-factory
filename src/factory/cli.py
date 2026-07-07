@@ -47,6 +47,7 @@ from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
 from factory.render_coverage import build_text_report, compute_render_coverage, plan_render_commands
+from factory.review_gate import evaluate_review_gate
 from factory.slicer.local_slicer_probe import probe_slicers
 from factory.validators.mesh_validate import validate_mesh
 from factory.validators.multipart_check import check_manifest
@@ -82,6 +83,7 @@ AVAILABLE_COMMANDS = (
     "preview-index <project_dir>",
     "preview-project <project_dir>",
     "preview-board <projects_root> [--output <path>] [--format json|html|both]",
+    "review-gate <project_dir> [--json]",
     "inspect-slicer",
     "report <project_dir>",
 )
@@ -739,6 +741,60 @@ def preview_board_cmd(
         "printer/network."
     )
     console.print("Local static preview only. Not an approval. Not a print-readiness signal.")
+
+
+@app.command(name="review-gate")
+def review_gate_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only pass/warn/fail gate for whether a project is ready for HUMAN slicer review.
+
+    Never renders, validates, exports, generates CAD, invokes a slicer, or contacts a printer/network.
+    Passing this gate is not an approval and not a print-readiness signal.
+    """
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    gate = evaluate_review_gate(project_dir)
+
+    if as_json:
+        print(json.dumps(gate, indent=2, sort_keys=False))
+    else:
+        result_icon = _icon(gate["result"].upper())
+        console.print(f"{result_icon}  gate: {gate['gate']}  (status ceiling: {gate['status_ceiling']})")
+        console.print(gate["summary"])
+
+        if gate["blocking_items"]:
+            console.print(f"\n[red]blocking[/red] ({len(gate['blocking_items'])}):")
+            for item in gate["blocking_items"]:
+                console.print(f"  - {item['message']}")
+        if gate["warning_items"]:
+            console.print(f"\n[yellow]warnings[/yellow] ({len(gate['warning_items'])}):")
+            for item in gate["warning_items"]:
+                console.print(f"  - {item['message']}")
+        if gate["ready_items"]:
+            console.print(f"\n[green]ready[/green] ({len(gate['ready_items'])}):")
+            for item in gate["ready_items"]:
+                console.print(f"  - {item['message']}")
+
+        if gate["suggested_actions"]:
+            console.print("\n[bold]suggested next steps[/bold] (manual only - none of these are run automatically):")
+            for action in gate["suggested_actions"]:
+                console.print(f"  {action['label']}: {action['command']}")
+
+        console.print()
+        for note in gate["notes"]:
+            console.print(note)
+        console.print(
+            "\nThis command only read existing project files - it did not render, validate, export, "
+            "generate CAD, invoke a slicer, or contact any printer/network."
+        )
+
+    if gate["result"] == "fail":
+        raise typer.Exit(code=1)
 
 
 @app.command(name="inspect-slicer")

@@ -77,6 +77,14 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   shared implementation `factory/preview_package.py` and
   `factory/preview_board.py` both call rather than reimplementing. See
   `docs/render-coverage.md`.
+- `factory/review_gate.py` — a read-only pass/warn/fail pre-flight check
+  ("is this project ready for a **human** to review it in a slicer?")
+  built directly on `factory/preview_board.py`'s `summarize_project()`
+  rather than re-deriving state; applies its own, purpose-specific
+  stricter policy on top (e.g. a missing render is a hard blocker here,
+  not just a warning). `pass` never implies `human_approved`/`print_ready`
+  - the status ceiling stays `slicer_review_ready`. See
+  `docs/review-gate.md`.
 
 ## Why local-first
 

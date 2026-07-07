@@ -278,6 +278,10 @@ severity-colored badges, plain text only - no JavaScript) and a compact
 
 See also `docs/visual-preview-package.md` (per-project preview package,
 which this board aggregates), `docs/render-coverage.md` (the render-gap
-detection `needs_render` suggestions are built on), and `docs/roadmap.md`
-Phase 8 (board foundation) / Phase 10 (action suggestions) / Phase 11
-(health signals).
+detection `needs_render` suggestions are built on), `docs/review-gate.md`
+(Phase 12 - a single-project pass/warn/fail pre-flight check built
+directly on this module's `summarize_project()`, not merged into the
+board itself - see that doc's "Why this isn't merged into `factory
+preview-board`" section), and `docs/roadmap.md` Phase 8 (board
+foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
+Phase 12 (review gate).
