@@ -32,6 +32,7 @@ EXAMPLE_BRIEFS = [
     "simple-nameplate/brief.json",
     "mechanical-plate/brief.json",
     "multipart-classroom-sign/brief.json",
+    "storage-bin-lid/brief.json",
 ]
 
 
@@ -85,6 +86,7 @@ EXAMPLE_MANIFESTS = [
     "simple-nameplate/part_manifest.json",
     "mechanical-plate/part_manifest.json",
     "multipart-classroom-sign/part_manifest.json",
+    "storage-bin-lid/part_manifest.json",
 ]
 
 

@@ -16,7 +16,9 @@ runner = CliRunner()
 
 WORKING_EXAMPLES = ("simple-nameplate", "mechanical-plate")
 MULTIPART_EXAMPLE = "multipart-classroom-sign"
-ALL_WORKING_EXAMPLES = WORKING_EXAMPLES + (MULTIPART_EXAMPLE,)
+LID_EXAMPLE = "storage-bin-lid"
+MULTIPART_EXAMPLES = (MULTIPART_EXAMPLE, LID_EXAMPLE)
+ALL_WORKING_EXAMPLES = WORKING_EXAMPLES + MULTIPART_EXAMPLES
 CONCEPT_EXAMPLES = (
     "future-organic-models/car-concept",
     "future-organic-models/animal-concept",
@@ -48,8 +50,8 @@ def _hash_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _snapshot_multipart_preview_files() -> dict:
-    root = EXAMPLES_DIR / MULTIPART_EXAMPLE / "preview_package"
+def _snapshot_preview_files(name: str) -> dict:
+    root = EXAMPLES_DIR / name / "preview_package"
     return {p.name: _hash_file(p) for p in sorted(root.glob("*"))}
 
 
@@ -157,6 +159,56 @@ def test_multipart_example_badge_is_optional():
 
 def test_multipart_example_preview_data_reports_multi_part_true():
     index = gather_preview_data(EXAMPLES_DIR / MULTIPART_EXAMPLE)
+    assert index["multipart_state"]["multi_part"] is True
+    assert index["multipart_state"]["part_count"] == 3
+    assert len(index["cad_files"]) == 3
+    assert index["mesh_files"] == []
+
+
+# ---- storage-bin-lid specifics ----
+
+
+def test_lid_example_cad_files_are_named_as_expected():
+    cad_dir = EXAMPLES_DIR / LID_EXAMPLE / "cad"
+    for filename in ("lid_panel.scad", "raised_label.scad", "pull_tab.scad"):
+        assert (cad_dir / filename).is_file(), f"missing {filename}"
+
+
+def test_lid_example_cad_files_are_plain_text_source_only():
+    cad_dir = EXAMPLES_DIR / LID_EXAMPLE / "cad"
+    scad_files = list(cad_dir.glob("*.scad"))
+    assert len(scad_files) == 3
+    for path in scad_files:
+        # Must decode cleanly as UTF-8 text (no binary CAD/mesh payload) and
+        # contain no null bytes (a reliable indicator of a binary blob).
+        raw = path.read_bytes()
+        assert b"\x00" not in raw, f"{path} looks like a binary file, not OpenSCAD text source"
+        text = raw.decode("utf-8")
+        assert text.strip(), f"{path} is empty"
+        assert "module" in text or "cube" in text or "cylinder" in text, f"{path} doesn't look like OpenSCAD source"
+
+
+def test_lid_example_manifest_has_multiple_parts_with_shared_origin():
+    manifest = project_store.load_json(EXAMPLES_DIR / LID_EXAMPLE / "part_manifest.json")
+    parts = manifest["parts"]
+    assert len(parts) >= 3
+    part_names = {p["part_name"] for p in parts}
+    assert {"lid_panel", "raised_label_text", "pull_tab"}.issubset(part_names)
+    for part in parts:
+        assert part["shared_origin"] is True, f"{part['part_name']} must declare shared_origin: true"
+        assert part["transform_notes"], f"{part['part_name']} must document transform_notes"
+
+
+def test_lid_example_panel_is_required_but_label_and_tab_are_optional():
+    manifest = project_store.load_json(EXAMPLES_DIR / LID_EXAMPLE / "part_manifest.json")
+    parts_by_name = {p["part_name"]: p for p in manifest["parts"]}
+    assert parts_by_name["lid_panel"]["required_for_assembly"] is True
+    assert parts_by_name["raised_label_text"]["required_for_assembly"] is False
+    assert parts_by_name["pull_tab"]["required_for_assembly"] is False
+
+
+def test_lid_example_preview_data_reports_multi_part_true():
+    index = gather_preview_data(EXAMPLES_DIR / LID_EXAMPLE)
     assert index["multipart_state"]["multi_part"] is True
     assert index["multipart_state"]["part_count"] == 3
     assert len(index["cad_files"]) == 3
@@ -304,8 +356,9 @@ def test_working_example_registry_entry_shape(name):
     assert example["safety_notes"]
 
 
-def test_multipart_example_registry_entry_shape():
-    example = get_example(MULTIPART_EXAMPLE)
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_multipart_example_registry_entry_shape(name):
+    example = get_example(name)
     assert example["type"] == "working"
     assert example["backend"] == "openscad"
     assert example["status"] == "cad_generated"
@@ -345,13 +398,14 @@ def test_show_example_cli_working_example():
     assert "review-gate examples/simple-nameplate" in result.stdout
 
 
-def test_show_example_cli_multipart_example():
-    result = runner.invoke(app, ["show-example", MULTIPART_EXAMPLE])
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_show_example_cli_multipart_example(name):
+    result = runner.invoke(app, ["show-example", name])
     assert result.exit_code == 0
     assert "type: working" in result.stdout
     assert "backend: openscad" in result.stdout
     assert "cad_generated" in result.stdout
-    assert f"review-gate examples/{MULTIPART_EXAMPLE}" in result.stdout
+    assert f"review-gate examples/{name}" in result.stdout
 
 
 def test_show_example_cli_concept_example():
@@ -376,31 +430,34 @@ def test_status_cli_lists_examples_commands():
     assert "show-example" in result.stdout
 
 
-def test_review_gate_cli_fails_safely_for_multipart_example():
-    result = runner.invoke(app, ["review-gate", f"examples/{MULTIPART_EXAMPLE}"])
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_review_gate_cli_fails_safely_for_multipart_example(name):
+    result = runner.invoke(app, ["review-gate", f"examples/{name}"])
     assert result.exit_code == 1
     assert "No STL files exist yet" in result.stdout
     assert "NOT print-ready" in result.stdout
 
 
-def test_preview_project_cli_reports_multipart_state(tmp_path):
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_preview_project_cli_reports_multipart_state(name, tmp_path):
     # `preview-project` writes preview_package/{index.json,preview_report.md} -
     # run it against a tmp_path copy, never against the committed examples/
     # path directly, so this test can't leave the working tree dirty.
-    example_copy = _copy_example_to(MULTIPART_EXAMPLE, tmp_path)
+    example_copy = _copy_example_to(name, tmp_path)
     result = runner.invoke(app, ["preview-project", str(example_copy)])
     assert result.exit_code == 0
     assert "multi-part: True" in result.stdout
 
 
-def test_preview_project_cli_does_not_modify_committed_example_preview_files(tmp_path):
-    before = _snapshot_multipart_preview_files()
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_preview_project_cli_does_not_modify_committed_example_preview_files(name, tmp_path):
+    before = _snapshot_preview_files(name)
 
-    example_copy = _copy_example_to(MULTIPART_EXAMPLE, tmp_path)
+    example_copy = _copy_example_to(name, tmp_path)
     result = runner.invoke(app, ["preview-project", str(example_copy)])
     assert result.exit_code == 0
 
-    after = _snapshot_multipart_preview_files()
+    after = _snapshot_preview_files(name)
     assert before == after, (
         "factory preview-project must never write to the committed examples/ directory - "
         "run it against a tmp_path copy instead (see _copy_example_to())"
@@ -410,14 +467,16 @@ def test_preview_project_cli_does_not_modify_committed_example_preview_files(tmp
 # ---- preview-board across examples/ ----
 
 
-def test_preview_board_discovers_multipart_example_under_examples_root():
+def test_preview_board_discovers_multipart_examples_under_examples_root():
     project_dirs = discover_projects(EXAMPLES_DIR)
     names = {p.name for p in project_dirs}
-    assert MULTIPART_EXAMPLE in names
+    for name in MULTIPART_EXAMPLES:
+        assert name in names
 
 
-def test_preview_board_gathers_multipart_example_without_crashing():
+@pytest.mark.parametrize("name", MULTIPART_EXAMPLES)
+def test_preview_board_gathers_multipart_example_without_crashing(name):
     board = gather_board_data(EXAMPLES_DIR)
-    project = next(p for p in board["projects"] if p["slug"] == MULTIPART_EXAMPLE)
+    project = next(p for p in board["projects"] if p["slug"] == name)
     assert project["visual_readiness_state"] == "needs_stl_export"
     assert project["manifest_exists"] is True

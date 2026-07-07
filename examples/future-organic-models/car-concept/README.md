@@ -29,7 +29,7 @@ call them:
   (read-only) reports its current, always-disabled gate status from
   `../../../config/future_cloud_tools.json`.
 - **Blender** requires a future local, non-interactive automation phase
-  (`../../../docs/roadmap.md` Phase 19) - no add-ons, no MCP.
+  (`../../../docs/roadmap.md` Phase 20) - no add-ons, no MCP.
 
 Neither gate exists yet. No CAD, mesh, render, or generated asset exists
 for this concept, no cloud/network call has been made to build this

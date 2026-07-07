@@ -1,4 +1,4 @@
-# Local example project library (Phase 14, extended in Phase 15)
+# Local example project library (Phase 14, extended in Phases 15 and 19)
 
 `examples/` is a permanent local library of example `ai-3d-factory`
 projects, committed to this repo (unlike `projects/`, which is
@@ -23,15 +23,16 @@ requiring anyone to first create their own project.
 
 ### Working local demo examples
 
-`examples/simple-nameplate/`, `examples/mechanical-plate/`, and
-`examples/multipart-classroom-sign/` are real, runnable workflow examples
-- every file was produced by actually running the `factory` CLI (or, for
-`mechanical-plate/`/`multipart-classroom-sign/`, by hand-authoring
-`.scad` files the CLI is designed to accept directly, since this repo
-already documents `cad/*.scad`/`cad/*.py` as human-editable, not only
-generator output).
+`examples/simple-nameplate/`, `examples/mechanical-plate/`,
+`examples/multipart-classroom-sign/`, and `examples/storage-bin-lid/` are
+real, runnable workflow examples - every file was produced by actually
+running the `factory` CLI (or, for `mechanical-plate/`/
+`multipart-classroom-sign/`/`storage-bin-lid/`, by hand-authoring `.scad`
+files the CLI is designed to accept directly, since this repo already
+documents `cad/*.scad`/`cad/*.py` as human-editable, not only generator
+output).
 
-All three:
+All four:
 
 - Have a real `brief.json`, `part_manifest.json`, and `cad/` source.
 - Stop at the CAD-source stage - `brief.json` status `cad_generated`, **no
@@ -65,12 +66,25 @@ generate-openscad` template currently covers more than the 2-part
 `multipart-nameplate` shape, so this example intentionally shows how to
 hand-author a 3-part assembly using the same shared-origin convention.
 
+`examples/storage-bin-lid/` (Phase 19) is the library's first **practical
+household/classroom utility** example, using the same 3-part
+shared-origin pattern: `cad/lid_panel.scad` (a rounded-rectangle lid with
+a downward-facing friction-fit lip, inset from the outer edge, sized to
+sit inside a storage bin's opening), `cad/raised_label.scad` (raised
+label text - `"CRAYONS"` as a placeholder), and `cad/pull_tab.scad` (a
+small raised grip tab along the front edge). `part_manifest.json` marks
+`lid_panel` as `required_for_assembly: true` and both the label and pull
+tab as `required_for_assembly: false` (optional enhancements over a bare
+lid). It exists to demonstrate that the multi-part shared-origin pattern
+`multipart-classroom-sign/` introduced generalizes to everyday labeled-
+container objects, not just signage.
+
 ### Future / roadmap concept examples
 
 `examples/future-organic-models/{car-concept,animal-concept,
 human-figure-study}/` are concept-only placeholders for organic/freeform
 modeling directions (cars, animals, people) this repo may support once a
-future Blender local-automation phase (`docs/roadmap.md` Phase 19) and/or
+future Blender local-automation phase (`docs/roadmap.md` Phase 20) and/or
 the Meshy safety/cost approval gate (`docs/roadmap.md` Phase 16,
 **designed in Phase 16 but not implemented** - see
 `docs/meshy-approval-gate.md`) exist. Each `concept_brief.json` now points
@@ -106,8 +120,8 @@ Each entry reports:
 | `path` | Path relative to the repo root. |
 | `exists` | Whether that path is currently a directory on disk (a static registry entry could in principle drift from disk; this flags it). |
 | `type` | `working` or `future-concept`. |
-| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see `docs/roadmap.md` Phase 16/19). |
-| `status` | `demo_only`, `concept_only`, `slicer_review_ready_possible`, or `cad_generated` (the last used for `multipart-classroom-sign` - see below). |
+| `backend` | `openscad`, `cadquery`, `future_blender`, `future_meshy`, or `mixed` (both future organic backends are possible - see `docs/roadmap.md` Phase 16/20). |
+| `status` | `demo_only`, `concept_only`, `slicer_review_ready_possible`, or `cad_generated` (the last used for both multi-part examples, `multipart-classroom-sign` and `storage-bin-lid` - see below). |
 | `safety_notes` | Plain-language notes on what was and wasn't done to build this example. |
 
 `factory show-example` additionally prints ready-to-copy next commands
@@ -135,6 +149,14 @@ examples/
 │   ├── build_plan.json
 │   ├── part_manifest.json      # 3 parts: base_plate, sign_text, accent_badge
 │   ├── cad/{base.scad,text_layer.scad,badge.scad,README.md}
+│   ├── slicer_review/openscad_export_instructions.md
+│   └── preview_package/{index.json,preview_report.md}
+├── storage-bin-lid/            # working demo (hand-authored OpenSCAD, 3-part assembly)
+│   ├── README.md
+│   ├── brief.json
+│   ├── build_plan.json
+│   ├── part_manifest.json      # 3 parts: lid_panel, raised_label_text, pull_tab
+│   ├── cad/{lid_panel.scad,raised_label.scad,pull_tab.scad,README.md}
 │   ├── slicer_review/openscad_export_instructions.md
 │   └── preview_package/{index.json,preview_report.md}
 ├── future-organic-models/      # roadmap/spec only - no CAD, mesh, or render

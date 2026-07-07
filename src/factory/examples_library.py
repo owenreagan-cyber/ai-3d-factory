@@ -71,6 +71,14 @@ _REGISTRY: tuple[ExampleInfo, ...] = (
         safety_notes=_SAFETY_NOTES_MULTIPART_WORKING,
     ),
     ExampleInfo(
+        name="storage-bin-lid",
+        relative_path="examples/storage-bin-lid",
+        type="working",
+        backend="openscad",
+        status="cad_generated",
+        safety_notes=_SAFETY_NOTES_MULTIPART_WORKING,
+    ),
+    ExampleInfo(
         name="future-organic-models/car-concept",
         relative_path="examples/future-organic-models/car-concept",
         type="future-concept",

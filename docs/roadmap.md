@@ -377,7 +377,7 @@ are compatible with `factory preview-index`/`preview-project`/
 there's no STL yet). `examples/future-organic-models/{car-concept,
 animal-concept,human-figure-study}/` are concept-only roadmap placeholders
 (`concept_brief.json`, not `brief.json`, so existing commands don't treat
-them as real projects) for the organic-modeling directions Phase 16/19
+them as real projects) for the organic-modeling directions Phase 16/20
 below will eventually implement — no CAD, mesh, render, or generated asset
 exists for any of them. `factory list-examples`/`show-example <name>`
 (`factory/examples_library.py`) is a small, read-only, statically
@@ -387,7 +387,7 @@ automatically is `cad_generated` (a human can locally advance a working
 example to `slicer_review_ready` — see each example's own `README.md`).
 
 **Not yet started (at the time):** growing the library further (richer 3D
-models, Blender workflows once Phase 19 exists, Meshy-gated concepts once
+models, Blender workflows once Phase 20 exists, Meshy-gated concepts once
 Phase 16 exists, multipart classroom/manufacturing demos) — this phase was
 deliberately just the structure and first two working examples. (A
 multipart example was added later, in Phase 15 — see below.)
@@ -418,9 +418,12 @@ entry (`status: "cad_generated"`, a new registry status value alongside
 Phase 14's three) and `ExampleInfo.status`'s allowed values were extended
 to include it.
 
-**Not yet started:** any further growth of the library (richer 3D models,
-Blender workflows once Phase 19 exists, Meshy-gated concepts once Phase 16
-exists) — this phase is deliberately just the one new multipart example.
+**Not yet started (at the time):** any further growth of the library
+(richer 3D models, Blender workflows once Phase 20 exists, Meshy-gated
+concepts once Phase 16 exists) — this phase was deliberately just the one
+new multipart example. (A second multipart example, a practical
+household/classroom utility object, was added later, in Phase 19 - see
+below.)
 
 ## Phase 16 — optional Meshy, with approval/cost gates (design scaffold started)
 
@@ -465,7 +468,40 @@ Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 19 — Blender repair/render automation
+## Phase 19 — storage bin lid example project (started)
+
+Extends the Phase 14/15 examples library with a second multi-part
+example, this time a practical household/classroom utility object rather
+than signage - a labeled storage-bin lid. Still no STL/PNG/binary asset
+committed anywhere; still no CAD backend beyond OpenSCAD. See
+`docs/examples-library.md`.
+
+**Started:** `examples/storage-bin-lid/` - a 3-part assembly
+(`cad/lid_panel.scad`, `cad/raised_label.scad`, `cad/pull_tab.scad`),
+hand-authored since no built-in `factory generate-openscad` template
+covers a bin-lid shape. `lid_panel.scad` includes a downward-facing
+friction-fit lip inset from the outer edge (sized to sit inside a bin's
+opening), demonstrating that the multi-part shared-origin pattern
+`multipart-classroom-sign/` (Phase 15) introduced generalizes beyond flat
+signage. `part_manifest.json` lists all 3 parts with `shared_origin: true`
+and matching `transform_notes` (the label and pull tab marked
+`required_for_assembly: false`, since a bare lid is still functional).
+Like every other working example, it stops at the CAD-source stage
+(`cad_generated`, no STL/PNG committed) and is compatible with `factory
+preview-index`/`preview-project`/`review-gate`/`preview-board`
+(`review-gate` correctly `FAIL`s - no STL yet). `factory/examples_library.py`'s
+registry gained a `storage-bin-lid` entry (`status: "cad_generated"`,
+same shape as `multipart-classroom-sign`'s entry). Phase 18's write-safety
+guard (`tests/test_examples_write_safety.py`) continues to pass
+unmodified - no test invokes a write-capable command against this
+example's committed path directly.
+
+**Not yet started:** any further growth of the library (richer 3D models,
+Blender workflows once Phase 20 exists, Meshy-gated concepts once Phase 16
+exists) - this phase is deliberately just the one new practical-utility
+example.
+
+## Phase 20 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

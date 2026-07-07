@@ -15,7 +15,7 @@ this repo knows about, each with a `status`:
 |---|---|---|
 | `openscad` | `available` | Implemented since Phase 2 — see `docs/openscad-generation.md`. |
 | `cadquery` | `available` if the `cadquery` package is importable, else `not_installed` | Implemented since Phase 7 — see below. |
-| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 19. |
+| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 20. |
 | `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 16, `docs/meshy-approval-gate.md` (the full required gate checklist), `config/future_cloud_tools.json` (`factory check-future-tools`, read-only), and `docs/licensing-policy.md`. |
 
 The registry is recomputed on every call (not cached at import time), so
@@ -138,3 +138,13 @@ template (`factory/openscad/templates.py`) - same `plate_width`/
 covers more than a 2-part base+text pair. See `docs/examples-library.md`,
 `docs/slicer-review-workflow.md`, and
 `examples/multipart-classroom-sign/README.md`.
+
+## Example: `examples/storage-bin-lid/`
+
+`examples/storage-bin-lid/cad/{lid_panel.scad,raised_label.scad,
+pull_tab.scad}` hand-authors a second 3-part shared-origin assembly - a
+practical household/classroom utility object rather than signage. Same
+`lid_width`/`lid_depth`/`lid_height` parameters across all three files,
+same `(0,0,0)` origin. See `docs/examples-library.md`,
+`docs/slicer-review-workflow.md`, and
+`examples/storage-bin-lid/README.md`.

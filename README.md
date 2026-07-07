@@ -140,8 +140,9 @@ direction.
 
 `examples/` is a permanent, committed library of example projects (unlike
 `projects/`, which is gitignored) demonstrating this workflow end to end:
-`examples/simple-nameplate/`, `examples/mechanical-plate/`, and
-`examples/multipart-classroom-sign/` (a 3-part base+text+badge assembly)
+`examples/simple-nameplate/`, `examples/mechanical-plate/`,
+`examples/multipart-classroom-sign/` (a 3-part base+text+badge assembly),
+and `examples/storage-bin-lid/` (a 3-part lid+label+pull-tab assembly)
 are real, runnable demos built with the actual CLI/OpenSCAD source
 (stopping at the CAD-source stage, no STL/PNG committed);
 `examples/future-organic-models/` is a set of concept-only roadmap
