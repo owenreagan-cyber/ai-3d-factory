@@ -1,3 +1,7 @@
+import hashlib
+import shutil
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
@@ -24,6 +28,29 @@ FORBIDDEN_JSON_KEYS = ("human_approved", "print_ready")
 
 def _iter_example_files():
     return sorted(p for p in EXAMPLES_DIR.rglob("*") if p.is_file())
+
+
+def _copy_example_to(name: str, tmp_path: Path) -> Path:
+    """Copy a committed example into tmp_path so a test can safely run write commands against it.
+
+    Tests must never point a write command (e.g. `factory preview-project`)
+    directly at `examples/<name>` - that mutates a committed file's
+    `generated_at` timestamp and leaves the working tree dirty after every
+    test run. Always copy into `tmp_path` first and point commands there.
+    """
+    source = EXAMPLES_DIR / name
+    dest = tmp_path / name
+    shutil.copytree(source, dest)
+    return dest
+
+
+def _hash_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _snapshot_multipart_preview_files() -> dict:
+    root = EXAMPLES_DIR / MULTIPART_EXAMPLE / "preview_package"
+    return {p.name: _hash_file(p) for p in sorted(root.glob("*"))}
 
 
 def _assert_no_forbidden_keys(data, path):
@@ -356,10 +383,28 @@ def test_review_gate_cli_fails_safely_for_multipart_example():
     assert "NOT print-ready" in result.stdout
 
 
-def test_preview_project_cli_reports_multipart_state():
-    result = runner.invoke(app, ["preview-project", f"examples/{MULTIPART_EXAMPLE}"])
+def test_preview_project_cli_reports_multipart_state(tmp_path):
+    # `preview-project` writes preview_package/{index.json,preview_report.md} -
+    # run it against a tmp_path copy, never against the committed examples/
+    # path directly, so this test can't leave the working tree dirty.
+    example_copy = _copy_example_to(MULTIPART_EXAMPLE, tmp_path)
+    result = runner.invoke(app, ["preview-project", str(example_copy)])
     assert result.exit_code == 0
     assert "multi-part: True" in result.stdout
+
+
+def test_preview_project_cli_does_not_modify_committed_example_preview_files(tmp_path):
+    before = _snapshot_multipart_preview_files()
+
+    example_copy = _copy_example_to(MULTIPART_EXAMPLE, tmp_path)
+    result = runner.invoke(app, ["preview-project", str(example_copy)])
+    assert result.exit_code == 0
+
+    after = _snapshot_multipart_preview_files()
+    assert before == after, (
+        "factory preview-project must never write to the committed examples/ directory - "
+        "run it against a tmp_path copy instead (see _copy_example_to())"
+    )
 
 
 # ---- preview-board across examples/ ----
