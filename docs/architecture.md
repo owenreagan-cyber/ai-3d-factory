@@ -56,6 +56,10 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   `docs/visual-preview-package.md`.
 - `factory/slicer/` — read-only local slicer discovery.
 - `factory/openscad/` — local, deterministic OpenSCAD source generation.
+- `factory/cad/` — CAD backend registry and read-only routing
+  (`backend.py`, `router.py`), and the CadQuery starter backend
+  (`cadquery_backend.py`, `manifest.py`); CadQuery is an optional
+  dependency this repo never installs. See `docs/cad-backends.md`.
 
 ## Why local-first
 

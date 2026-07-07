@@ -44,6 +44,21 @@ def test_gather_preview_data_with_cad_files_only(project_root):
     assert any("no STL exported yet" in item for item in index["missing_visual_artifacts"])
 
 
+def test_gather_preview_data_with_cadquery_py_source(project_root):
+    (project_root / "cad" / "mechanical_plate.py").write_text("# cadquery source\n", encoding="utf-8")
+    index = gather_preview_data(project_root)
+    assert index["cad_files"] == ["cad/mechanical_plate.py"]
+    assert index["mesh_files"] == []
+    assert any("no STL exported yet" in item for item in index["missing_visual_artifacts"])
+
+
+def test_gather_preview_data_with_mixed_openscad_and_cadquery_source(project_root):
+    (project_root / "cad" / "a_part.scad").write_text("// scad\n", encoding="utf-8")
+    (project_root / "cad" / "b_part.py").write_text("# cadquery\n", encoding="utf-8")
+    index = gather_preview_data(project_root)
+    assert index["cad_files"] == ["cad/a_part.scad", "cad/b_part.py"]
+
+
 def test_gather_preview_data_with_stl_only_no_manifest_entry(project_root):
     (project_root / "stl" / "part.stl").write_bytes(b"fake stl bytes")
     index = gather_preview_data(project_root)

@@ -53,7 +53,9 @@ factory list-accessories             # inspect the accessory catalog (read-only)
 factory list-materials                # inspect materials (read-only)
 factory fleet-summary                 # compact view of all printers
 factory check-manufacturing           # validate config/manufacturing/*.json
+factory route-cad projects/my-part    # read-only CAD backend recommendation
 factory generate-openscad projects/my-part --template test-cube
+factory generate-cadquery projects/my-part --template mechanical-plate
 factory validate path/to/model.stl
 factory render path/to/model.stl
 factory preview-index projects/my-part    # read-only visual-artifact summary
@@ -78,6 +80,13 @@ canonical printer source; `factory list-printers`/`show-printer`/
 manifest files into `preview_package/index.json` + `preview_report.md` - a
 visual-artifact summary and advisory human inspection checklist, never a
 new render or an automatic approval. See `docs/visual-preview-package.md`.
+
+`factory route-cad` explains (read-only) which CAD backend a project's
+brief points to - OpenSCAD or CadQuery today, Blender/Meshy reserved for
+later. `factory generate-cadquery` is a CadQuery starter backend
+(`mechanical-plate` template): CadQuery is optional and never installed by
+this repo, so the command fails cleanly if it isn't already available. See
+`docs/cad-backends.md`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

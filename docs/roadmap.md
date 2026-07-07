@@ -24,8 +24,9 @@ in sync, and advances `brief.json` status to `cad_generated`. See
 `docs/openscad-generation.md`. STL export itself is still a manual,
 human-run step (no automatic OpenSCAD invocation yet).
 
-**Not yet started:** CadQuery generation helpers, and any automated,
-locally-validated OpenSCAD export command.
+**Not yet started:** any automated, locally-validated OpenSCAD export
+command. (CadQuery generation helpers were implemented later, in Phase 7 —
+see below.)
 
 ## Phase 3 — manufacturing knowledge & printer-aware planning (started)
 
@@ -116,8 +117,9 @@ distinct from its fixed capabilities - not read by any command yet.
 **Not yet started:** `factory add-printer` / `factory add-accessory`
 commands; wiring `fleet_state`/current-setup data into the planner or
 decision engine; reconciling `config/materials.json` with
-`config/manufacturing/materials.json`; CadQuery generation helpers (still
-Phase 2); any UI/launcher code (still the Future track below).
+`config/manufacturing/materials.json`; any UI/launcher code (still the
+Future track below). (CadQuery generation helpers were implemented later,
+in Phase 7.)
 
 ## Phase 6 — visual preview package foundation (started)
 
@@ -147,12 +149,32 @@ visual rendering (still speculative Future-track requirements); wiring
 staleness/missing-artifact detection into a blocking gate (it stays
 advisory-only by design).
 
-## Phase 7 — Blender repair/render automation
+## Phase 7 — CAD backend routing & CadQuery starter (started)
 
-Scripted (non-interactive) Blender invocations for mesh repair (fixing
-non-manifold geometry flagged by `factory validate`) and higher-fidelity
-preview renders, as a local subprocess call — no Blender add-ons, no
-Blender MCP.
+A small, deterministic CAD-backend registry (`factory.cad.backend`) and a
+read-only routing command that explains which CAD backend a project's
+description points to — today's implemented backends (OpenSCAD, CadQuery)
+versus reserved future ones (Blender, Meshy) — without generating anything.
+See `docs/cad-backends.md`.
+
+**Started:** `factory route-cad <project_dir>` (`factory.cad.router`) reuses
+`factory.router.recommend_tool()` (the existing OpenSCAD/CadQuery/Blender/
+Meshy keyword categories) so routing logic isn't duplicated, and reports a
+primary recommendation, implementable-now backend(s), and any future-only
+needs. `factory generate-cadquery --template mechanical-plate`
+(`factory.cad.cadquery_backend`) is a CadQuery starter backend: a
+parametric rectangular plate with optional corner fillets, mounting holes,
+and an engraved label, written as local `.py` source into `cad/` — mirroring
+`factory generate-openscad`'s shape (export instructions in
+`slicer_review/`, `part_manifest.json` upsert, forward-only `brief.json`
+status advance to `cad_generated`). CadQuery is an optional dependency:
+this repo never installs it, and the command fails with a clear,
+non-crashing error if it isn't already importable in the environment. Like
+OpenSCAD, it writes source only — exporting to STL is a manual, human-run
+step; nothing here imports or executes the CadQuery source it writes.
+
+**Not yet started:** any CadQuery template beyond `mechanical-plate`;
+automated, locally-validated CadQuery export.
 
 ## Phase 8 — optional Meshy, with approval/cost gates
 
@@ -172,6 +194,13 @@ separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
+
+## Phase 11 — Blender repair/render automation
+
+Scripted (non-interactive) Blender invocations for mesh repair (fixing
+non-manifold geometry flagged by `factory validate`) and higher-fidelity
+preview renders, as a local subprocess call — no Blender add-ons, no
+Blender MCP.
 
 ## Future track — visual workspace / launcher (not scheduled to a phase number)
 

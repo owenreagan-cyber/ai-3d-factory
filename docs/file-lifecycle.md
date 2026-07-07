@@ -8,7 +8,7 @@ projects/<slug>/
 ├── brief.json           # intent: what/why/owner/constraints
 ├── build_plan.json      # factory plan output: tool routing, required parts, gates
 ├── part_manifest.json   # one entry per physical part: file, material, color, origin, license
-├── cad/                 # parametric CAD source (OpenSCAD/CadQuery scripts) — later phase
+├── cad/                 # parametric CAD source (OpenSCAD/CadQuery scripts)
 ├── stl/                 # exported meshes, one file per part/color
 ├── renders/             # preview PNGs from `factory render`
 ├── validation/          # validation reports from `factory validate`

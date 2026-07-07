@@ -10,9 +10,9 @@ _OPENSCAD_KEYWORDS = (
     "plate",
     "sign",
     "text",
+    "label",
     "profile",
     "organizer",
-    "bracket",
     "frame",
     "tile",
     "raised letter",
@@ -29,6 +29,13 @@ _CADQUERY_KEYWORDS = (
     "gear",
     "bearing",
     "thread",
+    "bracket",
+    "adapter",
+    "mount",
+    "clip",
+    "hinge",
+    "fixture",
+    "enclosure",
 )
 
 _BLENDER_KEYWORDS = (
@@ -69,7 +76,10 @@ def recommend_tool(description: str) -> dict:
     if any(kw in text for kw in _CADQUERY_KEYWORDS):
         return {
             "primary_tool": "cadquery",
-            "rationale": "Description suggests a mechanical/engineering part (fillets, chamfers, exact fits).",
+            "rationale": (
+                "Description suggests a mechanical/dimensioned solid (bracket, adapter, mount, clip, "
+                "hinge, fixture, enclosure, fillets/chamfers, exact fits)."
+            ),
         }
 
     if any(kw in text for kw in _BLENDER_KEYWORDS):
@@ -81,7 +91,7 @@ def recommend_tool(description: str) -> dict:
     if any(kw in text for kw in _OPENSCAD_KEYWORDS):
         return {
             "primary_tool": "openscad",
-            "rationale": "Description matches a parametric plate/sign/bracket/organizer-style part.",
+            "rationale": "Description matches a parametric plate/sign/label/organizer-style part.",
         }
 
     return {

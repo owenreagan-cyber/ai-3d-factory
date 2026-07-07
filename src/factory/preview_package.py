@@ -4,8 +4,8 @@ Aggregates a project's existing CAD/STL/render/manifest state into a single
 `preview_package/index.json` (machine-readable) and `preview_package/
 preview_report.md` (human-readable), for a human to visually sanity-check a
 project and for a future dashboard/launcher (see docs/product-vision.md) to
-consume. This module never renders new images, never invokes OpenSCAD, never
-exports STLs, and never contacts a printer/slicer/network - it only reads
+consume. This module never renders new images, never invokes OpenSCAD or
+CadQuery, never exports STLs, and never contacts a printer/slicer/network - it only reads
 files already on disk and references them by relative path (it never copies
 render images). See docs/manufacturing-knowledge-base.md and AGENT.md.
 """
@@ -68,7 +68,11 @@ def gather_preview_data(project_dir: Path) -> dict[str, Any]:
     stl_dir = project_dir / "stl"
     renders_dir = project_dir / "renders"
 
-    cad_files = sorted(p.name for p in cad_dir.glob("*.scad")) if cad_dir.is_dir() else []
+    cad_files = (
+        sorted(p.name for p in cad_dir.iterdir() if p.is_file() and p.suffix in (".scad", ".py"))
+        if cad_dir.is_dir()
+        else []
+    )
     mesh_files = sorted(p.name for p in stl_dir.glob("*.stl")) if stl_dir.is_dir() else []
     render_files = sorted(p.name for p in renders_dir.glob("*.png")) if renders_dir.is_dir() else []
     render_stems = {Path(name).stem for name in render_files}
@@ -119,7 +123,8 @@ def gather_preview_data(project_dir: Path) -> dict[str, Any]:
         if not mesh_files and cad_files:
             missing_visual_artifacts.append(
                 f"{len(cad_files)} CAD source file(s) present but no STL exported yet - "
-                "run the export commands in slicer_review/openscad_export_instructions.md."
+                "run the export commands in slicer_review/openscad_export_instructions.md and/or "
+                "slicer_review/cadquery_export_instructions.md (whichever applies)."
             )
         elif not mesh_files and not cad_files:
             missing_visual_artifacts.append("No CAD source, STL, or render files exist yet for this project.")

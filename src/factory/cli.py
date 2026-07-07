@@ -15,6 +15,8 @@ import typer
 from rich.console import Console
 
 from factory import project_store
+from factory.cad import cadquery_backend
+from factory.cad.router import route_cad
 from factory.manufacturing import knowledge
 from factory.manufacturing.check import check_manufacturing_knowledge_base
 from factory.manufacturing.inspect import (
@@ -59,6 +61,7 @@ AVAILABLE_COMMANDS = (
     "plan <brief.json>",
     "list-options <project_dir>",
     "choose-option <project_dir> <option_id>",
+    "route-cad <project_dir>",
     "list-printers",
     "show-printer <printer_id>",
     "list-accessories",
@@ -68,6 +71,7 @@ AVAILABLE_COMMANDS = (
     "fleet-summary",
     "check-manufacturing",
     "generate-openscad <project_dir> --template <name> [--text ...] [--force]",
+    "generate-cadquery <project_dir> --template <name> [--length-mm ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
     "preview-index <project_dir>",
@@ -259,6 +263,45 @@ def choose_option_cmd(
     )
 
 
+@app.command(name="route-cad")
+def route_cad_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+) -> None:
+    """Recommend a CAD backend for a project's brief. Read-only; generates nothing."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    brief = _safe_load(project_dir / "brief.json") or {}
+    build_plan = _safe_load(project_dir / "build_plan.json") or {}
+    description = brief.get("description", "")
+    selected_option = build_plan.get("selected_manufacturing_option")
+
+    result = route_cad(description, selected_manufacturing_option=selected_option)
+
+    console.print(f"[bold]primary recommendation[/bold]: {result['primary_recommendation']!r}")
+    console.print(f"  {result['rationale']}")
+    console.print(f"[bold]recommended backend(s)[/bold]: {', '.join(result['recommended_backends'])}")
+    console.print(f"  cadquery available in this environment: {result['cadquery_available']}")
+    if result["selected_manufacturing_option"]:
+        console.print(f"  selected manufacturing option: {result['selected_manufacturing_option']!r}")
+
+    if result["future_only_needs"]:
+        console.print("\n[yellow]future-only needs[/yellow] (not implementable as a generation backend today):")
+        for need in result["future_only_needs"]:
+            console.print(f"  - {need['display_name']} ({need['backend_id']}): {need['reason']}")
+    else:
+        console.print("\nfuture-only needs: none detected")
+
+    for note in result["notes"]:
+        console.print(f"\n{note}")
+    console.print(
+        "\nThis command only read brief.json/build_plan.json - it did not generate CAD, write any file, "
+        "or contact any printer/slicer/network."
+    )
+
+
 def _print_printer_detail(printer: dict) -> None:
     capabilities = knowledge.printer_capabilities(printer)
     console.print(f"[bold]{printer.get('printer_id')}[/bold] - {printer.get('display_name')}")
@@ -438,6 +481,56 @@ def generate_openscad_cmd(
         "\nThis only wrote local .scad source and instructions - it did not run OpenSCAD, "
         "export an STL, or contact any printer/network/API."
     )
+
+
+@app.command(name="generate-cadquery")
+def generate_cadquery_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to an initialized project directory (see factory init-project)"),
+    template: str = typer.Option(..., "--template", help=f"One of: {', '.join(cadquery_backend.ALLOWED_TEMPLATES)}"),
+    length_mm: float = typer.Option(80.0, "--length-mm"),
+    width_mm: float = typer.Option(50.0, "--width-mm"),
+    thickness_mm: float = typer.Option(5.0, "--thickness-mm"),
+    corner_radius_mm: float = typer.Option(4.0, "--corner-radius-mm", help="Set to 0 for square corners"),
+    hole_diameter_mm: Optional[float] = typer.Option(None, "--hole-diameter-mm", help="Set to add 4 corner mounting holes"),
+    hole_margin_mm: float = typer.Option(8.0, "--hole-margin-mm"),
+    label_text: Optional[str] = typer.Option(None, "--label-text", help="Text to engrave centered on the top face"),
+    label_size_mm: float = typer.Option(8.0, "--label-size-mm"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing .py file for this template"),
+) -> None:
+    """Generate local CadQuery source into <project_dir>/cad/. Requires cadquery to already be
+    installed in this environment; never installs it, runs it, or exports an STL."""
+    try:
+        result = cadquery_backend.generate_cadquery(
+            project_dir,
+            template,
+            length_mm=length_mm,
+            width_mm=width_mm,
+            thickness_mm=thickness_mm,
+            corner_radius_mm=corner_radius_mm,
+            hole_diameter_mm=hole_diameter_mm,
+            hole_margin_mm=hole_margin_mm,
+            label_text=label_text,
+            label_size_mm=label_size_mm,
+            force=force,
+        )
+    except (ValueError, cadquery_backend.ProjectNotInitializedError) as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    except cadquery_backend.GeneratedFileExistsError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        console.print("Re-run with --force to overwrite.")
+        raise typer.Exit(code=1)
+    except cadquery_backend.CadQueryNotAvailableError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]generated[/green] template '{result.template}' in {result.project_dir}")
+    for path in result.source_files:
+        console.print(f"  {path}")
+    for note in result.human_actions_required:
+        console.print(f"  action required: {note}")
+    for note in result.safety_notes:
+        console.print(f"\n{note}")
 
 
 @app.command()
