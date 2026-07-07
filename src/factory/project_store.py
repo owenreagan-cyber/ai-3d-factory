@@ -32,6 +32,7 @@ PROJECT_STATUSES = (
     "brief_created",
     "plan_drafted",
     "plan_approved",
+    "manufacturing_option_selected",
     "cad_generated",
     "mesh_exported",
     "geometry_validated",

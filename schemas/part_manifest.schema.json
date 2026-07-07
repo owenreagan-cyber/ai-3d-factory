@@ -9,6 +9,20 @@
     "parts": {
       "type": "array",
       "items": { "$ref": "#/definitions/part" }
+    },
+    "assembly_intent": {
+      "type": "object",
+      "description": "Computed summary of what the selected manufacturing_option (see build_plan.json) means for assembly - never a fabricated part breakdown. Written by `factory choose-option`. See factory.manufacturing.manifest.compute_assembly_intent.",
+      "properties": {
+        "selected_manufacturing_option": { "type": ["string", "null"] },
+        "status": {
+          "type": "string",
+          "enum": ["no_option_selected", "multipart_incomplete", "multipart_ready", "single_piece_ready"]
+        },
+        "note": { "type": "string" },
+        "cad_generation_safe": { "type": "boolean" },
+        "multipart_incomplete": { "type": "boolean" }
+      }
     }
   },
   "definitions": {

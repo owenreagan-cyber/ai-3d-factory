@@ -45,6 +45,8 @@ APIs. See `AGENT.md`.
 factory status                       # environment + safety status
 factory init-project my-part         # scaffold projects/my-part/
 factory plan projects/my-part/brief.json   # printer-aware plan + manufacturing options
+factory list-options projects/my-part      # explain every manufacturing option
+factory choose-option projects/my-part <option_id>   # record your explicit choice
 factory generate-openscad projects/my-part --template test-cube
 factory validate path/to/model.stl
 factory render path/to/model.stl
@@ -56,8 +58,12 @@ factory report projects/my-part      # includes manufacturing summary + open dec
 (`config/manufacturing/`: printers, materials, accessories, planning rules)
 to resolve the target printer, explain every manufacturing option (single
 piece vs. various multi-part approaches) with pros/cons, and recommend one -
-non-bindingly, always requiring explicit human confirmation. See
-`docs/manufacturing-knowledge-base.md`.
+non-bindingly, always requiring explicit human confirmation via
+`factory choose-option`. See `docs/manufacturing-knowledge-base.md`.
+
+This CLI is the local engine, not the final intended user experience - see
+`docs/product-vision.md` for the (not-yet-built) future visual/launcher
+direction.
 
 ## Workflow
 

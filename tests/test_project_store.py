@@ -67,3 +67,28 @@ def test_save_and_load_json_roundtrip(tmp_path):
     project_store.save_json(path, data)
     assert path.is_file()
     assert project_store.load_json(path) == data
+
+
+def test_manufacturing_option_selected_is_between_plan_approved_and_cad_generated():
+    statuses = project_store.PROJECT_STATUSES
+    assert "manufacturing_option_selected" in statuses
+    assert statuses.index("plan_approved") < statuses.index("manufacturing_option_selected") < statuses.index(
+        "cad_generated"
+    )
+
+
+def test_advance_status_allows_manufacturing_option_selected():
+    brief = {"status": "plan_drafted"}
+    changed = project_store.advance_status(brief, "manufacturing_option_selected")
+    assert changed is True
+    assert brief["status"] == "manufacturing_option_selected"
+
+
+def test_advance_status_still_blocks_print_ready_and_human_approved():
+    brief = {"status": "manufacturing_option_selected"}
+    with pytest.raises(ValueError):
+        project_store.advance_status(brief, "print_ready")
+    with pytest.raises(ValueError):
+        project_store.advance_status(brief, "human_approved")
+    # Neither attempt should have mutated the status.
+    assert brief["status"] == "manufacturing_option_selected"

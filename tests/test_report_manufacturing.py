@@ -83,3 +83,47 @@ def test_report_never_reports_print_ready_status(isolated_projects_dir):
     result = runner.invoke(app, ["report", str(project_dir)])
     safe_status_line = result.stdout.split("current safe status:")[1].split("\n")[0]
     assert "print_ready" not in safe_status_line
+
+
+def test_report_before_option_selection_shows_unresolved_decision(isolated_projects_dir):
+    project_dir = _init_and_plan(isolated_projects_dir, "a two-color raised-letter nameplate")
+
+    result = runner.invoke(app, ["report", str(project_dir)])
+    assert "unresolved decision" in result.stdout.lower()
+    assert "manifest readiness: no_option_selected" in result.stdout
+    assert "CAD generation can proceed safely: False" in result.stdout
+
+
+def test_report_after_option_selection_shows_selected_option(isolated_projects_dir):
+    project_dir = _init_and_plan(isolated_projects_dir, "a two-color raised-letter nameplate")
+    runner.invoke(app, ["choose-option", str(project_dir), "multipart_color"])
+
+    result = runner.invoke(app, ["report", str(project_dir)])
+    assert "selected manufacturing option: 'multipart_color'" in result.stdout
+    assert "manifest readiness: multipart_incomplete" in result.stdout
+    assert "multipart planning incomplete: True" in result.stdout
+    assert "unresolved decision" not in result.stdout.lower()
+
+
+def test_report_after_selection_status_never_exceeds_slicer_review_ready(isolated_projects_dir):
+    project_dir = _init_and_plan(isolated_projects_dir, "a two-color raised-letter nameplate")
+    runner.invoke(app, ["choose-option", str(project_dir), "multipart_color"])
+
+    result = runner.invoke(app, ["report", str(project_dir)])
+    assert "current safe status: manufacturing_option_selected" in result.stdout
+    assert "human_approved" not in result.stdout
+    assert "print_ready" not in result.stdout
+    assert "Human slicer review required." in result.stdout
+    assert "Project is NOT print-ready." in result.stdout
+
+
+def test_report_drops_resolved_selection_question_after_choosing(isolated_projects_dir):
+    project_dir = _init_and_plan(isolated_projects_dir, "a two-color raised-letter nameplate")
+    before = runner.invoke(app, ["report", str(project_dir)])
+    before_count = int(before.stdout.split("remaining human decisions: ")[1].split("\n")[0])
+
+    runner.invoke(app, ["choose-option", str(project_dir), "multipart_color"])
+    after = runner.invoke(app, ["report", str(project_dir)])
+    after_count = int(after.stdout.split("remaining human decisions: ")[1].split("\n")[0])
+
+    assert after_count == before_count - 1

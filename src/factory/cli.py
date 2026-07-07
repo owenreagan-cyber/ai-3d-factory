@@ -15,6 +15,14 @@ import typer
 from rich.console import Console
 
 from factory import project_store
+from factory.manufacturing.manifest import compute_assembly_intent
+from factory.manufacturing.selection import (
+    NEW_STATUS_AFTER_SELECTION,
+    BuildPlanNotFoundError,
+    UnknownManufacturingOptionError,
+    choose_manufacturing_option,
+    list_manufacturing_options,
+)
 from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitializedError, generate_openscad
 from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
@@ -34,6 +42,8 @@ AVAILABLE_COMMANDS = (
     "status",
     "init-project <name>",
     "plan <brief.json>",
+    "list-options <project_dir>",
+    "choose-option <project_dir> <option_id>",
     "generate-openscad <project_dir> --template <name> [--text ...] [--force]",
     "validate <mesh_file>",
     "render <mesh_file>",
@@ -138,6 +148,80 @@ def plan(brief_path: Path = typer.Argument(..., help="Path to a project's brief.
         )
     for question in build_plan.get("unanswered_questions", []):
         console.print(f"  [yellow]open question[/yellow]: {question}")
+
+
+@app.command(name="list-options")
+def list_options_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+) -> None:
+    """List every manufacturing option from build_plan.json for human review."""
+    try:
+        result = list_manufacturing_options(project_dir)
+    except BuildPlanNotFoundError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    selected = result["selected_manufacturing_option"]
+    console.print(f"[bold]selected_manufacturing_option[/bold]: {selected!r}")
+    console.print(f"[bold]recommended[/bold]: {result['recommended_option']!r} (non-binding)")
+    console.print(f"  {result['recommendation_rationale']}")
+
+    console.print(f"\n[bold]manufacturing options[/bold] ({len(result['options'])}):")
+    for option in result["options"]:
+        markers = []
+        if option["option_id"] == result["recommended_option"]:
+            markers.append("RECOMMENDED")
+        if option["option_id"] == selected:
+            markers.append("SELECTED")
+        if not option.get("available", True):
+            markers.append("NOT AVAILABLE for target printer")
+        marker_text = f"  [{', '.join(markers)}]" if markers else ""
+
+        console.print(f"\n  [bold]{option['option_id']}[/bold] - {option['display_name']}{marker_text}")
+        console.print(f"    {option['description']}")
+        console.print("    advantages:")
+        for advantage in option["advantages"]:
+            console.print(f"      + {advantage}")
+        console.print("    disadvantages / risks:")
+        for disadvantage in option["disadvantages"]:
+            console.print(f"      - {disadvantage}")
+        if option.get("availability_note"):
+            console.print(f"    [yellow]note[/yellow]: {option['availability_note']}")
+
+    console.print(f"\n[bold]requires human confirmation[/bold]: {result['requires_human_confirmation']}")
+    if result["unanswered_questions"]:
+        console.print("\n[bold]unanswered questions[/bold]:")
+        for question in result["unanswered_questions"]:
+            console.print(f"  [yellow]-[/yellow] {question}")
+
+    console.print(f"\nTo select an option, run: factory choose-option {project_dir} <option_id>")
+
+
+@app.command(name="choose-option")
+def choose_option_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    option_id: str = typer.Argument(..., help="A manufacturing option id from `factory list-options`"),
+) -> None:
+    """Record an explicit human choice of manufacturing option into build_plan.json."""
+    try:
+        result = choose_manufacturing_option(project_dir, option_id)
+    except BuildPlanNotFoundError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    except UnknownManufacturingOptionError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]selected[/green] manufacturing option: {option_id!r} ({result['option']['display_name']})")
+    if not result["available"]:
+        console.print(f"[yellow]warning[/yellow]: {result['availability_note']}")
+    if result["status_advanced"]:
+        console.print(f"  brief.json status advanced to {NEW_STATUS_AFTER_SELECTION!r}")
+    console.print(f"  {result['assembly_intent']['note']}")
+    console.print(
+        "\nThis only recorded your choice in build_plan.json/part_manifest.json - it did not generate or "
+        "modify CAD, export an STL, invoke OpenSCAD, or contact any printer/slicer/network."
+    )
 
 
 @app.command(name="generate-openscad")
@@ -264,6 +348,7 @@ def report(project_dir: Path = typer.Argument(..., help="Path to a project direc
 
     _print_target_printer_summary(build_plan)
     _print_manufacturing_options_summary(build_plan)
+    _print_assembly_intent_summary(build_plan)
 
     manifest_checks = []
     console.print(f"  manifest parts: {len(manifest.get('parts', [])) if manifest else '(missing part_manifest.json)'}")
@@ -333,8 +418,25 @@ def _print_manufacturing_options_summary(build_plan: dict | None) -> None:
         console.print(f"    - {option.get('display_name')}{availability}")
 
     recommended = manufacturing_options.get("recommended_option")
-    selected = manufacturing_options.get("selected_manufacturing_option")
+    selected = (build_plan or {}).get("selected_manufacturing_option")
     console.print(f"  recommended option: {recommended!r} (non-binding; selected: {selected!r})")
+    if selected:
+        console.print(f"  selected manufacturing option: {selected!r}")
+    else:
+        console.print(
+            "  [yellow]unresolved decision[/yellow]: no manufacturing option selected yet - run "
+            "`factory list-options` then `factory choose-option`."
+        )
+
+
+def _print_assembly_intent_summary(build_plan: dict | None) -> None:
+    if not build_plan:
+        return
+    assembly_intent = compute_assembly_intent(build_plan)
+    console.print(f"  manifest readiness: {assembly_intent['status']}")
+    console.print(f"    {assembly_intent['note']}")
+    console.print(f"  CAD generation can proceed safely: {assembly_intent['cad_generation_safe']}")
+    console.print(f"  multipart planning incomplete: {assembly_intent['multipart_incomplete']}")
 
 
 def _print_manifest_and_multipart_summary(manifest: dict | None, manifest_checks: list[dict]) -> None:
@@ -360,7 +462,13 @@ def _print_validation_summary(validation_reports: list[dict]) -> None:
 
 
 def _print_remaining_human_decisions(build_plan: dict | None) -> None:
-    questions = (build_plan or {}).get("unanswered_questions", [])
+    build_plan = build_plan or {}
+    questions = build_plan.get("unanswered_questions", [])
+    if build_plan.get("selected_manufacturing_option"):
+        # This question is resolved by `factory choose-option`; stale build_plan.json
+        # text from `factory plan` shouldn't be presented as still-open.
+        questions = [q for q in questions if "selected_manufacturing_option" not in q]
+
     console.print(f"\n[bold]remaining human decisions[/bold]: {len(questions)}")
     for question in questions:
         console.print(f"  [yellow]-[/yellow] {question}")

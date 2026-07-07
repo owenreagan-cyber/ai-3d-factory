@@ -56,3 +56,23 @@ def test_planner_output_validates_against_build_plan_schema():
 def test_empty_part_manifest_validates_against_schema():
     schema = project_store.load_json(project_store.SCHEMAS_DIR / "part_manifest.schema.json")
     jsonschema.validate(instance={"parts": []}, schema=schema)
+
+
+def test_manifest_with_assembly_intent_validates_against_schema():
+    schema = project_store.load_json(project_store.SCHEMAS_DIR / "part_manifest.schema.json")
+    instance = {
+        "parts": [],
+        "assembly_intent": {
+            "selected_manufacturing_option": "single_piece",
+            "status": "single_piece_ready",
+            "note": "Selected option 'single_piece' is a single-piece approach.",
+            "cad_generation_safe": True,
+            "multipart_incomplete": False,
+        },
+    }
+    jsonschema.validate(instance=instance, schema=schema)
+
+
+def test_project_brief_schema_allows_manufacturing_option_selected_status():
+    schema = project_store.load_json(project_store.SCHEMAS_DIR / "project_brief.schema.json")
+    assert "manufacturing_option_selected" in schema["properties"]["status"]["enum"]

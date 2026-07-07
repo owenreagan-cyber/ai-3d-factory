@@ -20,7 +20,8 @@ a schema in `schemas/`:
 |---|---|---|---|
 | Brief | `factory init-project <name>` | `brief.json` | `project_brief.schema.json` |
 | Plan | `factory plan <brief.json>` | `build_plan.json` | `build_plan.schema.json` |
-| Parts | `factory plan` seeds it; `factory generate-openscad` fills in CAD-time fields; manual edit for the rest | `part_manifest.json` | `part_manifest.schema.json` |
+| Manufacturing decision | `factory list-options <project_dir>` (read-only) then `factory choose-option <project_dir> <option_id>` | `build_plan.json`'s `selected_manufacturing_option` | `build_plan.schema.json` |
+| Parts | `factory plan` seeds it; `factory choose-option` adds an `assembly_intent` summary; `factory generate-openscad` fills in CAD-time fields; manual edit for the rest | `part_manifest.json` | `part_manifest.schema.json` |
 | Validation | `factory validate <mesh>` | `validation/*.json` | `validation_report.schema.json` |
 | Preview | `factory render <mesh>` | `renders/*.png` | n/a |
 | Slicer review | (human, in Bambu Studio/OrcaSlicer) | `slicer_review/*.json` | `slicer_review.schema.json` |
@@ -33,8 +34,10 @@ a schema in `schemas/`:
 - `factory/router.py` — deterministic keyword-based tool routing recommendation.
 - `factory/manufacturing/` — manufacturing knowledge base loader
   (`knowledge.py`), deterministic manufacturing-option decision engine
-  (`decision_engine.py`), and planning-time part_manifest seeding
-  (`manifest.py`). See `docs/manufacturing-knowledge-base.md`.
+  (`decision_engine.py`), planning-time part_manifest seeding and
+  assembly-intent computation (`manifest.py`), and the human
+  option-selection workflow (`selection.py`). See
+  `docs/manufacturing-knowledge-base.md`.
 - `factory/validators/` — mesh geometry checks, dimension/build-volume fit,
   multi-part manifest sanity checks.
 - `factory/previews/` — trimesh + matplotlib preview rendering.
@@ -58,3 +61,13 @@ design, or reach a printer. See `AGENT.md` and `docs/safety-gates.md`.
 - Talk to a slicer, printer, or any cloud service.
 
 See `docs/roadmap.md` for what later phases add.
+
+## This CLI is the engine, not the final product
+
+Everything above is a terminal-first local engine by design - fast to
+build, easy to test, trivially safe to reason about. It is not the intended
+long-term day-to-day experience: see `docs/product-vision.md` for the
+future visual/launcher direction (Mac app launcher, local dashboard, mesh
+and manufacturing-option previews, ...). That document is vision-only -
+nothing in it is implemented, and every safety boundary here carries
+forward unchanged into any future UI built on top of this engine.

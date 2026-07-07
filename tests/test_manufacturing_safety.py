@@ -1,7 +1,7 @@
 import ast
 import inspect
 
-from factory.manufacturing import decision_engine, knowledge, manifest
+from factory.manufacturing import decision_engine, knowledge, manifest, selection
 
 FORBIDDEN = [
     "import subprocess",
@@ -30,7 +30,7 @@ def _strip_docstrings(tree: ast.AST) -> ast.AST:
 
 
 def test_manufacturing_modules_have_no_network_or_process_calls():
-    for module in (knowledge, decision_engine, manifest):
+    for module in (knowledge, decision_engine, manifest, selection):
         tree = _strip_docstrings(ast.parse(inspect.getsource(module)))
         code_only_source = ast.unparse(tree)
         for forbidden_term in FORBIDDEN:

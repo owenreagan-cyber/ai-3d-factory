@@ -51,6 +51,17 @@ never set automatically by any `factory` command:
 `factory report` will never print `print_ready` as a project's current
 status, even if a brief or other file has been hand-edited to claim it.
 
+### `manufacturing_option_selected` is not a third approval gate
+
+Phase 4 added a `manufacturing_option_selected` status, set by
+`factory choose-option <project_dir> <option_id>`. This is an ordinary
+forward-only status (like `cad_generated` or `preview_rendered`), not a
+third entry in the two gates above: typing a specific `option_id` is itself
+the explicit human decision this status records, so the CLI command is
+allowed to set it directly - unlike `human_approved`/`print_ready`, which no
+`factory` command may ever set regardless of what the human typed. See
+`docs/manufacturing-knowledge-base.md`.
+
 ## If a task asks for a blocked action
 
 Stop and ask for explicit, scoped approval before proceeding. Prefer the

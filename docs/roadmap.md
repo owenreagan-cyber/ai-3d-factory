@@ -54,28 +54,71 @@ proposing a `required_parts` breakdown once a human confirms a multi-part
 option, and reconciling the Phase 0/1 single-printer `config/printers.json`
 with the Phase 3 fleet-aware `config/manufacturing/printers.json`.
 
-## Phase 4 — Blender repair/render automation
+## Phase 4 — human manufacturing decision workflow + product vision foundations (started)
+
+The human-in-the-loop half of Phase 3's decision engine: a workflow for
+Owen to explicitly choose one of the manufacturing options `factory plan`
+already explains, plus long-term product vision documentation for a future
+visual/launcher experience (not built yet). See `docs/product-vision.md`.
+
+**Started:** `factory list-options <project_dir>` prints every
+manufacturing option from `build_plan.json` (advantages, disadvantages,
+availability, recommendation, current selection) plus every unanswered
+question. `factory choose-option <project_dir> <option_id>` records an
+explicit human choice into `build_plan.json`'s `selected_manufacturing_option`
+- typing a specific option id *is* the human confirmation that option
+requires - without touching any other build_plan field, and advances
+`brief.json`'s status forward-only to the new `manufacturing_option_selected`
+status (never past it automatically; never to `human_approved`/`print_ready`).
+`factory.manufacturing.manifest.compute_assembly_intent()` reflects the
+selected option in `part_manifest.json` as a computed `assembly_intent`
+summary - if the option implies a multi-part approach but `required_parts`
+is still just a placeholder, it says so plainly ("Selected option implies
+multipart planning, but detailed required_parts are still incomplete")
+instead of fabricating a part breakdown. `factory report` now shows the
+selected option (or the unresolved-decision state), that assembly-intent
+summary, and whether CAD generation can proceed safely.
+`docs/product-vision.md` documents the intended long-term visual
+app/launcher direction and reserves (but does not implement) `factory
+serve`/`open`/`preview-project`/`launcher-info`.
+
+**Not yet started:** any actual UI/launcher/dashboard code, automatically
+proposing a `required_parts` breakdown once multipart is confirmed (still a
+manual follow-up by design - see Phase 3's "not yet started" list), and
+`factory add-printer`/`factory add-accessory`.
+
+## Phase 5 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity
 preview renders, as a local subprocess call — no Blender add-ons, no
 Blender MCP.
 
-## Phase 5 — optional Meshy, with approval/cost gates
+## Phase 6 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 6 — 3MF packaging experiments
+## Phase 7 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 7 — advanced slicer review automation
+## Phase 8 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
+
+## Future track — visual workspace / launcher (not scheduled to a phase number)
+
+The Mac app launcher, Dock icon, Shortcuts/Automator wrapper, "Chief of
+Staff" command, local visual dashboard, and the visual preview requirements
+(mesh preview, CAD source preview, manufacturing option preview,
+multipart/exploded preview, planning board) described in
+`docs/product-vision.md` are a long-term direction layered on top of the
+CLI engine above, not a specific numbered phase yet. They will be assigned
+phase numbers once a concrete implementation is scoped.

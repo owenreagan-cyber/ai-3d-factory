@@ -1,4 +1,4 @@
-# Manufacturing knowledge base (Phase 3)
+# Manufacturing knowledge base (Phase 3/4)
 
 `config/manufacturing/` is a local, hand-maintained reference database that
 `factory plan` and `factory report` read to give printer-aware, explained
@@ -82,9 +82,40 @@ option as a non-binding suggestion.
 
 **The engine never selects an option.** `manufacturing_options.selected_manufacturing_option`
 and the top-level `build_plan.json` field of the same name are always `null`
-from `factory plan` - only a human, editing `build_plan.json` directly, sets
-that field. `factory report` always shows the recommendation as "non-binding"
-next to whatever is actually selected.
+from `factory plan` - only a human, explicitly running `factory choose-option`
+(below), sets that field. `factory report` always shows the recommendation as
+"non-binding" next to whatever is actually selected.
+
+## Human decision workflow (Phase 4)
+
+`factory plan` explains options; it never picks one. Two commands close that
+loop:
+
+- **`factory list-options <project_dir>`** reads `build_plan.json` and prints
+  every manufacturing option - id, title, description, advantages,
+  disadvantages, availability for the resolved target printer, and whether
+  it's currently the recommendation and/or the current selection - plus
+  every `unanswered_questions` entry. Purely read-only; it writes nothing.
+- **`factory choose-option <project_dir> <option_id>`** records Owen's
+  explicit choice: it validates `option_id` against the option ids
+  `list-options` just showed, then sets `build_plan.json`'s
+  `selected_manufacturing_option` (top-level, and mirrored inside
+  `manufacturing_options`), leaving every other field untouched. Typing a
+  specific `option_id` *is* the explicit human confirmation an option
+  requires - the command doesn't ask a second time. It also advances
+  `brief.json`'s status forward-only to `manufacturing_option_selected` (see
+  **Status progression** below) and calls
+  `factory.manufacturing.manifest.apply_selected_option_to_manifest()` to
+  reflect the choice in `part_manifest.json` (see **Multipart workflow**).
+  It never generates or modifies CAD, exports an STL, invokes OpenSCAD, or
+  contacts a printer/slicer/network - see `factory.manufacturing.selection`.
+
+Choosing an option marked `available: false` for the resolved target printer
+(e.g. `multipart_color` with no multicolor-capable printer configured) is
+still allowed - `choose-option` prints the same availability warning
+`list-options` showed, but doesn't block the choice. Owen may be planning to
+swap printers or accessories before printing; this repo doesn't second-guess
+an explicit, informed choice.
 
 ## Multipart workflow
 
@@ -108,14 +139,34 @@ given `build_plan.json`'s `required_parts` - planned parts that don't have a
 manifest entry yet. It never fuses, aligns, or exports geometry; it only
 reads local JSON/files.
 
+**`factory.manufacturing.manifest.compute_assembly_intent()`** (Phase 4) turns
+a selected `manufacturing_option` plus `required_parts` into a plain status,
+without ever inventing a part breakdown:
+
+| `status` | Meaning |
+|---|---|
+| `no_option_selected` | Nothing chosen yet - run `factory choose-option`. |
+| `multipart_incomplete` | Selected option implies multiple parts, but `required_parts` still only describes the single placeholder part `factory plan` seeds by default. The system says so plainly instead of fabricating detailed geometry/parts. |
+| `multipart_ready` | Selected option implies multiple parts, and `required_parts` already lists more than one. |
+| `single_piece_ready` | Selected option is `single_piece`. |
+
+`apply_selected_option_to_manifest()` writes this as a computed top-level
+`assembly_intent` block in `part_manifest.json` (never touching the `parts`
+array), and `factory report` recomputes/shows it live so it always reflects
+the current `build_plan.json`, not a stale cached copy.
+
 ## Status progression
 
-Nothing above changes the status ceiling: `factory plan` and
-`factory generate-openscad` still only ever advance `brief.json`'s `status`
-forward (`project_store.advance_status`), and never to `human_approved` or
-`print_ready`. `factory report`'s computed "current safe status" still tops
-out at `slicer_review_ready` and always ends with "Human slicer review
-required." / "Project is NOT print-ready." - see `docs/safety-gates.md`.
+`factory choose-option` is the one addition to the status ceiling in Phase
+4: it may advance `brief.json`'s `status` forward-only to
+`manufacturing_option_selected` (inserted between `plan_approved` and
+`cad_generated` in `project_store.PROJECT_STATUSES` and the
+`project_brief.schema.json` enum). Like every other status, this is
+forward-only (`project_store.advance_status`) and can never be
+`human_approved` or `print_ready`. `factory report`'s computed "current safe
+status" still tops out at `slicer_review_ready` and always ends with "Human
+slicer review required." / "Project is NOT print-ready." - see
+`docs/safety-gates.md`.
 
 ## Future extensibility
 
