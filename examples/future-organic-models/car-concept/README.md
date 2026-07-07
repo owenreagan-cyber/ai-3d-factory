@@ -15,3 +15,22 @@ This directory intentionally contains only `README.md` and
 `renders/`, no `part_manifest.json`. `factory preview-index` /
 `factory preview-project` / `factory review-gate` will each report this
 directory as missing a brief if pointed at it directly; that is expected.
+
+## Meshy/Blender approval gates (Phase 16)
+
+If this concept is ever implemented, the two possible future backends
+each require their own separate, explicit approval before any code may
+call them:
+
+- **Meshy** (cloud, paid, generative-mesh API) requires the full gate
+  documented in `../../../docs/meshy-approval-gate.md` - explicit human
+  approval, a cost/budget cap, per-run confirmation, input review before
+  upload, and output review after generation. `factory check-future-tools`
+  (read-only) reports its current, always-disabled gate status from
+  `../../../config/future_cloud_tools.json`.
+- **Blender** requires a future local, non-interactive automation phase
+  (`../../../docs/roadmap.md` Phase 19) - no add-ons, no MCP.
+
+Neither gate exists yet. No CAD, mesh, render, or generated asset exists
+for this concept, no cloud/network call has been made to build this
+placeholder, and no file has been uploaded anywhere.

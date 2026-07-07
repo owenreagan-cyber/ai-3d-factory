@@ -1,0 +1,30 @@
+{
+  "$schema_note": "Local, non-secret policy scaffold for future cloud/paid tool integrations. No API keys, URLs, provider SDK config, or real secrets belong in this file - see docs/meshy-approval-gate.md and AGENT.md. Read-only from `factory`'s point of view: no command in this repo enables, calls, or contacts any tool listed here.",
+  "version": 1,
+  "tools": {
+    "meshy": {
+      "enabled": false,
+      "status": "future_gate_required",
+      "category": "organic_concept_generation",
+      "requires_explicit_human_approval": true,
+      "requires_cost_cap": true,
+      "requires_per_run_confirmation": true,
+      "requires_input_review_before_upload": true,
+      "requires_output_review_after_generation": true,
+      "allows_uploads": false,
+      "allows_api_calls": false,
+      "allows_automatic_generation": false,
+      "allows_automatic_mesh_acceptance": false,
+      "allows_automatic_print_readiness": false,
+      "allows_automatic_human_approved": false,
+      "fallback_if_unavailable_or_over_budget": "local_only_openscad_or_cadquery_or_human_manual_modeling",
+      "notes": [
+        "Not implemented in this repo. This entry only records the gate a future implementation must satisfy.",
+        "Every use requires a separate, explicit, human-initiated approval - never a default or inferred one.",
+        "See docs/meshy-approval-gate.md for the full required future gate checklist.",
+        "Generated mesh output still requires factory validate, factory render, factory review-gate, and human slicer review before it may be treated as human_approved - same pipeline as every other part.",
+        "No API key for this tool exists anywhere in this repo. .env.example documents MESHY_API_KEY as a commented-out, empty placeholder only."
+      ]
+    }
+  }
+}

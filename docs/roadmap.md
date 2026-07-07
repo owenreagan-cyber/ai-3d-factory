@@ -422,12 +422,36 @@ to include it.
 Blender workflows once Phase 19 exists, Meshy-gated concepts once Phase 16
 exists) — this phase is deliberately just the one new multipart example.
 
-## Phase 16 — optional Meshy, with approval/cost gates
+## Phase 16 — optional Meshy, with approval/cost gates (design scaffold started)
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
+
+**Started (design only - no Meshy implementation):** `docs/meshy-approval-gate.md`
+documents the full required future gate checklist (explicit human
+approval, a cost/budget cap, per-run confirmation, input review before
+upload, output review after generation, a local storage policy for
+generated assets, license/ownership notes, student/privacy/data notes, a
+local-only fallback if Meshy is unavailable/too expensive, and a
+restatement that generated output still needs `factory validate`/
+`render`/`review-gate`/human slicer review). `config/future_cloud_tools.json`
+is a local, non-secret policy scaffold recording Meshy's gate state
+(`enabled: false`, `status: "future_gate_required"`, and which of the
+above requirements are still outstanding) - no API key, URL, or provider
+SDK config. `factory check-future-tools` (`factory/future_cloud_tools.py`)
+is a small, read-only, additive command that reports this state; it never
+reads `.env`, validates credentials, makes a network call, or enables
+anything. `examples/future-organic-models/{car-concept,animal-concept,
+human-figure-study}/` (Phase 14) now each reference this gate directly
+from their `README.md` and `concept_brief.json`.
+
+**Not yet started:** any actual Meshy call, SDK dependency, API key,
+upload, generation, or mesh-acceptance logic - none of the approvals the
+checklist requires have been granted, and this phase deliberately grants
+none of them. `config/future_cloud_tools.json`'s `enabled` flag stays
+`false` until a human edits it as a separate, explicit, reviewed decision.
 
 ## Phase 17 — 3MF packaging experiments
 

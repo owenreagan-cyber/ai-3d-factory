@@ -8,7 +8,10 @@ an auto-printer; see `AGENT.md` for the full philosophy and safety rules.
 
 - Not an auto-printer. Nothing here sends a print job, slices with intent
   to print, or controls a printer.
-- Not connected to Meshy or any paid generative-mesh/AI API.
+- Not connected to Meshy or any paid generative-mesh/AI API. Meshy is
+  future-only, always disabled by default, and gated behind a documented
+  approval/cost checklist before any implementation may add real calls -
+  see `docs/meshy-approval-gate.md` and `factory check-future-tools`.
 - Not connected to Bambu cloud or any printer over LAN/USB.
 - Not something that marks a project `print_ready` automatically.
 
@@ -68,6 +71,7 @@ factory inspect-slicer               # read-only slicer discovery
 factory report projects/my-part      # includes manufacturing + preview package summary
 factory list-examples                 # list the committed examples/ library (read-only)
 factory show-example simple-nameplate # detail for one example (read-only)
+factory check-future-tools            # read-only Meshy/future cloud tool gate status
 ```
 
 `factory plan` reads a local manufacturing knowledge base

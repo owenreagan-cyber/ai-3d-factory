@@ -71,7 +71,11 @@ hand-author a 3-part assembly using the same shared-origin convention.
 human-figure-study}/` are concept-only placeholders for organic/freeform
 modeling directions (cars, animals, people) this repo may support once a
 future Blender local-automation phase (`docs/roadmap.md` Phase 19) and/or
-a Meshy safety/cost approval gate (`docs/roadmap.md` Phase 16) exist.
+the Meshy safety/cost approval gate (`docs/roadmap.md` Phase 16,
+**designed in Phase 16 but not implemented** - see
+`docs/meshy-approval-gate.md`) exist. Each `concept_brief.json` now points
+at `docs/meshy-approval-gate.md` and `config/future_cloud_tools.json`
+directly.
 
 **No CAD, mesh, render, or generated asset exists for any of them.** Each
 concept directory contains only a `README.md` and a `concept_brief.json`
@@ -142,6 +146,22 @@ examples/
 ├── mr_reagan_nameplate/         # pre-existing Phase 0/1 brief-only example
 └── simple_test_cube/            # pre-existing Phase 0/1 brief-only example
 ```
+
+## The Meshy approval/cost gate (Phase 16)
+
+`docs/meshy-approval-gate.md` and `config/future_cloud_tools.json`
+(inspectable read-only via `factory check-future-tools`) are a **design
+scaffold**, not an implementation: they exist so a future phase that adds
+real Meshy calls has to satisfy an already-written checklist (explicit
+human approval, a cost/budget cap, per-run confirmation, input review
+before upload, output review after generation, a local storage policy,
+license/ownership notes, student/privacy/data notes, a local-only
+fallback, and a restatement that generated output still needs the full
+validate/render/review-gate/human-review pipeline) instead of that gate
+being invented under time pressure later. Meshy's `enabled` flag in
+`config/future_cloud_tools.json` is `false`, and nothing in this repo can
+flip it - that requires a human editing the file directly, as an explicit,
+reviewed decision.
 
 ## Safety
 

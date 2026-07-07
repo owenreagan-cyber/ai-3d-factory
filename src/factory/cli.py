@@ -19,6 +19,7 @@ from factory import project_store
 from factory.cad import cadquery_backend
 from factory.cad.router import route_cad
 from factory.examples_library import UnknownExampleError, get_example, list_examples
+from factory.future_cloud_tools import list_future_cloud_tools
 from factory.manufacturing import knowledge
 from factory.manufacturing.check import check_manufacturing_knowledge_base
 from factory.manufacturing.inspect import (
@@ -89,6 +90,7 @@ AVAILABLE_COMMANDS = (
     "report <project_dir>",
     "list-examples",
     "show-example <example_name>",
+    "check-future-tools",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -933,6 +935,32 @@ def show_example_cmd(
     console.print(
         "\nThis command only reads a small static local registry and checks whether this path "
         "exists on disk - it did not generate, render, export, validate, or contact anything."
+    )
+
+
+@app.command(name="check-future-tools")
+def check_future_tools_cmd() -> None:
+    """Read-only report of future cloud/paid tool gates (e.g. Meshy). Never contacts a network,
+    reads .env, validates credentials, or enables anything. See docs/meshy-approval-gate.md."""
+    tools = list_future_cloud_tools()
+    console.print(f"[bold]future cloud tools[/bold] ({len(tools)}):")
+    for tool in tools:
+        enabled = tool.get("enabled", False)
+        gate_marker = "[red]ENABLED[/red]" if enabled else "[green]disabled (gated - safe default)[/green]"
+        console.print(f"\n[bold]{tool['tool_id']}[/bold]  {gate_marker}")
+        console.print(f"  status: {tool.get('status')}")
+        console.print(f"  requires_explicit_human_approval: {tool.get('requires_explicit_human_approval')}")
+        console.print(f"  requires_cost_cap: {tool.get('requires_cost_cap')}")
+        console.print(f"  requires_per_run_confirmation: {tool.get('requires_per_run_confirmation')}")
+        console.print(f"  allows_uploads: {tool.get('allows_uploads')}")
+        console.print(f"  allows_api_calls: {tool.get('allows_api_calls')}")
+        for note in tool.get("notes", []):
+            console.print(f"  note: {note}")
+
+    console.print(
+        "\nThis command only reads config/future_cloud_tools.json - it did not contact any network, "
+        "read .env, validate credentials, install a dependency, or enable anything. See "
+        "docs/meshy-approval-gate.md."
     )
 
 

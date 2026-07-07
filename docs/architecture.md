@@ -103,6 +103,13 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   (`list_examples()`/`get_example()`); never scans `examples/` dynamically
   and never generates, renders, exports, validates, or contacts anything.
   See `docs/examples-library.md`.
+- `factory/future_cloud_tools.py` — a small, read-only module that reads
+  `config/future_cloud_tools.json` (`list_future_cloud_tools()`/
+  `get_future_cloud_tool()`) and reports each future cloud/paid tool's
+  (currently just Meshy) gate status. Never reads `.env`, never validates
+  credentials, never makes a network call, and never enables anything -
+  it only reports what's already recorded as disabled/future-gated. See
+  `docs/meshy-approval-gate.md`.
 
 ### Shared inspection layer (Phase 13)
 

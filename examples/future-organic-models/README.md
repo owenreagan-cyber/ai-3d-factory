@@ -30,6 +30,19 @@ Neither gate exists yet in this repo. Until they do, nothing under
 subdirectory is a `concept_brief.json` (deliberately not `brief.json` -
 see below) plus a `README.md` describing intent only.
 
+### The Meshy gate itself is now designed (Phase 16), not implemented
+
+`docs/meshy-approval-gate.md` documents the full required approval/cost
+gate checklist a future phase must satisfy before any Meshy call may be
+added - explicit human approval, a cost/budget cap, per-run confirmation,
+input review before upload, output review after generation, a local
+storage policy, license/ownership notes, and student/privacy/data notes.
+`config/future_cloud_tools.json` records Meshy's current state
+(`enabled: false`, `status: "future_gate_required"`), inspectable
+read-only via `factory check-future-tools`. **This is a design document
+and a config scaffold only** - no Meshy code, API key, SDK, or network
+call was added to build it.
+
 ## Why `concept_brief.json`, not `brief.json`
 
 Every command that treats a directory as a real project
