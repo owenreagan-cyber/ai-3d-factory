@@ -1,0 +1,68 @@
+{
+  "project_name": "mechanical-plate-example",
+  "project_dir": "examples/mechanical-plate",
+  "generated_at": "2026-07-07T20:01:22.536636+00:00",
+  "project_status": "cad_generated",
+  "target_printer": null,
+  "selected_manufacturing_option": null,
+  "cad_files": [
+    "cad/mechanical_plate.scad"
+  ],
+  "mesh_files": [],
+  "render_files": [],
+  "manifest_parts": [
+    {
+      "part_name": "mechanical_plate",
+      "file_path": "stl/mechanical_plate.stl",
+      "material": "any",
+      "color": "any",
+      "role": "mechanical_plate"
+    }
+  ],
+  "multipart_state": {
+    "multi_part": false,
+    "part_count": 1
+  },
+  "missing_visual_artifacts": [
+    "Missing STL for part 'mechanical_plate' (expected stl/mechanical_plate.stl)."
+  ],
+  "stale_previews": [],
+  "orphaned_renders": [],
+  "render_coverage": {
+    "project_dir": "examples/mechanical-plate",
+    "mesh_files": [],
+    "render_files": [],
+    "covered": [],
+    "missing_renders": [],
+    "orphan_renders": [],
+    "stale_renders": [],
+    "total_meshes": 0,
+    "total_renders": 0,
+    "covered_count": 0,
+    "all_meshes_have_renders": false,
+    "visually_complete_for_slicer_review": false,
+    "notes": [
+      "Read-only comparison of stl/*.stl against renders/*.png by filename stem (<name>.stl <-> renders/<name>_preview.png).",
+      "This never renders anything, never invokes a slicer/OpenSCAD/CadQuery/Blender, and never contacts a network or printer.",
+      "Render coverage is advisory only - it does not approve anything or mark anything print-ready."
+    ]
+  },
+  "missing_renders": [],
+  "all_meshes_have_renders": false,
+  "human_visual_inspection_checklist": [
+    "Does the preview match the intended object?",
+    "Are all expected parts visible?",
+    "Are text/labels readable?",
+    "Are multipart components visually distinct?",
+    "Are colors/materials represented or clearly marked unknown?",
+    "Are any renders missing?",
+    "Are any previews stale?",
+    "Is slicer review still required?"
+  ],
+  "notes": [
+    "This index only references existing local files by relative path; it never copies renders or exports/generates new geometry.",
+    "Human visual inspection required.",
+    "Human slicer review required.",
+    "Project is NOT print-ready."
+  ]
+}

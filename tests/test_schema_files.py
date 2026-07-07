@@ -29,6 +29,8 @@ EXAMPLE_BRIEFS = [
     "simple_test_cube/brief.json",
     "mr_reagan_nameplate/brief.json",
     "gv60_plate_frame/brief.json",
+    "simple-nameplate/brief.json",
+    "mechanical-plate/brief.json",
 ]
 
 
@@ -76,3 +78,20 @@ def test_manifest_with_assembly_intent_validates_against_schema():
 def test_project_brief_schema_allows_manufacturing_option_selected_status():
     schema = project_store.load_json(project_store.SCHEMAS_DIR / "project_brief.schema.json")
     assert "manufacturing_option_selected" in schema["properties"]["status"]["enum"]
+
+
+EXAMPLE_MANIFESTS = [
+    "simple-nameplate/part_manifest.json",
+    "mechanical-plate/part_manifest.json",
+]
+
+
+@pytest.mark.parametrize("relative_path", EXAMPLE_MANIFESTS)
+def test_example_manifests_validate_against_schema(relative_path):
+    manifest_path = project_store.REPO_ROOT / "examples" / relative_path
+    schema_path = project_store.SCHEMAS_DIR / "part_manifest.schema.json"
+
+    manifest = project_store.load_json(manifest_path)
+    schema = project_store.load_json(schema_path)
+
+    jsonschema.validate(instance=manifest, schema=schema)

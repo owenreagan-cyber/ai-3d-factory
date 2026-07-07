@@ -1,0 +1,4 @@
+{
+  "status": "brief_created",
+  "note": "Not yet planned. This is a static example - `factory plan` was intentionally not run against it, so there is no target_printer resolution or manufacturing_options block here. Run `factory plan examples/mechanical-plate/brief.json` yourself if you want to see that step (it writes into this same file)."
+}

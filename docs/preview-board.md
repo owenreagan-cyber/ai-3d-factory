@@ -47,6 +47,16 @@ By default, output is written to `<projects_root>/preview_board/`:
 Re-running the command is safe and deterministic given the same project
 files - it only reads and then overwrites the two board output files.
 
+For example, `factory preview-board examples` boards every immediate
+subdirectory of `examples/` (including `simple-nameplate/`,
+`mechanical-plate/`, and the `future-organic-models/` folder itself - not
+its nested concept subdirectories, since `discover_projects()` only lists
+immediate subdirectories). Concept placeholders under
+`future-organic-models/` use `concept_brief.json` rather than `brief.json`
+specifically so a board rooted at `examples/future-organic-models` reports
+them as `needs_brief` instead of implying they're real, in-progress
+projects. See `docs/examples-library.md`.
+
 ## How it's built
 
 The board does no per-project file scanning itself. Each project's row

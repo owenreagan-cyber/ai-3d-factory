@@ -1,0 +1,13 @@
+{
+  "project_name": "simple-nameplate-example",
+  "status": "cad_generated",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "A committed, permanent local example of the ai-3d-factory workflow: a single-color desk nameplate with raised text, generated with `factory generate-openscad --template nameplate`. This is a demo/reference project living under examples/, not a real order - see examples/simple-nameplate/README.md.",
+  "constraints": [
+    "Original design only - no franchise/copyrighted logos or characters (see docs/licensing-policy.md).",
+    "Demo scale only (90mm x 30mm base plate, from the built-in nameplate template) - not sized against any real desk or nameplate holder.",
+    "This is a workflow example, not a print order: no STL has been exported, and this example is not slicer_review_ready, human_approved, or print_ready."
+  ],
+  "required_human_approval": true
+}

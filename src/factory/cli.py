@@ -18,6 +18,7 @@ from rich.console import Console
 from factory import project_store
 from factory.cad import cadquery_backend
 from factory.cad.router import route_cad
+from factory.examples_library import UnknownExampleError, get_example, list_examples
 from factory.manufacturing import knowledge
 from factory.manufacturing.check import check_manufacturing_knowledge_base
 from factory.manufacturing.inspect import (
@@ -86,6 +87,8 @@ AVAILABLE_COMMANDS = (
     "review-gate <project_dir> [--json]",
     "inspect-slicer",
     "report <project_dir>",
+    "list-examples",
+    "show-example <example_name>",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -881,6 +884,56 @@ def report(project_dir: Path = typer.Argument(..., help="Path to a project direc
 
     console.print("\nHuman slicer review required.")
     console.print("Project is NOT print-ready.")
+
+
+@app.command(name="list-examples")
+def list_examples_cmd() -> None:
+    """List every example project under examples/ (read-only, static local registry)."""
+    examples = list_examples()
+    console.print(f"[bold]examples[/bold] ({len(examples)}):")
+    for example in examples:
+        missing_marker = "" if example["exists"] else "  [red]MISSING ON DISK[/red]"
+        console.print(f"\n[bold]{example['name']}[/bold]  ({example['path']}){missing_marker}")
+        console.print(f"  type: {example['type']}")
+        console.print(f"  backend: {example['backend']}")
+        console.print(f"  status: {example['status']}")
+
+    console.print(
+        "\nThis command only reads a small static local registry and checks whether each path "
+        "exists on disk - it did not generate, render, export, validate, or contact anything."
+    )
+
+
+@app.command(name="show-example")
+def show_example_cmd(
+    example_name: str = typer.Argument(..., help="An example name from `factory list-examples`"),
+) -> None:
+    """Show full detail for one example (read-only)."""
+    try:
+        example = get_example(example_name)
+    except UnknownExampleError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[bold]{example['name']}[/bold]  ({example['path']})")
+    console.print(f"  exists on disk: {example['exists']}")
+    console.print(f"  type: {example['type']}")
+    console.print(f"  backend: {example['backend']}")
+    console.print(f"  status: {example['status']}")
+    console.print("  safety notes:")
+    for note in example["safety_notes"]:
+        console.print(f"    - {note}")
+
+    if example["type"] == "working":
+        console.print("\n[bold]try it[/bold] (read-only, none of these write anything except preview-project):")
+        console.print(f"  factory preview-index {example['path']}")
+        console.print(f"  factory preview-project {example['path']}")
+        console.print(f"  factory review-gate {example['path']}")
+
+    console.print(
+        "\nThis command only reads a small static local registry and checks whether this path "
+        "exists on disk - it did not generate, render, export, validate, or contact anything."
+    )
 
 
 def _print_preview_package_summary(project_dir: Path) -> None:

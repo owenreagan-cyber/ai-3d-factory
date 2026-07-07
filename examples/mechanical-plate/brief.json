@@ -1,0 +1,13 @@
+{
+  "project_name": "mechanical-plate-example",
+  "status": "cad_generated",
+  "owner": "Owen",
+  "intended_printer": "Bambu H2D",
+  "description": "A committed, permanent local example of the ai-3d-factory workflow: a rectangular mounting plate with rounded corners and 4 corner mounting holes. Demonstrates a hand-authored OpenSCAD part (mirroring the parameter names of `factory generate-cadquery --template mechanical-plate`, factory/cad/cadquery_backend.py) since CadQuery is an optional dependency not installed in this environment - see cad/mechanical_plate.scad and docs/cad-backends.md. This is a demo/reference project living under examples/, not a real order - see examples/mechanical-plate/README.md.",
+  "constraints": [
+    "Original design only - generic mounting plate, not a reproduction of any manufacturer part.",
+    "Demo scale only (80mm x 50mm x 5mm, 4mm corner mounting holes) - not measured against any real hardware or mounting pattern.",
+    "This is a workflow example, not a print order: no STL has been exported, and this example is not slicer_review_ready, human_approved, or print_ready."
+  ],
+  "required_human_approval": true
+}

@@ -33,6 +33,12 @@ factory review-gate projects/my-part --json     # machine-readable JSON
 Exit code is `0` for `pass`/`warn`, `1` for `fail` - convenient for
 scripting a quick pre-flight check without parsing output.
 
+This works against any directory shaped like a project, not only
+`projects/<slug>/` - e.g. `factory review-gate examples/simple-nameplate`
+correctly reports `fail` ("No STL files exist yet"), since that committed
+example intentionally stops at the CAD-source stage. See
+`docs/examples-library.md`.
+
 ## How it reuses existing logic
 
 `factory.review_gate.evaluate_review_gate()` is a thin layer over

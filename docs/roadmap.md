@@ -357,26 +357,60 @@ and acyclic: `render_coverage`/`preview_package` → `project_inspection` →
 board cards - the circular-import blocker that prevented it is gone, but
 that integration remains a separate, deliberate future decision.
 
-## Phase 14 — optional Meshy, with approval/cost gates
+## Phase 14 — local example project library foundation (started)
+
+A permanent local `examples/` library demonstrating the `ai-3d-factory`
+workflow with safe, committed sample projects — deliberately inserted
+ahead of Meshy (renumbered to Phase 15 below) as a safe, dependency-free
+detour: it exercises the existing CAD/preview/review-gate/preview-board
+commands against real committed examples before any organic-generation
+backend exists. See `docs/examples-library.md`.
+
+**Started:** `examples/simple-nameplate/` and `examples/mechanical-plate/`
+are real, runnable workflow examples — the first built with `factory
+generate-openscad --template nameplate`, the second a hand-authored
+OpenSCAD file mirroring the built-in CadQuery `mechanical-plate`
+template's parameters (CadQuery isn't installed in this environment).
+Both stop at the CAD-source stage (`cad_generated`, no STL committed) and
+are compatible with `factory preview-index`/`preview-project`/
+`review-gate`/`preview-board` (`review-gate` correctly `FAIL`s on both —
+there's no STL yet). `examples/future-organic-models/{car-concept,
+animal-concept,human-figure-study}/` are concept-only roadmap placeholders
+(`concept_brief.json`, not `brief.json`, so existing commands don't treat
+them as real projects) for the organic-modeling directions Phase 15/18
+below will eventually implement — no CAD, mesh, render, or generated asset
+exists for any of them. `factory list-examples`/`show-example <name>`
+(`factory/examples_library.py`) is a small, read-only, statically
+registered inspection command for the whole library. No example sets
+`human_approved`/`print_ready`; the highest status any example reaches
+automatically is `cad_generated` (a human can locally advance a working
+example to `slicer_review_ready` — see each example's own `README.md`).
+
+**Not yet started:** growing the library further (richer 3D models,
+Blender workflows once Phase 18 exists, Meshy-gated concepts once Phase 15
+exists, multipart classroom/manufacturing demos) — this phase is
+deliberately just the structure and first two working examples.
+
+## Phase 15 — optional Meshy, with approval/cost gates
 
 Optional Meshy integration for organic concept generation, gated behind an
 explicit per-use human approval step and a visible cost/credit estimate
 before any call is made. Off by default; see `docs/licensing-policy.md`
 and `docs/tool-routing.md`.
 
-## Phase 15 — 3MF packaging experiments
+## Phase 16 — 3MF packaging experiments
 
 Experimental packaging of multi-part projects into a single `.3mf` with
 embedded per-part color/material assignments, as an alternative to the
 separate-aligned-STL workflow in `docs/slicer-review-workflow.md`.
 
-## Phase 16 — advanced slicer review automation
+## Phase 17 — advanced slicer review automation
 
 Richer slicer-review package generation (e.g. auto-populated checklists
 from validation reports, plate-layout suggestions) — still ending at
 human review, never at auto-slice or auto-print.
 
-## Phase 17 — Blender repair/render automation
+## Phase 18 — Blender repair/render automation
 
 Scripted (non-interactive) Blender invocations for mesh repair (fixing
 non-manifold geometry flagged by `factory validate`) and higher-fidelity

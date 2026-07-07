@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {
+      "part_name": "mechanical_plate",
+      "file_path": "stl/mechanical_plate.stl",
+      "material": "any",
+      "color": "any",
+      "transform_notes": "Single part, no multi-part alignment needed.",
+      "export_units": "mm",
+      "source": "ai-3d-factory example - hand-authored OpenSCAD (no built-in generate-openscad template covers rounded-corner plates with mounting holes yet)",
+      "license": "original",
+      "role": "mechanical_plate",
+      "required_for_assembly": true,
+      "cad_source": "cad/mechanical_plate.scad"
+    }
+  ]
+}

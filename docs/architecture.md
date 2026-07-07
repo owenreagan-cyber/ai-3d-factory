@@ -98,6 +98,11 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   blocker here, not just a warning). `pass` never implies
   `human_approved`/`print_ready` - the status ceiling stays
   `slicer_review_ready`. See `docs/review-gate.md`.
+- `factory/examples_library.py` — a small, read-only, statically
+  hand-maintained registry describing each example under `examples/`
+  (`list_examples()`/`get_example()`); never scans `examples/` dynamically
+  and never generates, renders, exports, validates, or contacts anything.
+  See `docs/examples-library.md`.
 
 ### Shared inspection layer (Phase 13)
 

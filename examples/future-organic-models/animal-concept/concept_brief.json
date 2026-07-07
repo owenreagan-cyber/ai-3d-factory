@@ -1,0 +1,16 @@
+{
+  "concept_name": "animal-concept",
+  "status": "concept_only",
+  "owner": "Owen",
+  "description": "Roadmap placeholder for an original organic-form animal figure concept (e.g. a small desk figurine shape). No CAD, mesh, or render exists for this concept.",
+  "intended_future_backend": ["blender", "meshy"],
+  "backend_gate_status": "not_implemented - requires future Blender local-automation phase and/or a Meshy safety/cost approval gate before any generation may occur",
+  "not_printable": true,
+  "not_generated": true,
+  "notes": [
+    "This file uses `concept_brief.json`, not `brief.json`, so `factory` commands do not treat this directory as a real, in-progress project.",
+    "See ../README.md and ../../../docs/examples-library.md.",
+    "No STL, render, or other generated mesh asset exists for this concept.",
+    "This concept is not human_approved and not print_ready, and is not expected to pass factory review-gate."
+  ]
+}

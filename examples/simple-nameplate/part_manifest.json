@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {
+      "part_name": "nameplate",
+      "file_path": "stl/nameplate.stl",
+      "material": "any",
+      "color": "single color (base and text fused)",
+      "transform_notes": "Single fused part, no multi-part alignment needed.",
+      "export_units": "mm",
+      "source": "ai-3d-factory OpenSCAD template: nameplate",
+      "license": "original",
+      "role": "nameplate",
+      "required_for_assembly": true,
+      "cad_source": "cad/nameplate.scad"
+    }
+  ]
+}

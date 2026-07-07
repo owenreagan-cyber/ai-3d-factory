@@ -66,6 +66,8 @@ factory preview-board projects/           # static local board across all projec
 factory review-gate projects/my-part      # pass/warn/fail gate for HUMAN slicer review only
 factory inspect-slicer               # read-only slicer discovery
 factory report projects/my-part      # includes manufacturing + preview package summary
+factory list-examples                 # list the committed examples/ library (read-only)
+factory show-example simple-nameplate # detail for one example (read-only)
 ```
 
 `factory plan` reads a local manufacturing knowledge base
@@ -132,6 +134,16 @@ This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.
 
+`examples/` is a permanent, committed library of example projects (unlike
+`projects/`, which is gitignored) demonstrating this workflow end to end:
+`examples/simple-nameplate/` and `examples/mechanical-plate/` are real,
+runnable demos built with the actual CLI/OpenSCAD source (stopping at the
+CAD-source stage, no STL committed); `examples/future-organic-models/` is
+a set of concept-only roadmap placeholders (no CAD/mesh/render) for future
+Blender/Meshy-backed organic modeling. `factory list-examples`/
+`show-example <name>` inspect the library (read-only). See
+`docs/examples-library.md`.
+
 ## Workflow
 
 idea/brief -> build plan -> part manifest -> CAD/assets later phase
@@ -151,7 +163,7 @@ ai-3d-factory/
 ├── schemas/         # JSON Schemas for briefs/plans/manifests/reports
 ├── src/factory/     # the factory CLI package
 ├── prompts/         # reference prompts for AI-assisted design steps
-├── examples/        # example project briefs
+├── examples/        # committed example projects (working demos + roadmap concepts)
 ├── projects/        # your actual projects (contents gitignored)
 └── tests/           # pytest suite
 ```

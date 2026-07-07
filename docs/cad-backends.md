@@ -15,8 +15,8 @@ this repo knows about, each with a `status`:
 |---|---|---|
 | `openscad` | `available` | Implemented since Phase 2 — see `docs/openscad-generation.md`. |
 | `cadquery` | `available` if the `cadquery` package is importable, else `not_installed` | Implemented since Phase 7 — see below. |
-| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 17. |
-| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 14 and `docs/licensing-policy.md`. |
+| `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see `docs/roadmap.md` Phase 18. |
+| `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — see `docs/roadmap.md` Phase 15 and `docs/licensing-policy.md`. |
 
 The registry is recomputed on every call (not cached at import time), so
 `cadquery`'s status always reflects the current environment. Nothing in
@@ -117,3 +117,12 @@ Beyond writing the `.py` source, each run:
 from both OpenSCAD (`cad/*.scad`) and CadQuery (`cad/*.py`) — a project
 using either or both backends gets an accurate `cad_files` count and
 missing-STL detection either way.
+
+## Example: `examples/mechanical-plate/`
+
+`examples/mechanical-plate/cad/mechanical_plate.scad` is a hand-authored
+OpenSCAD file with the same parameter names as the `mechanical-plate`
+CadQuery template above (`length_mm`, `width_mm`, `thickness_mm`,
+`corner_radius_mm`, `hole_diameter_mm`, `hole_margin_mm`), written because
+CadQuery isn't installed in the environment this example was built in. See
+`docs/examples-library.md` and `examples/mechanical-plate/README.md`.
