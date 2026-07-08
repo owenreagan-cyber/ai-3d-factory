@@ -18,6 +18,7 @@ from rich.console import Console
 from factory import project_store
 from factory.cad import cadquery_backend
 from factory.cad.router import route_cad
+from factory.design_intent_check import check_design_intent_manufacturability
 from factory.examples_library import UnknownExampleError, get_example, list_examples
 from factory.future_cloud_tools import list_future_cloud_tools
 from factory.future_local_tools import list_future_local_tools
@@ -93,6 +94,7 @@ AVAILABLE_COMMANDS = (
     "show-example <example_name>",
     "check-future-tools",
     "check-local-tools",
+    "check-design-intent <brief_or_concept_brief_json> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -993,6 +995,57 @@ def check_local_tools_cmd() -> None:
         "search for an installed application, call subprocess, install a dependency, or enable "
         "anything. See docs/blender-local-track.md."
     )
+
+
+@app.command(name="check-design-intent")
+def check_design_intent_cmd(
+    brief_path: Path = typer.Argument(..., help="Path to a brief.json or concept_brief.json"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only advisory check: does design_intent.manufacturability_constraints.max_size_mm
+    (if present) fit any locally configured printer's build volume? Never contacts a printer,
+    slicer, or network; never writes a file; never sets human_approved or print_ready.
+    See docs/design-intent-brief.md."""
+    result = check_design_intent_manufacturability(brief_path)
+
+    if as_json:
+        print(json.dumps(result, indent=2, sort_keys=False))
+    else:
+        console.print(f"[bold]file[/bold]: {result['file']}")
+        console.print(f"[bold]result[/bold]: {result['result']}")
+        console.print(f"  quality standard: {result['quality_standard'] or '(not set)'}")
+        console.print(f"  requested max size (mm): {result['max_size_mm'] or '(not set)'}")
+
+        if result["fitting_printers"]:
+            console.print(f"\n[green]fits[/green] ({len(result['fitting_printers'])} known printer(s)):")
+            for printer in result["fitting_printers"]:
+                bv = printer["build_volume_mm"]
+                verified_note = "" if printer["verified"] else "  [yellow](UNVERIFIED spec)[/yellow]"
+                console.print(
+                    f"  - {printer['display_name']}  ({bv.get('x')}x{bv.get('y')}x{bv.get('z')}mm)"
+                    f"{verified_note}"
+                )
+        if result["non_fitting_printers"]:
+            console.print(f"\n[red]does not fit[/red] ({len(result['non_fitting_printers'])} known printer(s)):")
+            for printer in result["non_fitting_printers"]:
+                bv = printer["build_volume_mm"]
+                console.print(f"  - {printer['display_name']}  ({bv.get('x')}x{bv.get('y')}x{bv.get('z')}mm)")
+
+        if result["warnings"]:
+            console.print("\n[yellow]advisory warnings[/yellow]:")
+            for warning in result["warnings"]:
+                console.print(f"  - {warning}")
+
+        console.print()
+        for note in result["notes"]:
+            console.print(note)
+        console.print(
+            "\nThis command only read the given file and config/manufacturing/printers.json - "
+            "it did not contact a printer, slicer, or network, and did not write anything."
+        )
+
+    if result["result"] == "unreadable_file":
+        raise typer.Exit(code=1)
 
 
 def _print_preview_package_summary(project_dir: Path) -> None:

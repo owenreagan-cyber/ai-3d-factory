@@ -118,6 +118,17 @@ directly (not a `projects/<slug>/` file) and never write anything - see
   launches a tool, never searches the filesystem for an installed
   application, never calls `subprocess`, and never enables anything. See
   `docs/blender-local-track.md`.
+- `factory/design_intent_check.py` — a small, read-only, advisory check
+  (`check_design_intent_manufacturability()`): reads a `brief.json`/
+  `concept_brief.json`'s optional `design_intent.manufacturability_
+  constraints.max_size_mm` (Phase 24's proposed shape - see
+  `docs/design-intent-brief.md`) and compares it, in every axis
+  orientation (same technique `factory.validators.dimension_check`
+  already uses for a real mesh), against every printer in `config/
+  manufacturing/printers.json` via `factory.manufacturing.knowledge`.
+  Never inspects real mesh geometry, never contacts a printer/slicer/
+  network, never writes a file, and never sets `human_approved`/
+  `print_ready`.
 
 ### Shared inspection layer (Phase 13)
 

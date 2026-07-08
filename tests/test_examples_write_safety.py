@@ -75,6 +75,8 @@ READ_ONLY_COMMANDS_ALLOWED_AGAINST_EXAMPLES = (
     "list-examples",
     "show-example",
     "check-future-tools",
+    "check-local-tools",
+    "check-design-intent",
 )
 
 

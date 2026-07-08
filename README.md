@@ -72,6 +72,8 @@ factory report projects/my-part      # includes manufacturing + preview package 
 factory list-examples                 # list the committed examples/ library (read-only)
 factory show-example simple-nameplate # detail for one example (read-only)
 factory check-future-tools            # read-only Meshy/future cloud tool gate status
+factory check-local-tools              # read-only Blender/future local tool gate status
+factory check-design-intent brief.json # read-only design_intent vs. known printer build volumes
 ```
 
 `factory plan` reads a local manufacturing knowledge base
@@ -139,6 +141,16 @@ files exist, are they fresh) - they say nothing about whether a design is
 actually good. Before approving anything, a human should also work
 through `docs/review-gate.md`'s "Human review quality checklist" against
 the "Etsy-worthy" standard in `docs/design-quality-standard.md`.
+
+`factory check-design-intent <brief_or_concept_brief.json>` is a small,
+read-only, advisory command: if the file has an optional `design_intent`
+block (see `docs/design-intent-brief.md`), it reports whether the
+declared `manufacturability_constraints.max_size_mm` fits any locally
+configured printer's build volume. It never inspects real mesh geometry,
+never contacts a printer/slicer/network, never writes a file, and never
+sets `human_approved`/`print_ready` - it's a size sanity check on
+declared intent, not a substitute for `factory validate` or the human
+review checklist above.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

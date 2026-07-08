@@ -1,12 +1,18 @@
-# Design intent brief fields (planning only, Phase 24)
+# Design intent brief fields (planning in Phase 24, first read-only check in Phase 25)
 
-**This document is planning only. It does not implement anything.** No
-`factory` command reads, writes, requires, or validates a `design_intent`
-field today. `schemas/project_brief.schema.json` is not modified by this
-phase. This document exists so a future implementation has a concrete,
-already-thought-through shape to build toward, instead of inventing one
-under time pressure - the same spirit as `docs/meshy-approval-gate.md`
-(Phase 16) and `docs/blender-local-track.md` (Phase 21).
+**This document is planning-first.** Phase 24 defined the `design_intent`
+shape below without implementing anything - no `factory` command read,
+wrote, required, or validated it. Phase 25 added exactly one small,
+read-only, advisory consumer: `factory check-design-intent` (see "The
+first real consumer: `factory check-design-intent`" below) compares
+`design_intent.manufacturability_constraints.max_size_mm`, if present,
+against known local printer build volumes. Nothing else in this document
+is implemented - `schemas/project_brief.schema.json` is still unmodified,
+and no other field in `design_intent` is read by anything. This document
+exists so a future implementation has a concrete, already-thought-through
+shape to build toward, instead of inventing one under time pressure - the
+same spirit as `docs/meshy-approval-gate.md` (Phase 16) and
+`docs/blender-local-track.md` (Phase 21).
 
 ## Why this exists
 
@@ -143,18 +149,52 @@ and `examples/future-functional-designs/chip-bag-clip-study/concept_brief.json`
 `concept_brief.json`, not `brief.json`, so no `factory` command reads
 either file as a real, in-progress project either way.
 
+## The first real consumer: `factory check-design-intent`
+
+```bash
+factory check-design-intent examples/future-organic-models/piggy-bank-design-study/concept_brief.json
+factory check-design-intent path/to/brief.json --json
+```
+
+Read-only and purely advisory (`src/factory/design_intent_check.py`):
+reads the given `brief.json`/`concept_brief.json`, reads
+`design_intent.manufacturability_constraints.max_size_mm` if present, and
+compares it (in every axis orientation, same technique
+`factory.validators.dimension_check` already uses for a real mesh's
+bounding box) against every printer in
+`config/manufacturing/printers.json`. It reports one of seven advisory
+results - `no_design_intent`, `no_max_size`, `fits_some_printers`,
+`fits_no_known_printers`, `invalid_max_size`, `missing_printer_config`,
+`unreadable_file` - plus which known printers fit, which don't, and
+advisory warnings (e.g. an otherwise-fitting printer's spec being
+unverified). It never inspects an actual mesh's real geometry (that
+remains `factory validate`'s job, on a real STL); it never contacts a
+printer, slicer, or network; it never writes a file; and it never sets
+`human_approved` or `print_ready`. See `docs/design-quality-standard.md`'s
+"Comparing output against `design_intent`" for how this fits into the
+broader human review.
+
 ## What this phase does not do
 
 - Does not modify `schemas/project_brief.schema.json`.
-- Does not require `design_intent` anywhere, or validate its shape if
-  present.
+- Does not require `design_intent` anywhere. `factory check-design-intent`
+  reads it if present and reports `no_design_intent` (a normal, non-error
+  advisory result, not a failure) if not.
+- Does not validate `design_intent`'s shape beyond the one field
+  `factory check-design-intent` reads
+  (`manufacturability_constraints.max_size_mm`) - every other proposed
+  field above remains unread by any command.
 - Does not change what `factory init-project`, `factory plan`, or any
-  other command reads or writes.
+  other pre-existing command reads or writes.
 - Does not change `factory review-gate`'s pass/warn/fail logic -
   `review-gate` remains artifact/readiness-based (see
   `docs/review-gate.md`'s "Human review quality checklist"), not a
   design-quality judge; it does not read `design_intent` and does not
-  compare output against it.
+  compare output against it. `factory check-design-intent` is a
+  deliberately separate, optional command - not a new requirement folded
+  into `review-gate`.
+- Does not contact a printer, discover printers, contact a slicer, or
+  make any network call.
 - Does not set `human_approved` or `print_ready` on anything, ever.
 
 See also `docs/design-quality-standard.md`, `docs/review-gate.md`,

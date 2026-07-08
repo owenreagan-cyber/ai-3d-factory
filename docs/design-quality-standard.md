@@ -179,8 +179,14 @@ project's `brief.json` has a `design_intent` block, this checklist should
 be applied *against* it (does the output match `design_intent.style_direction`?
 does it deliver `functional_goals.primary_function`?); when it doesn't,
 apply the checklist to the `description`/`constraints` a project already
-has, same as today. `design_intent` is planning-only and additive -
-nothing reads or requires it yet.
+has, same as today. `design_intent` remains planning-only and additive -
+`factory check-design-intent` (Phase 25) is the one exception: a small,
+read-only, advisory command that compares
+`design_intent.manufacturability_constraints.max_size_mm`, when present,
+against known local printer build volumes - a size-only sanity check, not
+a substitute for this checklist's "manufacturability" item, and not a
+mesh-geometry check (that stays `factory validate`'s job). See
+`docs/design-intent-brief.md`.
 
 See also `docs/roadmap.md`'s "Custom Design Quality Pipeline" and "Rich
 organic examples track", `docs/design-intent-brief.md`,

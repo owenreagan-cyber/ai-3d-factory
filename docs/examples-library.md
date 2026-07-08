@@ -88,7 +88,10 @@ not just a technically-generated mesh. `docs/design-intent-brief.md`
 so that standard has something concrete to compare against - two
 concept-only examples below (`piggy-bank-design-study/`,
 `chip-bag-clip-study/`) already show the shape in their
-`concept_brief.json`.
+`concept_brief.json`. `factory check-design-intent <file>` (Phase 25)
+reads that shape's `manufacturability_constraints.max_size_mm`, if
+present, and reports (read-only, advisory only) which locally configured
+printers it would fit - try it against either concept file above.
 
 ### Future / roadmap concept examples
 

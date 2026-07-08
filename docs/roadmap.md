@@ -724,9 +724,49 @@ and `examples/future-functional-designs/chip-bag-clip-study/concept_brief.json`
 each gained a `design_intent` block; none of the four working examples
 were required to change.
 
-**Not yet started:** any `factory` command reading, writing, requiring,
-or validating `design_intent`; any schema change requiring it; any UI for
-filling it in. This phase is planning and two illustrative examples only.
+**Not yet started (at the time):** any `factory` command reading,
+writing, requiring, or validating `design_intent`; any schema change
+requiring it; any UI for filling it in. This phase was planning and two
+illustrative examples only. (A small, read-only, advisory check reading
+one field of `design_intent` was added later, in Phase 25 - see below.)
+
+## Phase 25 — design intent manufacturability check (started)
+
+A small read-only advisory command that makes Phase 24's `design_intent`
+planning immediately useful, without changing generation, approval,
+`review-gate`, or print-readiness behavior: compares the optional
+`design_intent.manufacturability_constraints.max_size_mm` against known
+local printer build volumes.
+
+**Started:** `factory/design_intent_check.py`
+(`check_design_intent_manufacturability()`) reads a `brief.json`/
+`concept_brief.json`, reads `design_intent.manufacturability_constraints.max_size_mm`
+if present, and checks it against every printer in `config/manufacturing/
+printers.json` (`factory.manufacturing.knowledge.load_printers()`) in
+every axis orientation - the same any-orientation technique
+`factory.validators.dimension_check.check_build_volume_fit()` already
+uses for a real mesh's bounding box, generalized to the whole fleet
+rather than one target printer. Reports one of seven advisory results
+(`no_design_intent`, `no_max_size`, `fits_some_printers`,
+`fits_no_known_printers`, `invalid_max_size`, `missing_printer_config`,
+`unreadable_file`) plus which printers fit/don't and advisory warnings
+(e.g. unverified printer specs). `factory check-design-intent <file>
+[--json]` is the new CLI command - read-only, human or
+machine-readable output, exit code `1` only for `unreadable_file`
+(a genuine input error), `0` otherwise since every other result is
+informational, not a failure. Both concept examples from Phase 24
+(`piggy-bank-design-study/`, `chip-bag-clip-study/`) resolve
+deterministically to `fits_some_printers` against the current fleet.
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call, writes a file, or sets `human_approved`/`print_ready`.
+
+**Not yet started:** reading any other `design_intent` field
+(`style_direction`, `functional_goals`, etc.) - only
+`manufacturability_constraints.max_size_mm` is consumed by anything so
+far; real mesh-geometry-aware manufacturability checking (still
+`factory validate`'s job); wiring this check into `review-gate` or any
+other command (`check-design-intent` remains a separate, optional,
+read-only command by design).
 
 ## Future tracks, not yet phase-numbered
 
