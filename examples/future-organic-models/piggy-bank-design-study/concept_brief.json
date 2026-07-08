@@ -28,6 +28,44 @@
   "intended_features": ["snout", "ears", "eyes", "legs", "tail", "facial expression"],
   "manufacturability_considerations": ["wall thickness", "overhangs", "supports", "part splitting", "smoothing", "safe edges"],
   "quality_bar": "polished and gift-worthy, not blobby",
+  "design_intent_doc": "docs/design-intent-brief.md",
+  "design_intent": {
+    "quality_standard": "Etsy-worthy",
+    "audience_or_user": "gift recipient or self - a desk/shelf piggy bank",
+    "use_case": "everyday coin storage that's also a display-worthy object",
+    "style_direction": ["cute", "designer-toy", "ceramic-smooth"],
+    "reference_inputs": [
+      {
+        "type": "image",
+        "description": "a reference photo of a pig, used only for style/silhouette inspiration",
+        "local_only": true
+      }
+    ],
+    "visual_goals": {
+      "silhouette": "instantly reads as a pig from any angle, not just head-on",
+      "proportions": "rounded, friendly, not anatomically literal - toy-like",
+      "surface_detail": "smooth, ceramic-like finish; no visible generation artifacts",
+      "color_material_intent": "single-color body, TBD - human decision before generation"
+    },
+    "functional_goals": {
+      "primary_function": "hold and store coins, retrievable later",
+      "required_features": ["hollow body", "coin slot", "removable plug or access door"],
+      "mechanical_behavior": "none",
+      "tension_or_flex_notes": "not applicable - rigid body, no flexing parts"
+    },
+    "manufacturability_constraints": {
+      "max_size_mm": [120, 100, 100],
+      "preferred_materials": ["PLA"],
+      "avoid_supports_where_possible": true,
+      "multipart_allowed": true,
+      "child_safe_edges": true
+    },
+    "iteration_plan": {
+      "prototype_strategy": "review a low-detail blockout for silhouette/proportions before any surface detail pass",
+      "test_points": ["silhouette read-test", "coin-slot size check", "access-door fit check"],
+      "acceptance_notes": "polished and gift-worthy, not blobby - matches docs/design-quality-standard.md's piggy bank example in full"
+    }
+  },
   "notes": [
     "This file uses `concept_brief.json`, not `brief.json`, so `factory` commands do not treat this directory as a real, in-progress project.",
     "See ../README.md, ../../../docs/examples-library.md, and ../../../docs/design-quality-standard.md.",
@@ -35,6 +73,7 @@
     "This concept is not human_approved and not print_ready, and is not expected to pass factory review-gate.",
     "Meshy remains disabled by default - see docs/meshy-approval-gate.md and config/future_cloud_tools.json (factory check-future-tools).",
     "Blender remains future-only with no automation - see docs/blender-local-track.md and config/future_local_tools.json (factory check-local-tools).",
-    "The goal is a staged design workflow ending in a polished, gift-worthy piggy bank - not a single-shot 'picture to blob' generation."
+    "The goal is a staged design workflow ending in a polished, gift-worthy piggy bank - not a single-shot 'picture to blob' generation.",
+    "design_intent is planning-only (see docs/design-intent-brief.md, Phase 24) - it is not read or validated by any factory command and never sets human_approved or print_ready."
   ]
 }

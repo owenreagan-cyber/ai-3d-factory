@@ -56,7 +56,9 @@ layout. See `docs/review-gate.md`'s "Human review quality checklist" and
 `docs/design-quality-standard.md` for the full standard; in short, before
 recording an approval:
 
-1. **Visual design review** - does it match the brief's intent? Strong
+1. **Visual design review** - does it match the brief's intent (its
+   `design_intent` block, if the brief has one - see
+   `docs/design-intent-brief.md`, or its `description` if not)? Strong
    silhouette, clean proportions, Etsy-worthy polish (or an intentional
    style choice), not a blobby/generic/artifact look.
 2. **Functional review** - does it actually do the job (hollow body and

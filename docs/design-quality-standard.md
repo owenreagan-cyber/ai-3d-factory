@@ -168,7 +168,22 @@ pipelines exist (`docs/meshy-approval-gate.md`'s and
 `docs/blender-local-track.md`'s future tracks) - it is a bar to build
 toward, not a feature being shipped today.
 
+## Comparing output against `design_intent`, when present
+
+This checklist asks "does it match the brief?" - `docs/design-intent-brief.md`
+(Phase 24) proposes a structured, optional `design_intent` block for
+`brief.json` (style direction, visual/functional goals, manufacturability
+constraints, an iteration plan) so that question has something concrete
+to compare against, instead of only a free-text `description`. When a
+project's `brief.json` has a `design_intent` block, this checklist should
+be applied *against* it (does the output match `design_intent.style_direction`?
+does it deliver `functional_goals.primary_function`?); when it doesn't,
+apply the checklist to the `description`/`constraints` a project already
+has, same as today. `design_intent` is planning-only and additive -
+nothing reads or requires it yet.
+
 See also `docs/roadmap.md`'s "Custom Design Quality Pipeline" and "Rich
-organic examples track", `docs/product-vision.md`, `docs/tool-routing.md`,
+organic examples track", `docs/design-intent-brief.md`,
+`docs/product-vision.md`, `docs/tool-routing.md`,
 `docs/meshy-approval-gate.md`, `docs/blender-local-track.md`,
 `docs/slicer-review-workflow.md`, and `AGENT.md`.

@@ -696,6 +696,38 @@ to the same checklist.
 computes or reports - this phase only documents what a human should do
 once it reports `pass`.
 
+## Phase 24 — design intent brief schema planning (started)
+
+Docs/planning only - no breaking schema changes, no product behavior
+changes. Documents and lightly scaffolds how a future `brief.json` could
+capture design intent (style direction, functional intent, quality bar,
+constraints, iteration goals) so `docs/design-quality-standard.md`'s
+"Etsy-worthy" checklist and `docs/review-gate.md`'s "Human review quality
+checklist" (Phase 23) have something concrete to compare against instead
+of only a free-text `description`.
+
+**Started:** `docs/design-intent-brief.md` proposes an additive, optional
+`design_intent` object (`quality_standard`, `audience_or_user`,
+`use_case`, `style_direction`, `reference_inputs`, `visual_goals`,
+`functional_goals` including a closed `mechanical_behavior` enum,
+`manufacturability_constraints`, `iteration_plan`) - validated already by
+`schemas/project_brief.schema.json`'s existing `additionalProperties: true`,
+no schema file changed. `docs/design-quality-standard.md`,
+`docs/review-gate.md`, `docs/slicer-review-workflow.md`, and
+`docs/file-lifecycle.md` each gained a cross-reference clarifying the
+checklist should compare output against `design_intent` when a brief has
+one, and that `factory review-gate` remains artifact/readiness-based -
+it does not read, parse, or score `design_intent`. Two concept-only
+examples show the shape filled in:
+`examples/future-organic-models/piggy-bank-design-study/concept_brief.json`
+and `examples/future-functional-designs/chip-bag-clip-study/concept_brief.json`
+each gained a `design_intent` block; none of the four working examples
+were required to change.
+
+**Not yet started:** any `factory` command reading, writing, requiring,
+or validating `design_intent`; any schema change requiring it; any UI for
+filling it in. This phase is planning and two illustrative examples only.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

@@ -34,7 +34,8 @@ whenever a phase completes.
 | 20 | Roadmap numbering and phase registry cleanup | 5ed4f1f | complete | This document; roadmap numbering policy; future tracks unnumbered. |
 | 21 | Blender local track planning scaffold | 1382d57 | complete | `docs/blender-local-track.md`, `config/future_local_tools.json`, `factory check-local-tools`. Planning only - no Blender implementation. |
 | 22 | Connect design quality standard to future gates | a586924 | complete | Cross-references `docs/design-quality-standard.md` into `docs/meshy-approval-gate.md` and `docs/blender-local-track.md`. Docs only - no implementation. |
-| 23 | Human review quality checklist | (this phase) | complete | `docs/review-gate.md`'s "Human review quality checklist"; matching updates to `docs/slicer-review-workflow.md`, `docs/preview-board.md`, `docs/visual-preview-package.md`, `README.md`. Docs only - `review-gate` behavior unchanged. |
+| 23 | Human review quality checklist | deb28fb | complete | `docs/review-gate.md`'s "Human review quality checklist"; matching updates to `docs/slicer-review-workflow.md`, `docs/preview-board.md`, `docs/visual-preview-package.md`, `README.md`. Docs only - `review-gate` behavior unchanged. |
+| 24 | Design intent brief schema planning | (this phase) | complete | `docs/design-intent-brief.md`; additive `design_intent` shape; two concept examples illustrate it. Docs/planning only - no schema or product code changed. |
 
 ## Future tracks (not phase-numbered)
 

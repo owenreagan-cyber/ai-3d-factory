@@ -83,7 +83,12 @@ container objects, not just signage.
 command runs.** See `docs/design-quality-standard.md`'s "Etsy-worthy"
 standard - a future richer example (once the Meshy/Blender tracks below
 exist) should demonstrate a polished, intentional, gift-worthy result,
-not just a technically-generated mesh.
+not just a technically-generated mesh. `docs/design-intent-brief.md`
+(Phase 24) proposes a structured `design_intent` block for `brief.json`
+so that standard has something concrete to compare against - two
+concept-only examples below (`piggy-bank-design-study/`,
+`chip-bag-clip-study/`) already show the shape in their
+`concept_brief.json`.
 
 ### Future / roadmap concept examples
 

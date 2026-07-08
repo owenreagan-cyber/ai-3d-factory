@@ -66,7 +66,11 @@ being a rough first draft that needs another iteration pass.
 Before Owen (or anyone) approves anything, the actual human review should
 cover:
 
-- **Design intent** - does it match the brief?
+- **Design intent** - does it match the brief? If `brief.json` has a
+  structured `design_intent` block (see `docs/design-intent-brief.md`,
+  Phase 24 - style direction, visual/functional goals, manufacturability
+  constraints, an iteration plan), compare against that directly; if not,
+  compare against the project's `description`/`constraints` as today.
 - **Silhouette/proportions** - does it look intentional, not accidental?
 - **Etsy-worthy quality** - polished, useful, gift-worthy/display-worthy
   where appropriate (see `docs/design-quality-standard.md`).
@@ -93,7 +97,11 @@ None of this is automated, checked, or scored by `review-gate` or any
 other `factory` command - it is exactly as advisory as the existing
 human visual inspection checklist in `docs/visual-preview-package.md`.
 `review-gate`'s job ends at confirming the files exist to *have* this
-review; having the review is still entirely a human act.
+review; having the review is still entirely a human act. This holds even
+if `brief.json` has a `design_intent` block (`docs/design-intent-brief.md`)
+- `review-gate` does not read, parse, or compare against `design_intent`;
+it remains a purely artifact/readiness-based check, never a
+design-quality judge, regardless of how much intent a brief records.
 
 ## How it reuses existing logic
 

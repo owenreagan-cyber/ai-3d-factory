@@ -15,6 +15,9 @@ VISUAL_PREVIEW_PACKAGE_PATH = project_store.REPO_ROOT / "docs" / "visual-preview
 SLICER_REVIEW_WORKFLOW_PATH = project_store.REPO_ROOT / "docs" / "slicer-review-workflow.md"
 README_PATH = project_store.REPO_ROOT / "README.md"
 PHASE_REGISTRY_PATH = project_store.REPO_ROOT / "docs" / "phase-registry.md"
+DESIGN_INTENT_BRIEF_PATH = project_store.REPO_ROOT / "docs" / "design-intent-brief.md"
+FILE_LIFECYCLE_PATH = project_store.REPO_ROOT / "docs" / "file-lifecycle.md"
+PROJECT_BRIEF_SCHEMA_PATH = project_store.REPO_ROOT / "schemas" / "project_brief.schema.json"
 
 NEW_CONCEPT_DIRS = (
     "future-organic-models/piggy-bank-design-study",
@@ -435,6 +438,189 @@ def test_review_gate_cli_still_behaves_the_same():
 
 
 def test_no_stl_or_png_files_added_by_phase23():
+    for directory in ("docs", "examples"):
+        root = project_store.REPO_ROOT / directory
+        assert not any(root.rglob("*.stl"))
+        assert not any(root.rglob("*.png"))
+
+
+# ---- Phase 24: design intent brief schema planning ----
+
+
+def test_design_intent_brief_doc_exists():
+    assert DESIGN_INTENT_BRIEF_PATH.is_file()
+
+
+def test_design_intent_brief_mentions_etsy_worthy():
+    assert "etsy-worthy" in _normalized(DESIGN_INTENT_BRIEF_PATH)
+
+
+def test_design_intent_brief_says_additive_future_fields_only():
+    content = _content(DESIGN_INTENT_BRIEF_PATH)
+    assert "additive" in content
+    assert "future" in content
+
+
+def test_design_intent_brief_says_existing_brief_json_remains_valid():
+    content = _normalized(DESIGN_INTENT_BRIEF_PATH)
+    assert "every existing" in content and "remains valid" in content
+
+
+def test_design_intent_brief_says_not_human_approved_and_not_print_ready():
+    content = _normalized(DESIGN_INTENT_BRIEF_PATH)
+    # Markdown backticks around field names aren't stripped by normalizing
+    # whitespace, so check the two halves of each phrase separately.
+    assert "no automatic" in content and "human_approved" in content
+    assert "no automatic" in content and "print_ready" in content
+
+
+def test_design_intent_brief_includes_organic_artistic_fields():
+    content = _content(DESIGN_INTENT_BRIEF_PATH)
+    for field in ("style_direction", "visual_goals", "silhouette", "proportions"):
+        assert field in content, f"missing {field!r}"
+
+
+def test_design_intent_brief_includes_functional_tension_flex_fields():
+    content = _content(DESIGN_INTENT_BRIEF_PATH)
+    for field in ("functional_goals", "mechanical_behavior", "tension_or_flex_notes", "flex"):
+        assert field in content, f"missing {field!r}"
+
+
+def test_design_intent_brief_does_not_modify_schema():
+    content = _content(DESIGN_INTENT_BRIEF_PATH)
+    assert "does not modify" in content
+    assert "project_brief.schema.json" in content
+
+
+def test_project_brief_schema_still_allows_additional_properties():
+    # design_intent's whole "no breaking change" claim rests on this - if
+    # this ever flips to false, docs/design-intent-brief.md's claim breaks.
+    schema = project_store.load_json(PROJECT_BRIEF_SCHEMA_PATH)
+    assert schema.get("additionalProperties") is True
+
+
+def test_file_lifecycle_mentions_design_intent():
+    content = _content(FILE_LIFECYCLE_PATH)
+    assert "design_intent" in content
+    assert "design-intent-brief.md" in content
+
+
+def test_review_gate_still_does_not_read_design_intent():
+    content = _normalized(REVIEW_GATE_PATH)
+    assert "does not read, parse, or compare against" in content
+    assert "design_intent" in content
+
+
+@pytest.mark.parametrize("relative", NEW_CONCEPT_DIRS)
+def test_concept_brief_includes_design_intent_block(relative):
+    concept_brief = project_store.load_json(
+        project_store.REPO_ROOT / "examples" / relative / "concept_brief.json"
+    )
+    assert "design_intent" in concept_brief
+    design_intent = concept_brief["design_intent"]
+    assert design_intent["quality_standard"] == "Etsy-worthy"
+    assert "style_direction" in design_intent
+    assert "functional_goals" in design_intent
+    assert "manufacturability_constraints" in design_intent
+    assert "iteration_plan" in design_intent
+
+
+@pytest.mark.parametrize("relative", NEW_CONCEPT_DIRS)
+def test_concept_brief_design_intent_has_no_forbidden_keys(relative):
+    concept_brief = project_store.load_json(
+        project_store.REPO_ROOT / "examples" / relative / "concept_brief.json"
+    )
+    _assert_no_forbidden_keys(concept_brief, relative)
+
+
+@pytest.mark.parametrize("relative", NEW_CONCEPT_DIRS)
+def test_concept_brief_remains_concept_only_after_phase24(relative):
+    root = project_store.REPO_ROOT / "examples" / relative
+    concept_brief = project_store.load_json(root / "concept_brief.json")
+    assert concept_brief["status"] == "concept_only"
+    assert concept_brief["not_printable"] is True
+    assert concept_brief["not_generated"] is True
+    assert not (root / "brief.json").is_file()
+
+
+def test_chip_clip_design_intent_flags_mechanical_flex_behavior():
+    concept_brief = project_store.load_json(
+        project_store.REPO_ROOT / "examples" / "future-functional-designs" / "chip-bag-clip-study" / "concept_brief.json"
+    )
+    functional_goals = concept_brief["design_intent"]["functional_goals"]
+    assert functional_goals["mechanical_behavior"] == "flex"
+    assert functional_goals["tension_or_flex_notes"]
+
+
+def test_piggy_bank_design_intent_reference_input_is_local_only():
+    concept_brief = project_store.load_json(
+        project_store.REPO_ROOT
+        / "examples"
+        / "future-organic-models"
+        / "piggy-bank-design-study"
+        / "concept_brief.json"
+    )
+    reference_inputs = concept_brief["design_intent"]["reference_inputs"]
+    assert reference_inputs
+    for entry in reference_inputs:
+        assert entry["local_only"] is True
+
+
+def test_concept_brief_json_files_would_validate_as_a_brief_if_ever_promoted():
+    # design_intent's "non-breaking, additive" claim rests on
+    # additionalProperties: true (verified above) - this proves it
+    # concretely: each concept_brief.json's *content*, if it also had the
+    # handful of currently-required brief.json fields, would validate
+    # cleanly against the real schema, `design_intent` block included.
+    import jsonschema
+
+    schema = project_store.load_json(PROJECT_BRIEF_SCHEMA_PATH)
+    for relative in NEW_CONCEPT_DIRS:
+        concept_brief = project_store.load_json(
+            project_store.REPO_ROOT / "examples" / relative / "concept_brief.json"
+        )
+        hypothetical_brief = {
+            "project_name": concept_brief["concept_name"],
+            "status": "idea",
+            "owner": concept_brief["owner"],
+            "intended_printer": "Bambu H2D",
+            "description": concept_brief["description"],
+            "constraints": [],
+            "required_human_approval": True,
+            "design_intent": concept_brief["design_intent"],
+        }
+        jsonschema.validate(instance=hypothetical_brief, schema=schema)
+
+
+def test_phase_registry_still_sequential_with_no_gaps_after_phase24():
+    content = PHASE_REGISTRY_PATH.read_text(encoding="utf-8")
+    numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", content, re.MULTILINE)]
+    assert numbers, "expected at least one purely-numeric phase row"
+    assert numbers == list(range(numbers[0], numbers[0] + len(numbers))), (
+        f"phase-registry.md numbered rows have a gap or duplicate: {numbers}"
+    )
+
+
+def test_phase_registry_includes_phase_24():
+    content = PHASE_REGISTRY_PATH.read_text(encoding="utf-8")
+    assert re.search(r"^\|\s*24\s*\|", content, re.MULTILINE)
+
+
+def test_no_src_factory_files_changed_by_phase24():
+    # Phase 24 is docs/planning only - spot-check that the modules most
+    # likely to be touched by a real design_intent implementation (brief
+    # loading/init, review-gate) still contain no reference to the field.
+    import inspect
+
+    from factory import project_store as ps
+    from factory import review_gate
+
+    for module in (ps, review_gate):
+        source = inspect.getsource(module)
+        assert "design_intent" not in source, f"{module.__name__} must not reference design_intent yet"
+
+
+def test_no_stl_or_png_files_added_by_phase24():
     for directory in ("docs", "examples"):
         root = project_store.REPO_ROOT / directory
         assert not any(root.rglob("*.stl"))

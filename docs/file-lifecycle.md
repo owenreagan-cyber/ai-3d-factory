@@ -5,7 +5,8 @@ created by `factory init-project`:
 
 ```
 projects/<slug>/
-├── brief.json           # intent: what/why/owner/constraints
+├── brief.json           # intent: what/why/owner/constraints (optionally
+│                         #   a design_intent block - see below)
 ├── build_plan.json      # factory plan output: tool routing, required parts, gates
 ├── part_manifest.json   # one entry per physical part: file, material, color, origin, license
 ├── cad/                 # parametric CAD source (OpenSCAD/CadQuery scripts)
@@ -34,6 +35,18 @@ projects/<slug>/
   `human_approval.approved: true`) should its files be copied into
   `final_candidate/`. This is a manual, human-initiated move in Phase 0/1
   — no `factory` command does this automatically.
+
+## Design intent in `brief.json` (optional, additive)
+
+`brief.json` may optionally include a structured `design_intent` block -
+style direction, visual/functional goals, manufacturability constraints,
+an iteration plan - see `docs/design-intent-brief.md` (Phase 24) for the
+proposed shape. This is planning-only: `schemas/project_brief.schema.json`
+already allows it (`additionalProperties: true`), no `factory` command
+requires, reads, or validates it today, and every existing `brief.json`
+without one remains fully valid. When present, it's what a human review
+(see `docs/review-gate.md`'s "Human review quality checklist") should
+compare the finished part against.
 
 ## What never happens automatically
 
