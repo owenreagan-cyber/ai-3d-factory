@@ -18,7 +18,7 @@ from rich.console import Console
 from factory import project_store
 from factory.cad import cadquery_backend
 from factory.cad.router import route_cad
-from factory.design_intent_check import check_design_intent_manufacturability
+from factory.design_intent_check import check_design_intent_manufacturability, summarize_design_intent
 from factory.examples_library import UnknownExampleError, get_example, list_examples
 from factory.future_cloud_tools import list_future_cloud_tools
 from factory.future_local_tools import list_future_local_tools
@@ -884,6 +884,7 @@ def report(project_dir: Path = typer.Argument(..., help="Path to a project direc
     console.print(f"  slicer review packages: {len(slicer_review_files)}")
     console.print(f"  human approval on record: {human_approved}")
     _print_preview_package_summary(project_dir)
+    _print_design_intent_summary(summarize_design_intent(project_dir / "brief.json"))
     console.print(f"\n[bold]current safe status[/bold]: {safe_status}")
 
     _print_remaining_human_decisions(build_plan)
@@ -1067,6 +1068,44 @@ def _print_preview_package_summary(project_dir: Path) -> None:
     missing_count = len(index.get("missing_visual_artifacts", []))
     stale_count = len(index.get("stale_previews", []))
     console.print(f"    missing preview items: {missing_count}  |  stale previews: {stale_count}")
+
+
+_DESIGN_INTENT_RESULT_LABELS = {
+    "fits_some_printers": "fits configured printers",
+    "fits_no_known_printers": "does not fit any configured printer",
+    "no_max_size": "no size declared - nothing to check",
+    "invalid_max_size": "declared size is invalid - check skipped",
+    "missing_printer_config": "no printers configured - check skipped",
+    "no_design_intent": "no design intent recorded",
+    "unreadable_file": "brief could not be read",
+}
+
+
+def _print_design_intent_summary(summary: dict | None) -> None:
+    """Print a project's `design_intent`, if present. Read-only, display-only:
+    visibility for an existing brief field, not a new judgment, score, or gate.
+    Prints nothing (not an error) when `summary` is None - most briefs won't
+    have a `design_intent` block."""
+    if summary is None:
+        return
+
+    console.print("\n[bold]Design Intent[/bold]:")
+    console.print(f"  Quality standard: {summary['quality_standard'] or '(not set)'}")
+    console.print(f"  Use case: {summary['use_case'] or '(not set)'}")
+    style = ", ".join(summary["style_direction"]) if summary["style_direction"] else "(not set)"
+    console.print(f"  Style: {style}")
+    console.print(f"  Declared max size (mm): {summary['max_size_mm'] or '(not set)'}")
+
+    check = summary["manufacturability_check"]
+    result_text = _DESIGN_INTENT_RESULT_LABELS.get(check["result"], check["result"])
+    console.print(f"  Size check: {result_text}")
+    if check["fitting_printers"]:
+        console.print(f"    Fits: {', '.join(check['fitting_printers'])}")
+
+    console.print(
+        "  (Design intent visibility is advisory only - it does not judge creativity, approve this "
+        "design, or replace Etsy-worthy/slicer/human review.)"
+    )
 
 
 def _print_target_printer_summary(build_plan: dict | None) -> None:

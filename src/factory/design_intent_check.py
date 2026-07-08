@@ -12,6 +12,15 @@ inspects actual mesh geometry (that is `factory validate`'s job, on a
 real STL, once one exists) and never sets `human_approved` or
 `print_ready`, and never advances any project's status. See
 `docs/design-intent-brief.md`.
+
+Phase 26 added `summarize_design_intent()` - a read-only, human-facing
+summary (quality standard, use case, style direction, declared size, and
+the manufacturability advisory above) for surfacing in `factory report`
+and the preview board. It reuses `check_design_intent_manufacturability()`
+for every field that function already parses rather than re-deriving that
+logic, and returns `None` (not an error) whenever `design_intent` is
+absent - visibility only, still no approval/scoring/print-readiness
+behavior. See `docs/design-intent-brief.md`.
 """
 
 from __future__ import annotations
@@ -183,3 +192,47 @@ def check_design_intent_manufacturability(file_path: Path) -> dict[str, Any]:
         non_fitting_printers=non_fitting,
         warnings=warnings,
     )
+
+
+def summarize_design_intent(file_path: Path) -> dict[str, Any] | None:
+    """Read-only, human-facing summary of a brief's `design_intent`, for display in
+    `factory report` and the preview board - visibility only, not a new judgment.
+
+    Returns `None` (not an error) whenever `design_intent` is absent, the file is
+    unreadable, or `design_intent` isn't a dict - most briefs won't have one at all.
+    `quality_standard`, `max_size_mm`, and `manufacturability_check` are read via
+    `check_design_intent_manufacturability()` rather than re-parsed here, so this
+    function never duplicates that parsing/fit logic; it only adds the couple of
+    extra display fields (`use_case`, `style_direction`) that function intentionally
+    doesn't read (its scope is manufacturability only). A malformed `use_case`
+    (not a string) or `style_direction` (not a list) degrades to `None` for that
+    field rather than raising. Read-only: same guarantees as
+    `check_design_intent_manufacturability()` - no writes, no network, no printer/
+    slicer contact, never sets `human_approved`/`print_ready`.
+    """
+    file_path = Path(file_path)
+
+    try:
+        data = project_store.load_json(file_path)
+    except (OSError, ValueError):
+        return None
+
+    design_intent = data.get("design_intent") if isinstance(data, dict) else None
+    if not isinstance(design_intent, dict):
+        return None
+
+    manufacturability = check_design_intent_manufacturability(file_path)
+
+    use_case = design_intent.get("use_case")
+    style_direction = design_intent.get("style_direction")
+
+    return {
+        "quality_standard": manufacturability["quality_standard"],
+        "use_case": use_case if isinstance(use_case, str) else None,
+        "style_direction": style_direction if isinstance(style_direction, list) else None,
+        "max_size_mm": manufacturability["max_size_mm"],
+        "manufacturability_check": {
+            "result": manufacturability["result"],
+            "fitting_printers": [p["display_name"] for p in manufacturability["fitting_printers"]],
+        },
+    }

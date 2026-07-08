@@ -36,7 +36,8 @@ whenever a phase completes.
 | 22 | Connect design quality standard to future gates | a586924 | complete | Cross-references `docs/design-quality-standard.md` into `docs/meshy-approval-gate.md` and `docs/blender-local-track.md`. Docs only - no implementation. |
 | 23 | Human review quality checklist | deb28fb | complete | `docs/review-gate.md`'s "Human review quality checklist"; matching updates to `docs/slicer-review-workflow.md`, `docs/preview-board.md`, `docs/visual-preview-package.md`, `README.md`. Docs only - `review-gate` behavior unchanged. |
 | 24 | Design intent brief schema planning | 2826680 | complete | `docs/design-intent-brief.md`; additive `design_intent` shape; two concept examples illustrate it. Docs/planning only - no schema or product code changed. |
-| 25 | Design intent manufacturability check | (this phase) | complete | `factory/design_intent_check.py`, `factory check-design-intent`. Read-only advisory `max_size_mm` vs. known printer build volumes; no approval/print-readiness behavior. |
+| 25 | Design intent manufacturability check | 1ee322a | complete | `factory/design_intent_check.py`, `factory check-design-intent`. Read-only advisory `max_size_mm` vs. known printer build volumes; no approval/print-readiness behavior. |
+| 26 | Design intent visibility in project reports | (this phase) | complete | `summarize_design_intent()`; `factory report`'s `Design Intent:` section; `design_intent_summary` field on preview-board project entries. Visibility only - `review-gate` unchanged, no approval/scoring/print-readiness behavior. |
 
 ## Future tracks (not phase-numbered)
 

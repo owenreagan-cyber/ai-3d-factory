@@ -103,6 +103,18 @@ if `brief.json` has a `design_intent` block (`docs/design-intent-brief.md`)
 it remains a purely artifact/readiness-based check, never a
 design-quality judge, regardless of how much intent a brief records.
 
+**Still true after Phase 26.** Phase 26 made `design_intent` (and Phase
+25's manufacturability advisory) *visible* elsewhere - in `factory report`
+and as a compact `design_intent_summary` field on each preview-board
+project entry (see `docs/design-intent-brief.md`'s "Visibility in `factory
+report` and the preview board" and `docs/preview-board.md`) - but
+`evaluate_review_gate()` was not touched: it still builds its JSON output
+from the same fixed key set as before, still never reads
+`design_intent`, and `design_intent_summary` is never present in a
+`review-gate` result. Seeing design intent elsewhere on the board does not
+make `review-gate`'s `pass` mean "design approved" - it still means only
+"ready for human slicer review," exactly as before this phase.
+
 ## How it reuses existing logic
 
 `factory.review_gate.evaluate_review_gate()` is a thin layer over

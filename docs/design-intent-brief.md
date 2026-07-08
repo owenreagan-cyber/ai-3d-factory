@@ -1,4 +1,4 @@
-# Design intent brief fields (planning in Phase 24, first read-only check in Phase 25)
+# Design intent brief fields (planning in Phase 24, first read-only check in Phase 25, visibility in Phase 26)
 
 **This document is planning-first.** Phase 24 defined the `design_intent`
 shape below without implementing anything - no `factory` command read,
@@ -6,13 +6,19 @@ wrote, required, or validated it. Phase 25 added exactly one small,
 read-only, advisory consumer: `factory check-design-intent` (see "The
 first real consumer: `factory check-design-intent`" below) compares
 `design_intent.manufacturability_constraints.max_size_mm`, if present,
-against known local printer build volumes. Nothing else in this document
-is implemented - `schemas/project_brief.schema.json` is still unmodified,
-and no other field in `design_intent` is read by anything. This document
-exists so a future implementation has a concrete, already-thought-through
-shape to build toward, instead of inventing one under time pressure - the
-same spirit as `docs/meshy-approval-gate.md` (Phase 16) and
-`docs/blender-local-track.md` (Phase 21).
+against known local printer build volumes. Phase 26 added a second,
+purely presentational consumer: `factory report` and the preview board
+now *display* `design_intent` (quality standard, use case, style
+direction, declared size, and Phase 25's manufacturability advisory) if a
+brief has one, so a human doesn't have to separately run
+`factory check-design-intent` to see it - see "Visibility in `factory
+report` and the preview board (Phase 26)" below. Nothing else in this
+document is implemented - `schemas/project_brief.schema.json` is still
+unmodified, and no other field in `design_intent` is read by anything.
+This document exists so a future implementation has a concrete,
+already-thought-through shape to build toward, instead of inventing one
+under time pressure - the same spirit as `docs/meshy-approval-gate.md`
+(Phase 16) and `docs/blender-local-track.md` (Phase 21).
 
 ## Why this exists
 
@@ -174,7 +180,69 @@ printer, slicer, or network; it never writes a file; and it never sets
 "Comparing output against `design_intent`" for how this fits into the
 broader human review.
 
-## What this phase does not do
+## Visibility in `factory report` and the preview board (Phase 26)
+
+```bash
+factory report projects/my-part          # shows a "Design Intent:" section if brief.json has one
+factory preview-board projects/          # each project's index.json entry gets a compact design_intent_summary
+```
+
+`factory.design_intent_check.summarize_design_intent(file_path)` is the
+new read-only helper (`src/factory/design_intent_check.py`): it reads
+`design_intent.quality_standard`, `use_case`, and `style_direction` for
+display, and reuses `check_design_intent_manufacturability()` unchanged
+for `max_size_mm` and the manufacturability advisory - no parsing logic is
+duplicated between the two. Returns `None` (not an error) whenever
+`design_intent` is absent, unreadable, or not a dict.
+
+- **`factory report`** prints a `Design Intent:` block (quality standard,
+  use case, style, declared max size, and the manufacturability advisory
+  result/fitting printers) whenever the project's `brief.json` has a
+  `design_intent` block, immediately followed by a line stating this is
+  advisory only. Prints nothing extra, and raises no error, when
+  `design_intent` is absent or malformed.
+- **The preview board** (`factory.project_inspection.summarize_project()`,
+  consumed by both `factory preview-board` and, transitively,
+  `factory review-gate`) gained one new field per project,
+  `design_intent_summary` - a compact
+  `{quality_standard, use_case, manufacturability_result}` object, or
+  `None` if the project's brief has no `design_intent`. This field is
+  purely additive to the board's JSON shape; it is never read by
+  `classify_visual_readiness()`, `build_health_signals()`, or
+  `build_suggested_actions()`, so it cannot change a project's
+  `visual_readiness_state`, health signals, or suggested actions.
+- **`factory review-gate` is unchanged.** `evaluate_review_gate()`
+  constructs its own JSON output from a fixed key set and never includes
+  `design_intent_summary` - the gate remains a pure artifact/readiness
+  check, exactly as before Phase 26. See `docs/review-gate.md`.
+- Visibility only: this does not judge creativity, approve a design,
+  score anything, set `human_approved` or `print_ready`, or replace the
+  Etsy-worthy/slicer/human review described in `docs/review-gate.md`'s
+  "Human review quality checklist" - it only makes an existing brief field
+  easier to see without a separate command.
+
+### What Phase 26 does not do
+
+- Does not approve designs, score designs, or mark anything
+  `human_approved` or `print_ready`.
+- Does not change `factory review-gate`'s pass/warn/fail logic, blocking/
+  warning/ready item classification, or JSON output shape in any way -
+  `review-gate` still does not read `design_intent`. See "Visibility in
+  `factory report` and the preview board" above and `docs/review-gate.md`.
+- Does not change `visual_readiness_state`, `health_signals`, or
+  `suggested_actions` - `design_intent_summary` is a display-only field
+  the board's classification logic never reads.
+- Does not write anything back into `brief.json`, `build_plan.json`, or
+  any other project file - `factory report` and `factory preview-board`
+  remain exactly as read-only as before.
+- Does not contact a printer, a slicer, or the network; does not launch
+  Blender; does not call Meshy; does not install any dependency.
+- Does not duplicate `design_intent` parsing logic -
+  `summarize_design_intent()` reuses
+  `check_design_intent_manufacturability()` for every field that function
+  already parses.
+
+## What Phase 25 does not do
 
 - Does not modify `schemas/project_brief.schema.json`.
 - Does not require `design_intent` anywhere. `factory check-design-intent`
@@ -198,6 +266,7 @@ broader human review.
 - Does not set `human_approved` or `print_ready` on anything, ever.
 
 See also `docs/design-quality-standard.md`, `docs/review-gate.md`,
+`docs/preview-board.md` (Phase 26's `design_intent_summary` field),
 `docs/slicer-review-workflow.md`, `docs/file-lifecycle.md`,
 `docs/meshy-approval-gate.md`, `docs/blender-local-track.md`,
 `schemas/project_brief.schema.json`, and `AGENT.md`.

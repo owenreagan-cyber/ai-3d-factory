@@ -22,6 +22,17 @@ network - pure local reads. It never sets or implies `human_approved` or
 `print_ready` - the highest state it ever names is `slicer_review_ready`.
 See docs/architecture.md, docs/preview-board.md, docs/review-gate.md, and
 AGENT.md.
+
+Phase 26 added a `design_intent_summary` field to `summarize_project()`'s
+output - a compact, read-only visibility aid (quality standard, use case,
+and the manufacturability advisory result from
+`factory.design_intent_check`) for the preview board, `None` whenever the
+project's `brief.json` has no `design_intent` block. It is derived from
+the same `check_design_intent_manufacturability()` this module already
+depends on transitively via `factory.design_intent_check` - no parsing
+logic is duplicated - and never feeds into `visual_readiness_state`,
+`health_signals`, or `suggested_actions`: it is display-only and does not
+change readiness classification, approval, or print-readiness in any way.
 """
 
 from __future__ import annotations
@@ -30,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from factory import preview_package, project_store
+from factory.design_intent_check import summarize_design_intent
 from factory.render_coverage import compute_render_coverage, missing_and_stale_mesh_paths
 
 VISUAL_READINESS_STATES = (
@@ -471,6 +483,26 @@ def build_health_signals(
     return {"summary": summary, "items": items}
 
 
+def _compact_design_intent_summary(brief_path: Path) -> dict[str, Any] | None:
+    """Compact, read-only `design_intent` summary for a project card.
+
+    Wraps `factory.design_intent_check.summarize_design_intent()` (the full,
+    detailed summary `factory report` shows) down to the three fields worth a
+    board row: `quality_standard`, `use_case`, `manufacturability_result`.
+    Returns `None` whenever the full summary is `None` (no `design_intent`
+    block, unreadable file, or malformed shape) - not an error, most projects
+    won't have one.
+    """
+    full = summarize_design_intent(brief_path)
+    if full is None:
+        return None
+    return {
+        "quality_standard": full["quality_standard"],
+        "use_case": full["use_case"],
+        "manufacturability_result": full["manufacturability_check"]["result"],
+    }
+
+
 def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -> dict[str, Any]:
     """Read one project's existing files and summarize it for the board/gate.
 
@@ -564,6 +596,8 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
 
     selected_manufacturing_option = index.get("selected_manufacturing_option")
 
+    design_intent_summary = _compact_design_intent_summary(brief_path) if brief_status == "ok" else None
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -596,4 +630,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "warnings": warnings,
         "suggested_actions": suggested_actions,
         "health_signals": health_signals,
+        "design_intent_summary": design_intent_summary,
     }

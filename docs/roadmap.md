@@ -768,6 +768,58 @@ far; real mesh-geometry-aware manufacturability checking (still
 other command (`check-design-intent` remains a separate, optional,
 read-only command by design).
 
+## Phase 26 — design intent visibility in project reports (started)
+
+A small, purely presentational follow-on to Phase 25: surfaces the
+`design_intent` a brief already has (and Phase 25's manufacturability
+advisory) inside the local reporting workflows Owen already runs, so
+seeing it doesn't require a separate `factory check-design-intent` call.
+Visibility only - no new approval, scoring, or gate semantics.
+
+**Started:** `factory.design_intent_check.summarize_design_intent(file_path)`
+- a new read-only helper that reads `quality_standard`/`use_case`/
+`style_direction` for display and reuses Phase 25's
+`check_design_intent_manufacturability()` unchanged for `max_size_mm` and
+the manufacturability advisory, so no parsing/fit logic is duplicated.
+Returns `None` (not an error) whenever `design_intent` is absent,
+unreadable, or malformed. Two consumers:
+
+- **`factory report <project_dir>`** now prints a `Design Intent:` section
+  (quality standard, use case, style direction, declared max size, and
+  the manufacturability advisory result/fitting printers) whenever
+  `brief.json` has a `design_intent` block, ending with an explicit
+  "advisory only" line. Prints nothing extra when `design_intent` is
+  absent or malformed - no error either way.
+- **`factory.project_inspection.summarize_project()`** (the shared layer
+  both `factory preview-board` and, transitively, `factory review-gate`
+  build on) gained one new field, `design_intent_summary` - a compact
+  `{quality_standard, use_case, manufacturability_result}` object or
+  `None`. Purely additive to the board's JSON shape; never read by
+  `classify_visual_readiness()`, `build_health_signals()`, or
+  `build_suggested_actions()`, so it cannot change a project's
+  `visual_readiness_state`, health signals, or suggested actions.
+
+**Explicitly unchanged:** `factory.review_gate.evaluate_review_gate()` -
+still builds its JSON output from the same fixed key set as before Phase
+26, still never reads `design_intent`, and `design_intent_summary` never
+appears in a `review-gate` result. `review-gate` remains a pure artifact/
+readiness check - "ready for human slicer review," never "design
+approved." See `docs/design-intent-brief.md`'s "Visibility in `factory
+report` and the preview board" and `docs/review-gate.md`.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call, writes any file, or sets `human_approved`/`print_ready`.
+Never approves, scores, or replaces the Etsy-worthy/slicer/human review
+described in `docs/review-gate.md`'s "Human review quality checklist."
+
+**Not yet started:** displaying any other `design_intent` field
+(`functional_goals`, `visual_goals`, `iteration_plan`, etc.) - only
+`quality_standard`, `use_case`, `style_direction`, and the Phase 25
+manufacturability advisory are shown by anything so far; a `design_intent`
+section in the preview board's static HTML (the board's JSON gained
+`design_intent_summary`, but the HTML table/health-signals/suggestions
+sections were left unchanged to keep this phase small).
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

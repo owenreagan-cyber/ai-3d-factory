@@ -221,6 +221,40 @@ The board's HTML gets a "Health signals" section (one block per project,
 severity-colored badges, plain text only - no JavaScript) and a compact
 "Health" column in the summary table (e.g. "Attention needed (2)").
 
+## Design intent summary (Phase 26)
+
+Each project's card also carries a `design_intent_summary` field - a
+compact, read-only view of the project's `brief.json`
+`design_intent` block (`docs/design-intent-brief.md`), if it has one:
+
+```jsonc
+{
+  "quality_standard": "Etsy-worthy",
+  "use_case": "kitchen organization",
+  "manufacturability_result": "fits_some_printers"
+}
+```
+
+`None` whenever the brief has no `design_intent` block (most projects
+won't) - not an error, and not shown as a warning. Built from
+`factory.design_intent_check.summarize_design_intent()`, which itself
+reuses Phase 25's `check_design_intent_manufacturability()` rather than
+re-deriving that parsing/fit logic - so `manufacturability_result` here
+is always the same value `factory check-design-intent` would report for
+the same brief. `factory report` shows the fuller version of the same
+data (quality standard, use case, style direction, declared size, and
+which known printers fit) as a `Design Intent:` section - see
+`docs/design-intent-brief.md`.
+
+This field is **purely additive and purely presentational**: it is never
+read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, so its presence or absence cannot change a
+project's `visual_readiness_state`, health signals, or suggested actions.
+It does not judge creativity, approve a design, score anything, or set
+`human_approved`/`print_ready` - it only surfaces an existing brief field
+that would otherwise require a separate `factory check-design-intent`
+run to see.
+
 ## Board JSON shape
 
 ```jsonc
@@ -272,7 +306,8 @@ severity-colored badges, plain text only - no JavaScript) and a compact
             "suggested_action_kind": null
           }
         ]
-      }
+      },
+      "design_intent_summary": null
     }
   ],
   "notes": ["Local static preview only - ...", "..."]
@@ -295,6 +330,10 @@ severity-colored badges, plain text only - no JavaScript) and a compact
 - Does not set `human_approved` or `print_ready` on anything.
 - Does not execute any `suggested_actions` command - ever, automatically
   or otherwise. There is no "run" button anywhere in the generated HTML.
+- Does not judge, score, or approve a project's `design_intent` (Phase 26)
+  - `design_intent_summary` is a display-only mirror of an existing brief
+    field, never an input to `visual_readiness_state`, `health_signals`,
+    or `suggested_actions`.
 
 ## Readiness signals are not a design-quality score
 
@@ -321,6 +360,8 @@ detection `needs_render` suggestions are built on), `docs/review-gate.md`
 directly on this module's `summarize_project()`, not merged into the
 board itself - see that doc's "Why this isn't merged into `factory
 preview-board`" section, and its "Human review quality checklist"),
-`docs/design-quality-standard.md`, and `docs/roadmap.md` Phase 8 (board
-foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
-Phase 12 (review gate) / Phase 23 (human review quality checklist).
+`docs/design-quality-standard.md`, `docs/design-intent-brief.md` (Phase 26
+- the `design_intent_summary` field above), and `docs/roadmap.md` Phase 8
+(board foundation) / Phase 10 (action suggestions) / Phase 11 (health
+signals) / Phase 12 (review gate) / Phase 23 (human review quality
+checklist) / Phase 26 (design intent visibility).
