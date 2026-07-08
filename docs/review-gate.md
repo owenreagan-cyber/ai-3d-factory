@@ -39,6 +39,62 @@ correctly reports `fail` ("No STL files exist yet"), since that committed
 example intentionally stops at the CAD-source stage. See
 `docs/examples-library.md`.
 
+## Human review quality checklist
+
+Passing `factory review-gate` means only: **ready for human slicer
+review.** It does not mean any of the following, and never will
+automatically:
+
+- `human_approved`
+- `print_ready`
+- Etsy-worthy
+- safe for use
+- durable
+- food-safe
+- child-safe
+- ready to sell
+- ready to print
+
+`review-gate` is a **local artifact-presence check** - it confirms the
+files a human needs (brief, manifest, STL, fresh renders, a validation
+report) exist and aren't stale or corrupt. It has no opinion on whether
+the design itself is any good - see `docs/design-quality-standard.md`
+for that standard. A `pass` result and a genuinely well-designed part are
+two different questions; a project can `pass` this gate while still
+being a rough first draft that needs another iteration pass.
+
+Before Owen (or anyone) approves anything, the actual human review should
+cover:
+
+- **Design intent** - does it match the brief?
+- **Silhouette/proportions** - does it look intentional, not accidental?
+- **Etsy-worthy quality** - polished, useful, gift-worthy/display-worthy
+  where appropriate (see `docs/design-quality-standard.md`).
+- **Artifact quality** - no blobby/generic/random-AI look, unless that
+  look was an intentional style choice.
+- **Functional fit** - does it actually solve the problem it's for?
+- **Manufacturability** - wall thickness, overhangs, supports, part
+  splitting.
+- **Material suitability** - does the chosen material fit the part's
+  actual use?
+- **Assembly fit**, for multipart projects - do the parts actually align
+  at their shared origin (see `docs/slicer-review-workflow.md`)?
+- **Tension/flex risk**, for clips/hinges/springs and other parts under
+  repeated stress - see `docs/design-quality-standard.md`'s functional/
+  mechanical track; these remain prototypes until physically tested.
+- **Safety/usage concerns** - sharp edges, choking hazards, food contact,
+  anything context-specific (classroom, gift, display).
+- **Slicer preview** - orientation, supports, seams, infill, color/
+  material plan, once actually opened in Bambu Studio/OrcaSlicer.
+- **Prototype/iteration plan** - is this the finished part, or does it
+  need another pass?
+
+None of this is automated, checked, or scored by `review-gate` or any
+other `factory` command - it is exactly as advisory as the existing
+human visual inspection checklist in `docs/visual-preview-package.md`.
+`review-gate`'s job ends at confirming the files exist to *have* this
+review; having the review is still entirely a human act.
+
 ## How it reuses existing logic
 
 `factory.review_gate.evaluate_review_gate()` is a thin layer over
@@ -179,5 +235,8 @@ phase could add a compact `review_gate` field to board cards cheaply,
 since both already sit on the same shared layer.
 
 See also `docs/preview-board.md` (the board this reuses),
-`docs/render-coverage.md`, `docs/architecture.md`, and `docs/roadmap.md`
-Phase 12 (this command) / Phase 13 (the shared-layer refactor).
+`docs/render-coverage.md`, `docs/architecture.md`,
+`docs/design-quality-standard.md` (the human review quality checklist
+above), `docs/visual-preview-package.md`, and `docs/roadmap.md` Phase 12
+(this command) / Phase 13 (the shared-layer refactor) / Phase 23 (the
+human review quality checklist).

@@ -87,6 +87,19 @@ is a separate, human act** that this repo never automates:
   "Human visual inspection required.", "Human slicer review required.",
   "Project is NOT print-ready."
 
+### Previews prove presence, not quality
+
+`preview_package/index.json` and `preview_report.md` can tell a human
+*that* a CAD file, mesh, or render exists and is fresh - they cannot tell
+anyone whether the design itself is any good. A project can have a
+complete, fresh preview package and still be a rough first draft that
+hasn't been checked against `docs/design-quality-standard.md`'s
+"Etsy-worthy" standard. The human visual inspection this package sets up
+for should actually apply that standard - and, once a project reaches
+`slicer_review_ready`, the fuller checklist in `docs/review-gate.md`'s
+"Human review quality checklist" - not stop at "the files are all
+present."
+
 ## How a future dashboard/launcher would use this
 
 `preview_package/index.json` is intentionally the machine-readable half of
@@ -103,3 +116,7 @@ Both commands are covered by the same boundaries as every other `factory`
 command: no printer/slicer contact, no network, no cloud upload, no
 automatic `human_approved`/`print_ready`, and the project status ceiling
 remains `slicer_review_ready`. See `AGENT.md` and `docs/safety-gates.md`.
+
+See also `docs/design-quality-standard.md` (the "Etsy-worthy" standard
+human visual inspection should apply) and `docs/review-gate.md`'s "Human
+review quality checklist" (Phase 23).

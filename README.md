@@ -134,6 +134,12 @@ a warning. `pass` means only "ready for human slicer review" - never an
 approval, never print-ready; the status ceiling stays `slicer_review_ready`.
 Exit code is `0` for pass/warn, `1` for fail. See `docs/review-gate.md`.
 
+`review-gate`/`preview-board` check local **readiness** (do the right
+files exist, are they fresh) - they say nothing about whether a design is
+actually good. Before approving anything, a human should also work
+through `docs/review-gate.md`'s "Human review quality checklist" against
+the "Etsy-worthy" standard in `docs/design-quality-standard.md`.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

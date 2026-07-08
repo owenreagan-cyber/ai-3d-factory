@@ -663,6 +663,39 @@ phase only adds a cross-reference between two already-existing planning
 docs and the design-quality standard; it grants no new approval and
 changes no `factory` command's behavior.
 
+## Phase 23 — human review quality checklist (started)
+
+Docs/planning only - no product behavior changes, no `review-gate`
+behavior changes. Connects `docs/design-quality-standard.md` to the
+existing human slicer review / `review-gate` documentation: `review-gate`
+is intentionally artifact/geometry-presence based, so this phase clarifies
+that passing it only means "ready for human slicer review" - the actual
+human review must separately weigh design quality, usefulness, style,
+manufacturability, and iteration before any approval.
+
+**Started:** `docs/review-gate.md` gained a "Human review quality
+checklist" section spelling out what `pass` does *not* mean
+(`human_approved`, `print_ready`, Etsy-worthy, safe/durable/food-safe/
+child-safe, ready to sell, ready to print) and the full human review
+checklist (design intent, silhouette/proportions, Etsy-worthy quality,
+artifact quality, functional fit, manufacturability, material
+suitability, multipart assembly fit, tension/flex risk, safety, slicer
+preview, prototype/iteration plan). `docs/slicer-review-workflow.md`
+gained a matching "Human review checklist, before any approval" section
+(visual design review, functional review, manufacturing review, slicer
+review, final human decision) and a fix for a stale "Phase 6" reference
+in its 3MF section (corrected to the unnumbered 3MF packaging
+experiments track). `docs/preview-board.md` and
+`docs/visual-preview-package.md` each gained a section clarifying that
+the readiness signals/previews they show are presence checks, not a
+design-quality score, and should prompt (not replace) the human review
+checklist. `README.md` gained a pointer from the `review-gate` paragraph
+to the same checklist.
+
+**Not yet started:** any change to what `factory review-gate` actually
+computes or reports - this phase only documents what a human should do
+once it reports `pass`.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

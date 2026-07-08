@@ -296,12 +296,31 @@ severity-colored badges, plain text only - no JavaScript) and a compact
 - Does not execute any `suggested_actions` command - ever, automatically
   or otherwise. There is no "run" button anywhere in the generated HTML.
 
+## Readiness signals are not a design-quality score
+
+Every status this board shows - `visual_readiness_state`,
+`health_signals`, and (on the project's own `factory review-gate` run,
+not merged into this board - see below) `pass`/`warn`/`fail` - is a
+**local artifact/readiness signal**: does the right file exist, is it
+fresh, is the manifest readable. None of these are a design-quality
+score, and none of them are an approval. A project can show
+`slicer_review_ready` on this board while still being a rough first
+draft that hasn't been checked against
+`docs/design-quality-standard.md`'s "Etsy-worthy" standard.
+
+Seeing a project reach `slicer_review_ready` here should prompt the
+*human* review described in `docs/review-gate.md`'s "Human review
+quality checklist" - design intent, silhouette/proportions, artifact
+quality, functional fit, manufacturability, and the rest - not be
+mistaken for that review having already happened.
+
 See also `docs/visual-preview-package.md` (per-project preview package,
 which this board aggregates), `docs/render-coverage.md` (the render-gap
 detection `needs_render` suggestions are built on), `docs/review-gate.md`
 (Phase 12 - a single-project pass/warn/fail pre-flight check built
 directly on this module's `summarize_project()`, not merged into the
 board itself - see that doc's "Why this isn't merged into `factory
-preview-board`" section), and `docs/roadmap.md` Phase 8 (board
+preview-board`" section, and its "Human review quality checklist"),
+`docs/design-quality-standard.md`, and `docs/roadmap.md` Phase 8 (board
 foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
-Phase 12 (review gate).
+Phase 12 (review gate) / Phase 23 (human review quality checklist).
