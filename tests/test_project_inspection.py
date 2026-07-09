@@ -163,7 +163,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
         "reference_board_summary", "intake_summary", "draft_brief_summary",
-        "brief_update_summary",
+        "brief_update_summary", "design_orchestrator_summary",
     }
     assert set(project.keys()) == expected_keys
 
@@ -529,6 +529,61 @@ def test_draft_brief_summary_does_not_affect_other_summary_fields(project_root):
 def test_review_gate_json_excludes_draft_brief_summary(project_root):
     gate = evaluate_review_gate(project_root)
     assert "draft_brief_summary" not in gate
+
+
+# ---- Phase 33: design_orchestrator_summary field (Design Orchestrator) ----
+
+
+def test_design_orchestrator_summary_present_and_shaped(project_root):
+    summary = summarize_project(project_root)
+    orchestrator = summary["design_orchestrator_summary"]
+    assert set(orchestrator.keys()) == {
+        "readiness_state", "recommended_engine", "engine_rationale", "score", "advisories",
+    }
+    from factory.design_orchestrator import READINESS_STATES, RECOMMENDED_ENGINES
+
+    assert orchestrator["readiness_state"] in READINESS_STATES
+    assert orchestrator["recommended_engine"] in RECOMMENDED_ENGINES
+    assert "Human approval required" in orchestrator["advisories"]
+
+
+def test_design_orchestrator_summary_derived_from_other_summaries(project_root):
+    from factory.design_orchestrator import evaluate_project_readiness
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy classroom sign made of PLA on a Bambu printer."
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    expected = evaluate_project_readiness(
+        summary["intake_summary"],
+        summary["draft_brief_summary"],
+        summary["brief_update_summary"],
+        summary["design_intent_summary"],
+        summary["design_intent_detail"],
+        summary["reference_board_summary"],
+    )
+    assert summary["design_orchestrator_summary"] == expected
+
+
+def test_design_orchestrator_summary_never_affects_visual_readiness_or_health(project_root):
+    without_it = summarize_project(project_root)
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy gift for the classroom, made with PLA."
+    project_store.save_json(brief_path, brief)
+    with_it = summarize_project(project_root)
+
+    assert with_it["visual_readiness_state"] == without_it["visual_readiness_state"]
+    assert with_it["health_signals"] == without_it["health_signals"]
+    assert with_it["suggested_actions"] == without_it["suggested_actions"]
+
+
+def test_review_gate_json_excludes_design_orchestrator_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "design_orchestrator_summary" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

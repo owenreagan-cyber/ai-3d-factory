@@ -47,7 +47,9 @@ from factory.manufacturing.selection import (
 from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitializedError, generate_openscad
 from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
-from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
+from factory.design_orchestrator import evaluate_readiness_for_path
+from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
+from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
 from factory.brief_generator import (
@@ -128,6 +130,7 @@ AVAILABLE_COMMANDS = (
     "reference-board add --project <project_dir> --title <title> [--url ...] [--type ...] [--license ...] [--usage ...] [--attached-to ...] [--notes ...]",
     "intake analyze <project_dir_or_text_or_markdown_file> [--json]",
     "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force] [--update]",
+    "readiness <project_dir_or_projects_root_or_text_or_markdown_file> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -783,6 +786,77 @@ def preview_board_cmd(
         "printer/network."
     )
     console.print("Local static preview only. Not an approval. Not a print-readiness signal.")
+
+
+def _is_single_project_dir(path: Path) -> bool:
+    return (path / "brief.json").is_file() or (path / "concept_brief.json").is_file()
+
+
+def _print_readiness_report(name: str, orchestrator: dict) -> None:
+    score = orchestrator["score"]
+    console.print(f"[bold]{name}[/bold]")
+    console.print(
+        f"  Overall: {score['overall']}%   Ready for: {orchestrator['recommended_engine']}   "
+        f"Status: {orchestrator['readiness_state']}"
+    )
+    console.print("  Score breakdown:")
+    for category, value in score["categories"].items():
+        console.print(f"    {_capitalize_first(category.replace('_', ' '))}: {value}%")
+    console.print("  Remaining:")
+    for advisory in orchestrator["advisories"]:
+        console.print(f"    - {advisory}")
+    console.print(f"  Engine rationale: {orchestrator['engine_rationale']}")
+
+
+@app.command(name="readiness")
+def readiness_cmd(
+    path: Path = typer.Argument(
+        ...,
+        help="A project directory, a directory of multiple projects (e.g. examples/ or projects/), or a plain-text/Markdown idea file",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Design Orchestrator readiness check (Phase 33) - evaluates whether a project
+    is sufficiently defined to proceed and recommends the most appropriate downstream
+    design engine (OpenSCAD, CadQuery, Blender, Meshy, FreeCAD, a hybrid workflow,
+    manual design, or unknown). Never generates CAD, never invokes any engine - purely
+    a deterministic, read-only recommendation for a human to act on. Accepts a single
+    project directory (has its own brief.json/concept_brief.json), a directory of
+    multiple projects (e.g. examples/ or projects/), or a plain-text/Markdown idea
+    file. See docs/design-orchestrator.md."""
+    if path.is_dir() and not _is_single_project_dir(path):
+        project_dirs = discover_projects(path)
+        results = [(p.name, summarize_project(p, projects_root=path)["design_orchestrator_summary"]) for p in project_dirs]
+
+        if as_json:
+            payload = {
+                "projects_root": str(path),
+                "project_count": len(results),
+                "projects": {name: orchestrator for name, orchestrator in results},
+            }
+            print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False))
+            return
+
+        console.print(f"[bold]Project Readiness[/bold] - {len(results)} project(s) under {path}\n")
+        for name, orchestrator in results:
+            _print_readiness_report(name, orchestrator)
+            console.print()
+        return
+
+    if path.is_dir():
+        orchestrator = summarize_project(path)["design_orchestrator_summary"]
+    else:
+        orchestrator = evaluate_readiness_for_path(path)
+
+    if as_json:
+        print(json.dumps(orchestrator, indent=2, sort_keys=False, ensure_ascii=False))
+        return
+
+    _print_readiness_report(str(path), orchestrator)
+    console.print(
+        "\nThis is a deterministic, local-only recommendation - no AI, no LLM, no network, and no engine "
+        "was invoked. See docs/design-orchestrator.md."
+    )
 
 
 @app.command(name="review-gate")

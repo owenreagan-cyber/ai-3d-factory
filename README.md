@@ -212,6 +212,24 @@ rejected together. Every draft/merge ends with "Human approval required
 before save" - a generated result, however complete, is never itself an
 approval.
 
+`factory readiness <project_dir_or_projects_root_or_text_or_markdown_file>
+[--json]` is the Design Orchestrator (`factory.design_orchestrator`, see
+`docs/design-orchestrator.md`) - the pipeline's first "decision brain":
+User Idea -> Project Intake -> Draft Brief -> Brief Merge -> Design Intent
+-> Reference Board -> **Project Readiness** -> **Design Orchestrator** ->
+CAD Engine -> .... Evaluates whether a project is sufficiently defined to
+proceed and recommends the most appropriate downstream engine (OpenSCAD,
+CadQuery, Blender, `Meshy (Concept Only)`, FreeCAD, a hybrid workflow,
+manual design, or unknown) from a weighted 0-100 readiness score across
+five categories (Intake/Brief/Design Intent/Reference Board/Manufacturing
+- weights documented in `docs/design-orchestrator.md`). **No CAD is ever
+generated and no engine is ever invoked** - `recommended_engine` is a
+string a human reads and acts on themselves. Fully deterministic: reuses
+the same six summaries every phase above it already computed, plus the
+existing `factory.router.recommend_tool()` keyword router as a text-based
+fallback, rather than duplicating parsing or inventing a second keyword
+table.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

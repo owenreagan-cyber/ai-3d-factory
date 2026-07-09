@@ -88,6 +88,17 @@ module never merges or writes anything, and `brief_update_summary` is
 never read by `classify_visual_readiness()`, `build_health_signals()`, or
 `build_suggested_actions()`. See "Merge mode (Phase 32)" in
 `docs/brief-generator.md`.
+
+Phase 33 added a seventh additive field, `design_orchestrator_summary` -
+`factory.design_orchestrator.evaluate_project_readiness()`'s full result
+(`readiness_state`, `recommended_engine`, `engine_rationale`, a weighted
+`score` with a per-category breakdown, and consolidated `advisories`),
+computed from exactly the six summaries above (never re-parses anything).
+Always a dict, never `None`. Purely additive, purely advisory: this module
+never generates CAD, never invokes any engine, and
+`design_orchestrator_summary` is never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`. See `docs/design-orchestrator.md`.
 """
 
 from __future__ import annotations
@@ -97,6 +108,7 @@ from typing import Any
 
 from factory import preview_package, project_store
 from factory.brief_generator import summarize_brief_update, summarize_draft_brief
+from factory.design_orchestrator import evaluate_project_readiness
 from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
 from factory.project_intake import analyze_project as analyze_project_intake
 from factory.reference_board import summarize_reference_board
@@ -695,6 +707,19 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
     # "everything would be an addition" rather than an error.
     brief_update_summary = summarize_brief_update(_safe_load_json(brief_path), intake_summary)
 
+    # Phase 33: the Design Orchestrator - consumes exactly the six summaries
+    # already computed above, never re-parses brief.json's free text or
+    # design_intent a second time. Read-only, never writes, never invokes
+    # any CAD engine.
+    design_orchestrator_summary = evaluate_project_readiness(
+        intake_summary,
+        draft_brief_summary,
+        brief_update_summary,
+        design_intent_summary,
+        design_intent_detail,
+        reference_board_summary,
+    )
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -733,4 +758,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "intake_summary": intake_summary,
         "draft_brief_summary": draft_brief_summary,
         "brief_update_summary": brief_update_summary,
+        "design_orchestrator_summary": design_orchestrator_summary,
     }

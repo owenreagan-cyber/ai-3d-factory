@@ -1384,13 +1384,159 @@ Writes **at most one file** (`<project_dir>/brief.json`), and only with
 explicit `--write` (with `--force`, `--update`, or neither - never
 automatically).
 
-**Not yet started:** field-scoped merge (`--only material`, or similar -
-`--update` always evaluates every candidate field together); merging
-`reference_board.json` content (still a completely separate, hand-managed
-file - Phase 28/29); any AI/LLM-backed conflict resolution when a field is
-ambiguous (this phase's rule is purely presence-based, never a quality
-judgment); CAD generation of any kind; Meshy/Blender/slicer integration -
-all explicitly out of scope for this phase.
+**Not yet started (at the end of Phase 32):** field-scoped merge
+(`--only material`, or similar - `--update` always evaluates every
+candidate field together); merging `reference_board.json` content (still
+a completely separate, hand-managed file - Phase 28/29); any AI/LLM-backed
+conflict resolution when a field is ambiguous; CAD generation of any kind;
+Meshy/Blender/slicer integration; a way to evaluate whether a project is
+*ready to proceed at all* and which engine it should proceed with - picked
+up by Phase 33 below (CAD generation, Meshy/Blender/slicer execution
+remain out of scope for both phases).
+
+## Phase 33 — project readiness dashboard & design orchestrator (started)
+
+The first "decision brain" in this repo's pipeline:
+
+```
+User Idea -> Project Intake -> Draft Brief -> Brief Merge ->
+Design Intent -> Reference Board -> Project Readiness ->
+Design Orchestrator -> CAD Engine -> Preview -> Review ->
+Slicer Review -> (never automatic printing)
+```
+
+Evaluates whether a project is sufficiently defined to proceed, and
+recommends the most appropriate downstream design engine (OpenSCAD,
+CadQuery, Blender, Meshy, FreeCAD, a hybrid workflow, manual design, or
+"unknown"). **No CAD generation occurs in this phase** - every
+recommendation is a string a human reads and acts on themselves. Fully
+deterministic: reuses the six summaries every earlier phase already
+computed (Phase 26-32) without re-parsing any of them, plus
+`factory.router.recommend_tool()` (an existing keyword-based router from
+an earlier phase) as a text-based fallback, rather than inventing a
+second, divergent keyword table.
+
+**Started:** `factory.design_orchestrator`, a new module:
+
+- `compute_readiness_score(...)` - a weighted 0-100 score across five
+  categories (Intake 20%, Brief 20%, Design Intent 25%, Reference Board
+  15%, Manufacturing 20% - weights sum to 1.0, documented as
+  `CATEGORY_WEIGHTS`). Each category percent is read directly off an
+  already-computed summary field (e.g. Intake reuses Phase 31's own
+  `readiness.percent_populated` outright) - see
+  `docs/design-orchestrator.md` "Readiness scoring" for the full
+  per-category derivation and the reasoning behind each weight.
+- `compute_design_signals(...)` - shared organic-vs-mechanical signal
+  detection, reused by both the state and engine functions below so they
+  can never disagree. Category (Phase 30's closed vocabulary) counts as a
+  weight-2 vote for its family; each `style_direction`/`visual_goals`
+  keyword hit is a weight-1 vote. A "mixed" (hybrid) signal only fires
+  when *both* sides reach weight >= 2 - a real, comparable split, not one
+  confident category vote against a single incidental style word. This
+  threshold was tuned against a real case this phase's own testing
+  surfaced: the committed Phase 30 benchmark
+  (`examples/intake-benchmarks/teacher-nameplate.md`) has category `sign`
+  plus a lone `"anime"` style keyword among otherwise sign-typical
+  keywords (`"raised"`, `"lettering"`) - without the threshold, a plain
+  classroom nameplate would incorrectly read as a "mixed" design.
+- `determine_readiness_state(...)` - the seven-state decision tree
+  (`Not Ready`, `Needs Information`, `Ready For Mechanical CAD`,
+  `Ready For Organic Modeling`, `Ready For Mixed Workflow`,
+  `Ready For Manufacturing Review`, `Blocked`), checked in a fixed
+  priority order - a hard manufacturability block always wins; see
+  `docs/design-orchestrator.md` "Readiness states" for the full order and
+  reasoning.
+- `recommend_engine(...)` - category-first, refined by style keywords,
+  falling back to `factory.router.recommend_tool()`'s free-text matching
+  only when neither gives a usable signal. An organic signal with a low
+  overall score recommends `Meshy (Concept Only)` rather than `Blender` -
+  echoing this repo's own established treatment of concept-only organic
+  ideas (`examples/future-organic-models/`, gated behind
+  `docs/meshy-approval-gate.md`) - and upgrades to `Blender` once the
+  project has enough real definition. `FreeCAD` is a recognized
+  recommendation value with **no current rule that selects it** -
+  reserved for a future, more sophisticated complex-assembly rule rather
+  than an invented, unvalidated heuristic today.
+- `generate_readiness_advisories(...)` - a consolidated, orchestrator-level
+  advisory list (`Dimensions missing`, `Material unspecified`, `Printer
+  unspecified`, `Reference images recommended`, `Design intent
+  incomplete`, `Commercial review recommended`, `Manufacturing review
+  required`, always ending with `Human approval required`) - read directly
+  off already-parsed data fields, never re-scanned text.
+- `evaluate_project_readiness(...)` - the core, pure function combining
+  all of the above from exactly the six summaries
+  `factory.project_inspection.summarize_project()` produces.
+- `evaluate_readiness_for_path(path)` - the convenience entry point
+  `factory readiness` uses for a single project directory or a plain-text/
+  Markdown idea file, computing the same six summaries via the same leaf
+  functions those phases already expose (never re-implementing their
+  parsing, never importing `factory.project_inspection` - that would be
+  circular, since `project_inspection` imports *this* module).
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained a seventh
+  additive field, `design_orchestrator_summary`. Every earlier field
+  (`design_intent_summary`, `design_intent_detail`,
+  `reference_board_summary`, `intake_summary`, `draft_brief_summary`,
+  `brief_update_summary`) is completely unchanged by this phase.
+- **`factory.preview_board.build_board_html()`** gained a "Project
+  Readiness" dashboard section, placed *first* in each project's card -
+  overall score, recommended engine, readiness state, and the top
+  remaining advisories. **Summarizes the existing detail cards below it
+  without removing or replacing any of them** - Project Intake, Draft
+  Brief, Brief Update, Design Intent, Reference Board, Manufacturing
+  Overview, Artifacts, Health Signals, and Review Readiness are all
+  unchanged and still follow it.
+
+**New CLI:** `factory readiness <path> [--json]` - accepts a single
+project directory (has its own `brief.json`/`concept_brief.json`), a
+directory of multiple projects (e.g. `examples/` or `projects/` - scanned
+the same way `factory preview-board` does), or a plain-text/Markdown idea
+file. Sample output:
+
+```
+$ factory readiness examples/storage-bin-lid
+examples/storage-bin-lid
+  Overall: 36%   Ready for: OpenSCAD   Status: Needs Information
+  Score breakdown:
+    Intake: 54%
+    Brief: 50%
+    Design intent: 0%
+    Reference board: 33%
+    Manufacturing: 50%
+  Remaining:
+    - Material unspecified
+    - Printer unspecified
+    - Design intent incomplete
+    - Manufacturing review required
+    - Human approval required
+  Engine rationale: Category 'sign' matches OpenSCAD's parametric plate/sign/organizer strengths.
+```
+
+**Explicitly unchanged:** every Phase 26-32 field's shape; the board's
+existing summary table, "Health signals", "Suggested next steps", and
+every existing card section; `factory.review_gate.evaluate_review_gate()`'s
+JSON output shape (still never includes `design_orchestrator_summary`).
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. **Never
+generates CAD, never invokes OpenSCAD/CadQuery/Blender/Meshy/FreeCAD** -
+every recommendation is a string a human reads and acts on themselves.
+Never creates a project, a brief, a design_intent block, or a reference.
+Never sets `human_approved`/`print_ready`. Writes nothing, ever - `factory
+readiness` is entirely read-only.
+
+**Not yet started:** actually wiring engine execution to any recommendation
+(this phase is the decision layer, not the dispatcher - `factory.cad.router`
+already exists as the local OpenSCAD/CadQuery backend router this module
+partially reuses via `factory.router.recommend_tool()`, but nothing
+automatically routes a recommendation into a generation call); a rule that
+ever actually selects `FreeCAD`; cross-project readiness history/trends;
+any AI/LLM-backed decision-making; CAD generation of any kind;
+Meshy/Blender/slicer execution - all explicitly out of scope for this
+phase.
 
 ## Future tracks, not yet phase-numbered
 

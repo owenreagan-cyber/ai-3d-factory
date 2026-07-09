@@ -488,6 +488,51 @@ Static HTML/CSS only - no JavaScript, no external assets. See
 `docs/brief-generator.md`'s "Merge mode (Phase 32)" section for the full
 merge rules and this phase's non-goals.
 
+## Project Readiness dashboard (Phase 33)
+
+Each project's card also carries `design_orchestrator_summary` -
+`factory.design_orchestrator.evaluate_project_readiness()`'s full result,
+computed from the six summaries above (`intake_summary`,
+`draft_brief_summary`, `brief_update_summary`, `design_intent_summary`,
+`design_intent_detail`, `reference_board_summary` - never re-parsed a
+second time):
+
+```jsonc
+{
+  "readiness_state": "Ready For Mechanical CAD",
+  "recommended_engine": "OpenSCAD",
+  "engine_rationale": "Category 'sign' matches OpenSCAD's parametric plate/sign/organizer strengths.",
+  "score": {
+    "overall": 86,
+    "categories": {
+      "intake": 100, "brief": 90, "design_intent": 100,
+      "reference_board": 60, "manufacturing": 80
+    }
+  },
+  "advisories": ["Reference images recommended", "Human approval required"]
+}
+```
+
+Always a dict, never `None` - computed unconditionally, same reasoning as
+every other Phase 26-32 summary. Purely additive and purely advisory:
+never read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it. **No CAD is ever generated and no engine is ever
+invoked by computing this field** - `recommended_engine` is a string,
+nothing more.
+
+The board's **HTML** gained a "Project Readiness" dashboard section,
+placed **first** in each project's card - overall score, recommended
+engine, readiness state, and the top remaining advisories. This is a
+**dashboard that summarizes the existing detail cards below it - it does
+not remove or replace any of them.** Project Intake, Draft Brief, Brief
+Update, Design Intent, Reference Board, Manufacturing Overview, Artifacts,
+Health Signals, and Review Readiness are all completely unchanged and
+still follow the dashboard, in the same order as before. Static HTML/CSS
+only - no JavaScript, no external assets. See `docs/design-orchestrator.md`
+for the full scoring model, readiness-state decision tree, and engine
+recommendation rules.
+
 ## Board JSON shape
 
 ```jsonc
@@ -588,6 +633,23 @@ merge rules and this phase's non-goals.
         "fields_to_add_count": 0,
         "fields_preserved_count": 2,
         "human_review_required": true
+      },
+      "design_orchestrator_summary": {
+        "readiness_state": "Not Ready",
+        "recommended_engine": "Unknown",
+        "engine_rationale": "No category, style, or descriptive text signal available yet to recommend an engine.",
+        "score": {
+          "overall": 0,
+          "categories": {
+            "intake": 0, "brief": 0, "design_intent": 0,
+            "reference_board": 0, "manufacturing": 0
+          }
+        },
+        "advisories": [
+          "Dimensions missing", "Material unspecified", "Printer unspecified",
+          "Design intent incomplete", "Manufacturing review required",
+          "Human approval required"
+        ]
       }
     }
   ],
@@ -641,6 +703,14 @@ merge rules and this phase's non-goals.
   only write path (`factory intake suggest-brief --write --update`) is a
   separate, explicit, human-run CLI command the preview board never
   invokes. See `docs/brief-generator.md`'s "Merge mode (Phase 32)".
+- Does not generate CAD or invoke any engine for a project's Project
+  Readiness dashboard (Phase 33) - `design_orchestrator_summary` and the
+  HTML Project Readiness dashboard only display a score and a recommended
+  engine *name* from `factory.design_orchestrator.evaluate_project_readiness()`;
+  nothing in this board (or anything it calls) ever launches OpenSCAD,
+  CadQuery, Blender, Meshy, or FreeCAD. The dashboard summarizes the
+  existing detail cards below it - it removes and replaces none of them.
+  See `docs/design-orchestrator.md`.
 
 ## Readiness signals are not a design-quality score
 
@@ -674,12 +744,14 @@ and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
 the `factory reference-board` CLI), `docs/project-intake.md` (Phase 30 -
 `intake_summary` and the HTML Project Intake card), `docs/brief-generator.md`
 (Phase 31 - `draft_brief_summary` and the HTML Draft Brief card; Phase 32 -
-`brief_update_summary` and the HTML Brief Update card), and
-`docs/roadmap.md` Phase 8 (board foundation) / Phase 10 (action
-suggestions) / Phase 11 (health signals) / Phase 12 (review gate) /
-Phase 23 (human review quality checklist) / Phase 26 (design intent
-visibility) / Phase 27 (design intent preview board visualization) /
-Phase 28 (source discovery and reference board planning) / Phase 29
-(reference board CLI management) / Phase 30 (intelligent project intake
-engine) / Phase 31 (intake-to-brief draft generation) / Phase 32 (brief
-update / merge workflow).
+`brief_update_summary` and the HTML Brief Update card),
+`docs/design-orchestrator.md` (Phase 33 - `design_orchestrator_summary`
+and the HTML Project Readiness dashboard), and `docs/roadmap.md` Phase 8
+(board foundation) / Phase 10 (action suggestions) / Phase 11 (health
+signals) / Phase 12 (review gate) / Phase 23 (human review quality
+checklist) / Phase 26 (design intent visibility) / Phase 27 (design intent
+preview board visualization) / Phase 28 (source discovery and reference
+board planning) / Phase 29 (reference board CLI management) / Phase 30
+(intelligent project intake engine) / Phase 31 (intake-to-brief draft
+generation) / Phase 32 (brief update / merge workflow) / Phase 33 (project
+readiness dashboard & design orchestrator).

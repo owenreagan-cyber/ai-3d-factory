@@ -92,6 +92,22 @@ section: purely presentational, and this card never merges or writes
 anything - the only write path (`factory intake suggest-brief --write
 --update`) is a separate, explicit, human-run CLI command. See "Merge mode
 (Phase 32)" in `docs/brief-generator.md`.
+
+Phase 33 added a "Project Readiness" dashboard section, placed *first* in
+each project's card (a summary of everything below it, not a replacement
+for any of it) - built from `summarize_project()`'s new
+`design_orchestrator_summary` field (`factory.design_orchestrator`,
+consumes the six summaries above without re-parsing any of them): overall
+weighted readiness score, recommended downstream engine (OpenSCAD,
+CadQuery, Blender, Meshy, FreeCAD, a hybrid workflow, manual design, or
+"unknown"), the readiness state, and the top remaining advisories. Same
+guarantees as every other card section: purely presentational, no
+JavaScript, no external assets - and this module never generates CAD or
+invokes any engine; `recommended_engine` is a string a human reads and
+acts on themselves. Every existing detail card (Project Intake, Draft
+Brief, Brief Update, Design Intent, Reference Board, Manufacturing
+Overview, Artifacts, Health Signals, Review Readiness) is unchanged and
+still follows the dashboard. See `docs/design-orchestrator.md`.
 """
 
 from __future__ import annotations
@@ -270,6 +286,58 @@ def _text_or_fallback(value: Any, placeholder: str) -> str:
 
 def _di_row(label: str, value_html: str) -> str:
     return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
+
+
+_READINESS_STATE_BADGE_CLASSES = {
+    "Not Ready": "badge-missing",
+    "Needs Information": "health-warning",
+    "Ready For Mechanical CAD": "badge-present",
+    "Ready For Organic Modeling": "badge-present",
+    "Ready For Mixed Workflow": "badge-present",
+    "Ready For Manufacturing Review": "badge-review-ready",
+    "Blocked": "health-blocked",
+}
+
+
+def _build_project_readiness_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `design_orchestrator_summary` (Phase 33) into a
+    compact static 'Project Readiness' dashboard section - overall score,
+    recommended engine, readiness state, and the top remaining advisories.
+    Placed *first* in the card (a dashboard summarizing everything below
+    it, not a replacement for any of it - every existing detail card
+    stays). Plain text only - no JavaScript. This section never generates
+    CAD or invokes any engine - `recommended_engine` is a string a human
+    reads and acts on themselves.
+    """
+    if not summary:
+        return '<div class="project-readiness"><p class="none">No readiness analysis available for this project.</p></div>'
+
+    score = summary.get("score") or {}
+    overall = score.get("overall")
+    overall_html = f"{overall}%" if isinstance(overall, (int, float)) else "Unknown"
+
+    state = summary.get("readiness_state") or "Unknown"
+    state_badge_class = _READINESS_STATE_BADGE_CLASSES.get(state, "badge-missing")
+
+    engine = summary.get("recommended_engine") or "Unknown"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Overall", _escape_html(overall_html)),
+            ("Ready for", _escape_html(engine)),
+            ("Status", f'<span class="badge {state_badge_class}">{_escape_html(state)}</span>'),
+        )
+    )
+
+    advisories = summary.get("advisories") or []
+    if advisories:
+        items_html = "".join(f"<li>{_escape_html(a)}</li>" for a in advisories)
+        rows += f'<div class="di-row"><span class="di-label">Remaining:</span></div><ul class="di-warnings">{items_html}</ul>'
+    else:
+        rows += _di_row("Remaining", '<span class="none">None</span>')
+
+    return f'<div class="project-readiness">{rows}</div>'
 
 
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
@@ -562,17 +630,20 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
-    """Render one project's overview card: Project Header, Project Intake
-    (Phase 30), Draft Brief (Phase 31), Brief Update (Phase 32), Design
-    Intent (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
-    Artifacts, Health Signals, and Review Readiness - in that order,
-    matching this repo's pipeline (User Idea -> Project Intake -> Draft
-    Brief -> Brief Merge/Update -> Design Intent -> Reference Board -> ...).
-    Static HTML/CSS only - no JavaScript, no external assets. Purely
-    presentational: it never recomputes or overrides
-    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
-    only displays fields `factory.project_inspection.summarize_project()`
-    already computed.
+    """Render one project's overview card: Project Readiness dashboard
+    (Phase 33), Project Header, Project Intake (Phase 30), Draft Brief
+    (Phase 31), Brief Update (Phase 32), Design Intent (Phase 27),
+    Reference Board (Phase 28), Manufacturing Overview, Artifacts, Health
+    Signals, and Review Readiness - in that order, matching this repo's
+    pipeline (User Idea -> Project Intake -> Draft Brief -> Brief
+    Merge/Update -> Design Intent -> Reference Board -> Project Readiness ->
+    Design Orchestrator -> ...). Static HTML/CSS only - no JavaScript, no
+    external assets. Purely presentational: it never recomputes or
+    overrides `visual_readiness_state`, `health_signals`, or
+    `suggested_actions`, it only displays fields
+    `factory.project_inspection.summarize_project()` already computed. The
+    Project Readiness dashboard *summarizes* the cards below it - Phase 33
+    adds it without removing or replacing any existing detail card.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -580,6 +651,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     return (
         '<div class="project-card">'
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
+        '<div class="card-section"><h4>Project Readiness</h4>'
+        + _build_project_readiness_section_html(project.get("design_orchestrator_summary"))
+        + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))
         + "</div>"
@@ -822,7 +896,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none, .project-readiness p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}
