@@ -349,6 +349,12 @@ vocabulary reference and what this phase explicitly does not do (no
 Source Discovery, no scraping, no downloading, no search, no API
 integration).
 
+`reference_board.json` no longer has to be hand-edited - Phase 29 added
+`factory reference-board init/show/validate/add/list` on top of this same
+module, still entirely local. The board's HTML/JSON output is unaffected
+by that CLI (Phase 29 is CLI-only, no board layout changes) - see
+`docs/reference-board.md`'s "CLI management (Phase 29)" section.
+
 ## Board JSON shape
 
 ```jsonc
@@ -473,9 +479,10 @@ preview-board`" section, and its "Human review quality checklist"),
 `docs/design-quality-standard.md`, `docs/design-intent-brief.md` (Phase 26
 - the `design_intent_summary` field above; Phase 27 - `design_intent_detail`
 and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
-`reference_board_summary` and the HTML Reference Board card), and
-`docs/roadmap.md` Phase 8 (board foundation) / Phase 10 (action
-suggestions) / Phase 11 (health signals) / Phase 12 (review gate) /
-Phase 23 (human review quality checklist) / Phase 26 (design intent
-visibility) / Phase 27 (design intent preview board visualization) /
-Phase 28 (source discovery and reference board planning).
+`reference_board_summary` and the HTML Reference Board card; Phase 29 -
+the `factory reference-board` CLI), and `docs/roadmap.md` Phase 8 (board
+foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
+Phase 12 (review gate) / Phase 23 (human review quality checklist) /
+Phase 26 (design intent visibility) / Phase 27 (design intent preview
+board visualization) / Phase 28 (source discovery and reference board
+planning) / Phase 29 (reference board CLI management).

@@ -318,15 +318,29 @@ def test_attached_to_values_include_all_required_values():
 
 
 def test_reference_board_module_has_no_forbidden_calls():
+    # Phase 29 legitimately introduced two local write operations
+    # (init_reference_board(), add_reference(), both via project_store's
+    # save_json()) - so writing to disk is no longer forbidden here, only
+    # network/subprocess/printer/slicer contact.
     forbidden = (
         "import subprocess", "subprocess.run(", "subprocess.call(", "subprocess.Popen(",
         "os.system(", "os.popen(", "socket.", "import urllib", "import requests",
         "http.client", "urlopen(", "requests.get(", "requests.post(",
-        "write_text(", "write_bytes(", "save_json(",
     )
     source = inspect.getsource(reference_board)
     for forbidden_call in forbidden:
         assert forbidden_call not in source, f"found forbidden call {forbidden_call!r} in reference_board.py"
+
+
+def test_reference_board_module_writes_are_local_filesystem_only():
+    # The only write helper this module is allowed to call is
+    # project_store.save_json() (local JSON write, no network) - confirms
+    # Phase 29's two write operations didn't introduce a different write
+    # path (e.g. raw open()/write()) that could bypass that guarantee.
+    source = inspect.getsource(reference_board)
+    assert "save_json(" in source  # sanity: the write path really is exercised
+    assert "open(" not in source
+    assert ".write(" not in source
 
 
 def test_reference_board_module_does_not_set_human_approved_or_print_ready():

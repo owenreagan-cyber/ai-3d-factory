@@ -160,6 +160,21 @@ sets `human_approved`/`print_ready` - it's a size sanity check on
 declared intent, not a substitute for `factory validate` or the human
 review checklist above.
 
+`factory reference-board init/show/validate/add/list <project_dir>` manages
+a project's optional local Reference Board (`reference_board.json` -
+inspiration photos, existing files, a MakerWorld/Thingiverse/Reddit/
+Pinterest/DeviantArt page, a sketch, and so on - see
+`docs/reference-board.md`) without hand-editing JSON: `init` creates a
+documented starter file (never overwriting one that exists, unless
+`--force`), `show`/`list` display it, `validate` runs the same advisory
+checks the preview board already surfaces (never failing on incomplete
+data - only malformed JSON is an error), and `add --project <dir> --title
+<title> [--url ...] [--type ...] [--license ...] [--usage ...]
+[--attached-to ...] [--notes ...]` appends one new reference, always
+additive - never overwriting or removing an existing entry. Fully local:
+no search, scraping, downloading, or API/network call of any kind - a
+recorded `--url` is inert metadata, never fetched.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

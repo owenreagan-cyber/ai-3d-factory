@@ -50,6 +50,19 @@ from factory.planner import plan_from_brief_path
 from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
+from factory.reference_board import (
+    ATTACHED_TO_VALUES,
+    LICENSES,
+    SOURCE_TYPES,
+    USAGE_INTENTS,
+    MalformedReferenceBoardError,
+    ProjectDirectoryNotFoundError,
+    add_reference,
+    check_reference_board_json_is_valid,
+    init_reference_board,
+    normalize_references,
+    summarize_reference_board,
+)
 from factory.render_coverage import build_text_report, compute_render_coverage, plan_render_commands
 from factory.review_gate import evaluate_review_gate
 from factory.slicer.local_slicer_probe import probe_slicers
@@ -95,6 +108,11 @@ AVAILABLE_COMMANDS = (
     "check-future-tools",
     "check-local-tools",
     "check-design-intent <brief_or_concept_brief_json> [--json]",
+    "reference-board init <project_dir> [--force]",
+    "reference-board show <project_dir> [--json]",
+    "reference-board validate <project_dir> [--json]",
+    "reference-board list <project_dir> [--json]",
+    "reference-board add --project <project_dir> --title <title> [--url ...] [--type ...] [--license ...] [--usage ...] [--attached-to ...] [--notes ...]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1047,6 +1065,205 @@ def check_design_intent_cmd(
 
     if result["result"] == "unreadable_file":
         raise typer.Exit(code=1)
+
+
+reference_board_app = typer.Typer(
+    name="reference-board",
+    help=(
+        "Create, view, validate, and add to a project's local Reference Board (Phase 28/29). "
+        "Fully local - no search, scraping, downloading, or network/API calls of any kind. "
+        "See docs/reference-board.md."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(reference_board_app, name="reference-board")
+
+
+def _humanize(value: str | None) -> str:
+    """Display-only formatting for an enum value, e.g. 'style_reference' ->
+    'Style Reference'. Not used for anything read back by this program -
+    purely cosmetic CLI text."""
+    if not value:
+        return "Not specified"
+    return value.replace("_", " ").title()
+
+
+@reference_board_app.command(name="init")
+def reference_board_init_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (e.g. projects/<slug> or examples/<name>)"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing reference_board.json with a fresh starter file"),
+) -> None:
+    """Create <project_dir>/reference_board.json with a documented starter shape,
+    if one doesn't already exist. Never overwrites an existing file unless --force
+    is given. Local only - writes exactly one JSON file, nothing else."""
+    try:
+        path, created = init_reference_board(project_dir, force=force)
+    except ProjectDirectoryNotFoundError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    if created:
+        console.print(f"[green]created[/green] {path}")
+    else:
+        console.print(f"[yellow]already exists[/yellow]: {path} (use --force to overwrite with a fresh starter file)")
+    console.print(
+        "Local only - nothing in a Reference Board is fetched, downloaded, scraped, or searched "
+        "automatically. See docs/reference-board.md."
+    )
+
+
+@reference_board_app.command(name="show")
+def reference_board_show_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable summary"),
+) -> None:
+    """Print a human-readable summary of a project's Reference Board: reference
+    count, warning count, a license-status breakdown, and a usage-intent
+    breakdown. Read-only - never fetches or contacts anything."""
+    if not Path(project_dir).is_dir():
+        console.print(f"[red]error[/red]: {project_dir} is not a directory - check the path.")
+        raise typer.Exit(code=1)
+
+    summary = summarize_reference_board(project_dir)
+
+    if as_json:
+        print(json.dumps(summary, indent=2, sort_keys=False))
+        return
+
+    console.print("[bold]Reference Board[/bold]")
+    console.print(f"\n[bold]References[/bold]: {summary['reference_count']}")
+    console.print(f"[bold]Warnings[/bold]: {len(summary['warnings'])}")
+
+    if not summary["reference_count"]:
+        console.print("\nNo references recorded for this project yet - run `factory reference-board init` "
+                      "or `factory reference-board add` to get started.")
+        return
+
+    console.print("\n[bold]License Status[/bold]")
+    for license_value, count in sorted(summary["by_license"].items()):
+        console.print(f"  {_humanize(license_value)}: {count}")
+
+    console.print("\n[bold]Usage[/bold]")
+    if summary["by_usage_intent"]:
+        for usage_value, count in sorted(summary["by_usage_intent"].items()):
+            console.print(f"  {_humanize(usage_value)}: {count}")
+    else:
+        console.print("  Not specified")
+
+
+@reference_board_app.command(name="validate")
+def reference_board_validate_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Advisory validation of a project's Reference Board. Never fails just because
+    information is incomplete (missing license, missing URL, unsupported value,
+    a remix candidate with an unclear license, ...) - those are always warnings.
+    The only error condition is reference_board.json existing but not being valid
+    JSON."""
+    try:
+        check_reference_board_json_is_valid(project_dir)
+    except MalformedReferenceBoardError as exc:
+        if as_json:
+            print(json.dumps({"result": "invalid_json", "error": str(exc)}, indent=2))
+        else:
+            console.print(f"[red]✗ invalid reference_board.json[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    summary = summarize_reference_board(project_dir)
+
+    if as_json:
+        print(json.dumps({"result": "valid", **summary}, indent=2, sort_keys=False))
+        return
+
+    console.print("[green]✓[/green] Valid reference board")
+    if summary["warnings"]:
+        console.print("\n[bold]Warnings[/bold]")
+        for warning in summary["warnings"]:
+            console.print(f"  - {warning}")
+    else:
+        console.print("\nNo warnings.")
+
+
+@reference_board_app.command(name="list")
+def reference_board_list_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable listing"),
+) -> None:
+    """Compact, per-reference listing (title, source type, license, usage intent)
+    for a project's Reference Board. Read-only - never fetches or contacts
+    anything."""
+    if not Path(project_dir).is_dir():
+        console.print(f"[red]error[/red]: {project_dir} is not a directory - check the path.")
+        raise typer.Exit(code=1)
+
+    references = normalize_references(project_dir)
+
+    if as_json:
+        print(json.dumps(references, indent=2, sort_keys=False))
+        return
+
+    if not references:
+        console.print("No references recorded for this project.")
+        return
+
+    for i, reference in enumerate(references):
+        if i:
+            console.print("-" * 20)
+        console.print(f"\n[bold]{i + 1}[/bold]")
+        console.print(reference["title"])
+        console.print("\n[bold]Type[/bold]:")
+        console.print(_humanize(reference["source_type"]))
+        console.print("\n[bold]License[/bold]:")
+        console.print(_humanize(reference["license"]))
+        console.print("\n[bold]Usage[/bold]:")
+        console.print(_humanize(reference["usage_intent"]))
+
+
+@reference_board_app.command(name="add")
+def reference_board_add_cmd(
+    project_dir: Path = typer.Option(..., "--project", help="Path to a project directory"),
+    title: str = typer.Option(..., "--title", help="Reference title"),
+    url: Optional[str] = typer.Option(None, "--url", help="Source URL - stored as inert metadata only, never fetched"),
+    source_type: Optional[str] = typer.Option(None, "--type", help=f"One of: {', '.join(SOURCE_TYPES)}"),
+    license_value: Optional[str] = typer.Option(None, "--license", help=f"One of: {', '.join(LICENSES)}"),
+    usage: Optional[str] = typer.Option(None, "--usage", help=f"One of: {', '.join(USAGE_INTENTS)}"),
+    attached_to: Optional[str] = typer.Option(None, "--attached-to", help=f"One of: {', '.join(ATTACHED_TO_VALUES)}"),
+    notes: Optional[str] = typer.Option(None, "--notes", help="Free-text notes"),
+) -> None:
+    """Append one new reference to <project>/reference_board.json (creating the
+    file first, with a documented starter shape, if it doesn't exist yet).
+    Always appends - never overwrites or removes an existing entry. An
+    unrecognized --type/--license/--usage/--attached-to value is still saved
+    (never rejected) and reported back as an advisory warning."""
+    try:
+        entry, warnings = add_reference(
+            project_dir,
+            title=title,
+            source_url=url,
+            source_type=source_type,
+            license=license_value,
+            usage_intent=usage,
+            attached_to=attached_to,
+            notes=notes,
+        )
+    except ProjectDirectoryNotFoundError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    except MalformedReferenceBoardError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    path = Path(project_dir) / "reference_board.json"
+    console.print(f"[green]added[/green] {entry['title']!r} to {path}")
+    if warnings:
+        console.print("\n[yellow]advisory warnings[/yellow]:")
+        for warning in warnings:
+            console.print(f"  - {warning}")
+    console.print(
+        "\nLocal only - this reference's source_url (if any) was saved as plain text, never fetched, "
+        "downloaded, scraped, or searched."
+    )
 
 
 def _print_preview_package_summary(project_dir: Path) -> None:

@@ -952,15 +952,85 @@ network call of any kind, writes any file, or sets
 searches anything - a `source_url` is read and echoed back in warnings/
 summaries, never opened.
 
-**Not yet started:** the actual Source Discovery feature (crawling,
-scraping, external search, downloading) - this phase is the data model
-and local advisory layer it would eventually populate, not the feature
-itself; automatically copying a reference into
-`brief.json`'s `design_intent.reference_inputs`; a UI for adding/editing
-references (`reference_board.json` is hand-authored JSON for now);
-per-reference detail in the HTML card (currently counts/breakdowns/
-warnings only, by design, to stay compact); any Meshy/Blender/slicer
-integration - all explicitly out of scope for this phase.
+**Not yet started (at the end of Phase 28):** the actual Source Discovery
+feature (crawling, scraping, external search, downloading) - this phase is
+the data model and local advisory layer it would eventually populate, not
+the feature itself; automatically copying a reference into `brief.json`'s
+`design_intent.reference_inputs`; a way to create/add references without
+hand-editing JSON; per-reference detail in the HTML card (currently
+counts/breakdowns/warnings only, by design, to stay compact); any
+Meshy/Blender/slicer integration - the CLI-management piece is picked up
+by Phase 29 below (Source Discovery itself, per-reference HTML detail, and
+Meshy/Blender/slicer remain out of scope for both phases).
+
+## Phase 29 — Reference Board CLI management (started)
+
+Makes Phase 28's `reference_board.json` usable without hand-editing JSON.
+Still completely local - no internet access, no search, no scraping, no
+downloading, no APIs. Business logic lives entirely in
+`factory.reference_board` (extended, not duplicated); `factory.cli`'s new
+`reference-board` command group is a thin wrapper around it.
+
+**Started:** `factory reference-board`, a Typer sub-app with five
+subcommands:
+
+- **`init <project_dir> [--force]`** - creates a documented starter
+  `reference_board.json` (an explanatory `notes` list plus an empty
+  `references` list). Never overwrites an existing file unless `--force`
+  is given. Raises a clear error if `project_dir` itself doesn't exist -
+  never creates the project directory, only the file inside an existing
+  one.
+- **`show <project_dir> [--json]`** - a compact human-readable summary
+  (reference count, warning count, license-status breakdown, usage-intent
+  breakdown), or `summarize_reference_board()`'s dict directly with
+  `--json`.
+- **`validate <project_dir> [--json]`** - runs the same advisory checks
+  `summarize_reference_board()` already computes, always under a
+  `✓ Valid reference board` header - incomplete information is never a
+  failure. The one real error is `reference_board.json` existing but not
+  being parseable JSON.
+- **`list <project_dir> [--json]`** - a compact, numbered, per-reference
+  listing (title, source type, license, usage intent) via a new
+  `normalize_references()` function, or that list directly with `--json`.
+- **`add --project <project_dir> --title <title> [--url ...] [--type ...]
+  [--license ...] [--usage ...] [--attached-to ...] [--notes ...]`** -
+  appends one new reference (creating the file first if needed). Always
+  appends - never overwrites or removes an existing entry. An unrecognized
+  `--type`/`--license`/`--usage`/`--attached-to` value is still saved
+  exactly as given (never rejected) - the resulting advisory warning(s)
+  about the new entry print immediately for feedback.
+
+`factory.reference_board` gained two new local write operations
+(`init_reference_board()`, `add_reference()`, both via
+`project_store.save_json()` - no network, no printer/slicer contact) and
+one new read operation (`normalize_references()`, the per-reference
+counterpart to `summarize_reference_board()`'s aggregate counts). Every
+subcommand reads through - or, for `add`, reuses internally only for
+warning text - the same single `_normalize_reference()` implementation
+Phase 28 already built; no validation logic is duplicated in `factory.cli`.
+
+**Explicitly unchanged:** `reference_board.json`'s shape/vocabulary (the
+CLI writes the exact same shape a human would hand-author); the Preview
+Board's HTML layout and `reference_board_summary`'s shape (Phase 29 is
+CLI-only - no board changes); `factory review-gate`'s JSON output shape
+(still never includes `reference_board_summary`).
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind, or sets `human_approved`/`print_ready`. Never
+fetches, downloads, scrapes, or searches anything - `--url` is stored as
+plain text, never opened. Never performs automated license detection -
+`--license` is exactly what a human passes (or omits), classified
+advisory-only exactly like Phase 28's hand-authored entries.
+
+**Not yet started:** the actual Source Discovery feature; a `factory
+reference-board remove`/`edit` command (only `add` exists - removing or
+editing an entry still means hand-editing the JSON, or `init --force` to
+start over); attaching a reference to `design_intent.reference_inputs`
+automatically from the CLI (`--attached-to design_intent.reference_inputs`
+records the *declared* intent, same as Phase 28 - nothing copies it into
+`brief.json`); per-reference detail in the HTML card; any Meshy/Blender/
+CAD-generation/AI-ranking integration - all explicitly out of scope for
+this phase.
 
 ## Future tracks, not yet phase-numbered
 
