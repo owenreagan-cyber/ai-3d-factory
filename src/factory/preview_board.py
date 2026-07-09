@@ -79,6 +79,19 @@ purely presentational, no JavaScript, no external assets, and this card
 never writes anything - the only write path
 (`factory intake suggest-brief --write`) is a separate, explicit,
 human-run CLI command. See `docs/brief-generator.md`.
+
+Phase 32 added a compact "Brief Update" section right after "Draft Brief"
+- built from `summarize_project()`'s new `brief_update_summary` field
+(`factory.brief_generator.summarize_brief_update()`, comparing the
+project's existing `brief.json` against its draft). Deliberately terse:
+when there's nothing meaningful to merge (the common case for a fully
+human-authored brief), this renders one line ("Up to date - nothing to
+merge.") rather than a whole block, so the board doesn't get noisy with a
+mostly-empty section on every project. Same guarantees as every other card
+section: purely presentational, and this card never merges or writes
+anything - the only write path (`factory intake suggest-brief --write
+--update`) is a separate, explicit, human-run CLI command. See "Merge mode
+(Phase 32)" in `docs/brief-generator.md`.
 """
 
 from __future__ import annotations
@@ -344,6 +357,40 @@ def _build_draft_brief_section_html(summary: dict[str, Any] | None) -> str:
     return f'<div class="draft-brief">{rows}</div>'
 
 
+def _build_brief_update_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `brief_update_summary` (Phase 32) into a compact
+    static 'Brief Update' card section - deliberately terse compared to the
+    other cards: when there's nothing meaningful to merge (the common case
+    for a fully human-authored brief), this renders a single line rather
+    than a whole block, so the board doesn't get noisy with a mostly-empty
+    section on every project. When a safe merge *is* available, it shows
+    how many fields would be added vs. preserved. This card never links to
+    or triggers a write - `factory intake suggest-brief --write --update`
+    is a separate, explicit, human-run command; nothing here merges or
+    writes a file.
+    """
+    if not summary:
+        return '<div class="brief-update"><p class="none">No brief update analysis available for this project.</p></div>'
+
+    if not summary.get("merge_available"):
+        return '<div class="brief-update"><p class="none">Up to date - nothing to merge.</p></div>'
+
+    add_count = summary.get("fields_to_add_count", 0)
+    preserved_count = summary.get("fields_preserved_count", 0)
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Status", '<span class="badge badge-present">Merge available</span>'),
+            ("Fields to add", _escape_html(str(add_count))),
+            ("Preserved", _escape_html(str(preserved_count))),
+        )
+    )
+    rows += _di_row("Review", '<span class="none">Human review required</span>')
+
+    return f'<div class="brief-update">{rows}</div>'
+
+
 def _build_design_intent_section_html(detail: dict[str, Any] | None) -> str:
     """Render one project's `design_intent_detail` (Phase 27) into a static
     'Design Intent' card section - Quality Target, Purpose, Style, and Design
@@ -516,12 +563,13 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
     """Render one project's overview card: Project Header, Project Intake
-    (Phase 30), Draft Brief (Phase 31), Design Intent (Phase 27), Reference
-    Board (Phase 28), Manufacturing Overview, Artifacts, Health Signals, and
-    Review Readiness - in that order, matching this repo's pipeline (User
-    Idea -> Project Intake -> Draft Brief -> Design Intent -> Reference
-    Board -> ...). Static HTML/CSS only - no JavaScript, no external
-    assets. Purely presentational: it never recomputes or overrides
+    (Phase 30), Draft Brief (Phase 31), Brief Update (Phase 32), Design
+    Intent (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
+    Artifacts, Health Signals, and Review Readiness - in that order,
+    matching this repo's pipeline (User Idea -> Project Intake -> Draft
+    Brief -> Brief Merge/Update -> Design Intent -> Reference Board -> ...).
+    Static HTML/CSS only - no JavaScript, no external assets. Purely
+    presentational: it never recomputes or overrides
     `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
     only displays fields `factory.project_inspection.summarize_project()`
     already computed.
@@ -537,6 +585,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + "</div>"
         '<div class="card-section"><h4>Draft Brief</h4>'
         + _build_draft_brief_section_html(project.get("draft_brief_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Brief Update</h4>'
+        + _build_brief_update_section_html(project.get("brief_update_summary"))
         + "</div>"
         '<div class="card-section"><h4>Design Intent</h4>'
         + _build_design_intent_section_html(project.get("design_intent_detail"))
@@ -771,7 +822,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}

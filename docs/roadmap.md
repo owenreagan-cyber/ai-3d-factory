@@ -1257,13 +1257,140 @@ one file** (`<project_dir>/brief.json`, only with explicit `--write`,
 only after confirming the project exists and the file doesn't already
 exist unless `--force`).
 
-**Not yet started:** a `factory intake suggest-brief --update` that merges
-a fresh draft into an existing brief rather than replacing it wholesale;
-writing a separate `reference_board.json` from detected reference-worthy
-signals (still always `[]` - a human still runs `factory reference-board
-add` by hand); any AI/LLM-backed drafting; CAD generation of any kind;
-Meshy/Blender/slicer integration - all explicitly out of scope for this
-phase.
+**Not yet started (at the end of Phase 31):** a `factory intake
+suggest-brief --update` that merges a fresh draft into an existing brief
+rather than replacing it wholesale - picked up by Phase 32 below; writing
+a separate `reference_board.json` from detected reference-worthy signals
+(still always `[]` - a human still runs `factory reference-board add` by
+hand); any AI/LLM-backed drafting; CAD generation of any kind;
+Meshy/Blender/slicer integration (out of scope for both phases).
+
+## Phase 32 — brief update / merge workflow (started)
+
+Makes Phase 31's draft system useful for **real, already-started**
+projects, not just brand new ones - most projects have a `brief.json` with
+some real, human-authored content by the time anyone thinks to run
+`factory intake suggest-brief` on them; a full draft `--write` would
+overwrite all of it. Phase 32 adds a safe *merge*: fill in only what's
+genuinely missing or still a placeholder, leave everything else untouched.
+
+**Started:** `merge_draft_brief(existing_brief, draft_brief)` in
+`factory.brief_generator` - compares a draft (Phase 31's
+`generate_draft_brief()` output) against an existing `brief.json`, field
+by field, over exactly the 8 fields `build_brief_json()` already knows how
+to write. A field already holding real content in `existing_brief` is
+**always preserved**, regardless of what the draft has; a field that's
+genuinely empty or placeholder-looking (blank, the literal `"unknown"`, or
+a `factory.project_store.default_brief()`-style `"TODO: ..."` string) is
+eligible to be filled - but only from a draft value that *isn't itself*
+placeholder-looking, a real edge case this phase's own testing surfaced
+(re-analyzing a project's own still-unedited `"TODO: ..."` description
+would otherwise get proposed right back as a "new" value). `category`,
+`audience`, `environment`, `functional_goals`, and `commercial_intent`
+have no home in a real `brief.json` (Phase 31 never wrote them as
+top-level keys either), so they're never merge candidates.
+
+Supporting functions: `load_existing_brief()` (raises
+`MalformedExistingBriefError` for unreadable JSON - the one real error
+condition, same treatment as Phase 29's `reference_board.json` validation),
+`apply_merge()` (turns a merge result into the actual dict to write - only
+`fields_to_add` is touched, everything else passes through byte-for-byte),
+`write_merged_brief()` (the merge-mode write path, validated against
+`schemas/project_brief.schema.json` in this phase's own tests),
+`build_merge_preview()` (the one-call CLI entry point), and
+`summarize_brief_update()` (the compact summary for project inspection/the
+board).
+
+**Extended CLI:** `factory intake suggest-brief <path> [--json] [--write]
+[--force] [--update]`:
+
+- **`--update` alone** - prints a merge preview (Fields to add / Fields
+  preserved / Warnings), writes nothing.
+- **`--update --write`** - applies the merge, writing only the safe
+  additions.
+- **`--force` and `--update` together are rejected** with a clear error -
+  they're different operations (full replace vs. safe merge) and the CLI
+  never silently picks one.
+- **No existing `brief.json`** - `--update` has nothing to merge into, so
+  it falls back to plain `--write` behavior exactly as specified: "if no
+  brief.json exists, behave like normal draft write."
+- **A malformed existing `brief.json`** - `--update` refuses with a clear
+  error rather than guessing what to preserve; `--force` (which never
+  needs to read the existing file) is unaffected and remains the escape
+  hatch.
+
+Sample merge preview:
+
+```
+$ factory intake suggest-brief projects/my-nameplate --update
+Brief Merge Preview
+
+Fields to add:
+  - material: PLA
+  - printer: Bambu
+  - quality_target: Etsy-worthy
+
+Fields preserved:
+  - project_name: existing value kept
+  - purpose: existing value kept
+
+Warnings:
+  - Dimensions incomplete.
+  - Human approval required before save.
+
+This is a preview only - nothing has been written.
+Re-run with --write --update to apply this merge.
+```
+
+`--json` gains four new top-level keys (`merge_preview`, `fields_to_add`,
+`fields_preserved`, `would_write`, `wrote_file` - alongside the existing
+`draft`) **only** when `--update` finds an existing brief to merge into;
+plain `--json` (no `--update`, or nothing to merge into) keeps Phase 31's
+exact original shape unchanged - a deliberate backward-compatibility
+guarantee, tested directly.
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained a sixth
+  additive field, `brief_update_summary` - a compact `{merge_available,
+  fields_to_add_count, fields_preserved_count, human_review_required}`
+  view. `design_intent_summary`, `design_intent_detail`,
+  `reference_board_summary`, `intake_summary`, and `draft_brief_summary`
+  are completely unchanged by this phase.
+- **`factory.preview_board.build_board_html()`** gained a compact "Brief
+  Update" card section, right after "Draft Brief" and before "Design
+  Intent" - deliberately terser than every other card: when nothing's
+  meaningful to merge (the common case), it renders one line ("Up to date
+  - nothing to merge.") instead of a whole block, per this phase's own
+  "keep it compact, don't make the board noisy" requirement. The board
+  itself never merges or writes anything - the only write path (`--write
+  --update`) is a separate, explicit, human-run CLI command.
+
+**Explicitly unchanged:** every Phase 26-31 field's shape; the board's
+existing summary table, "Health signals", "Suggested next steps", "Project
+Intake", "Draft Brief", "Design Intent", and "Reference Board" sections;
+`factory.review_gate.evaluate_review_gate()`'s JSON output shape (still
+never includes `brief_update_summary`); plain (non-`--update`) `--json`
+output.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never generates
+CAD or OpenSCAD, never calls Meshy or Blender, never creates a project
+directory, never edits `design_intent` on an already-advanced project
+beyond what an explicit merge/replace was asked to do, never auto-generates
+`reference_board.json` content, never sets `human_approved`/`print_ready`.
+Writes **at most one file** (`<project_dir>/brief.json`), and only with
+explicit `--write` (with `--force`, `--update`, or neither - never
+automatically).
+
+**Not yet started:** field-scoped merge (`--only material`, or similar -
+`--update` always evaluates every candidate field together); merging
+`reference_board.json` content (still a completely separate, hand-managed
+file - Phase 28/29); any AI/LLM-backed conflict resolution when a field is
+ambiguous (this phase's rule is purely presence-based, never a quality
+judgment); CAD generation of any kind; Meshy/Blender/slicer integration -
+all explicitly out of scope for this phase.
 
 ## Future tracks, not yet phase-numbered
 

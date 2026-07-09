@@ -163,6 +163,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
         "reference_board_summary", "intake_summary", "draft_brief_summary",
+        "brief_update_summary",
     }
     assert set(project.keys()) == expected_keys
 

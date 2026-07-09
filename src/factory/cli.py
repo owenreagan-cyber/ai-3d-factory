@@ -52,11 +52,15 @@ from factory.preview_package import gather_preview_data, preview_package_paths, 
 from factory.previews.render_preview import render_preview
 from factory.brief_generator import (
     BriefAlreadyExistsError,
+    MalformedExistingBriefError,
     MalformedIntakeSummaryError,
     ProjectDirectoryNotFoundError as DraftProjectDirectoryNotFoundError,
     generate_draft,
+    load_existing_brief,
     load_intake_summary_from_path,
+    merge_draft_brief,
     write_draft_brief,
+    write_merged_brief,
 )
 from factory.project_intake import analyze as analyze_intake
 from factory.reference_board import (
@@ -123,7 +127,7 @@ AVAILABLE_COMMANDS = (
     "reference-board list <project_dir> [--json]",
     "reference-board add --project <project_dir> --title <title> [--url ...] [--type ...] [--license ...] [--usage ...] [--attached-to ...] [--notes ...]",
     "intake analyze <project_dir_or_text_or_markdown_file> [--json]",
-    "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force]",
+    "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force] [--update]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1370,6 +1374,34 @@ def _print_draft_field(label: str, value: Any, *, humanize: bool = True) -> None
     console.print(f"  [bold]{label}[/bold]: {display}")
 
 
+def _format_merge_value(value: Any) -> str:
+    if isinstance(value, list):
+        return ", ".join(_capitalize_first(v) for v in value) if value else "not specified"
+    if isinstance(value, str):
+        return _capitalize_first(value)
+    return str(value)
+
+
+def _print_merge_preview(merge_result: dict) -> None:
+    console.print("\n[bold]Fields to add[/bold]:")
+    if merge_result["fields_to_add"]:
+        for field_key, value in merge_result["fields_to_add"].items():
+            console.print(f"  - {field_key}: {_format_merge_value(value)}")
+    else:
+        console.print("  (none)")
+
+    console.print("\n[bold]Fields preserved[/bold]:")
+    if merge_result["fields_preserved"]:
+        for field_key in merge_result["fields_preserved"]:
+            console.print(f"  - {field_key}: existing value kept")
+    else:
+        console.print("  (none)")
+
+    console.print("\n[bold]Warnings[/bold]:")
+    for advisory in merge_result["advisories"]:
+        console.print(f"  - {advisory}")
+
+
 @intake_app.command(name="suggest-brief")
 def intake_suggest_brief_cmd(
     path: Path = typer.Argument(
@@ -1381,17 +1413,44 @@ def intake_suggest_brief_cmd(
         False, "--write", help="Write the draft as <project_dir>/brief.json (path must be a project directory)"
     ),
     force: bool = typer.Option(False, "--force", help="With --write, replace an existing brief.json"),
+    update: bool = typer.Option(
+        False,
+        "--update",
+        help=(
+            "Preview (or, with --write, apply) a safe merge onto an existing brief.json instead of a full "
+            "replace - never overwrites a field that already has real content. Incompatible with --force."
+        ),
+    ),
 ) -> None:
     """Generate a deterministic, human-reviewable draft brief/design_intent/
     manufacturing-notes from an intake_summary (Phase 30) - never re-parses free
     text itself, only shapes what `factory intake analyze` already extracted, and
     only populates a field when its confidence is high/medium (an absent/unclear
     field stays explicitly unknown - never invented). Without --write, this is
-    entirely read-only: nothing is saved. With --write, writes exactly one file,
-    <project_dir>/brief.json, and only after confirming the project directory
-    exists and brief.json doesn't already exist (use --force to replace it
-    intentionally). Human review and approval are always required before saving -
-    see docs/brief-generator.md."""
+    entirely read-only: nothing is saved.
+
+    With --write alone, writes exactly one file, <project_dir>/brief.json, and
+    only after confirming the project directory exists and brief.json doesn't
+    already exist (use --force to replace it intentionally - a full, wholesale
+    replacement).
+
+    With --update, previews (or, combined with --write, applies) a safe MERGE
+    onto an existing brief.json instead: every field that already holds real,
+    non-placeholder content is preserved untouched; only genuinely missing/
+    placeholder fields are filled from a confident draft value. --force and
+    --update are mutually exclusive (full replace vs. safe merge - pick one).
+    If no brief.json exists yet, --update has nothing to merge into and this
+    falls back to the plain --write behavior above.
+
+    Human review and approval are always required before saving - see
+    docs/brief-generator.md."""
+    if update and force:
+        console.print(
+            "[red]error[/red]: --force and --update are incompatible - --force fully replaces an existing "
+            "brief.json, --update safely merges into one. Choose one."
+        )
+        raise typer.Exit(code=1)
+
     try:
         intake = load_intake_summary_from_path(path)
     except MalformedIntakeSummaryError as exc:
@@ -1399,6 +1458,62 @@ def intake_suggest_brief_cmd(
         raise typer.Exit(code=1)
 
     draft = generate_draft(intake)
+
+    existing_brief = None
+    if update and path.is_dir():
+        try:
+            existing_brief = load_existing_brief(path)
+        except MalformedExistingBriefError as exc:
+            console.print(f"[red]error[/red]: {exc}")
+            raise typer.Exit(code=1)
+
+    if update and existing_brief is not None:
+        merge_result = merge_draft_brief(existing_brief, draft["brief"])
+        wrote_file: str | None = None
+
+        if write:
+            try:
+                written_path = write_merged_brief(path, existing_brief, merge_result)
+            except DraftProjectDirectoryNotFoundError as exc:
+                console.print(f"[red]error[/red]: {exc}")
+                raise typer.Exit(code=1)
+            wrote_file = str(written_path)
+
+        if as_json:
+            payload = {
+                "draft": draft,
+                "merge_preview": merge_result,
+                "fields_to_add": merge_result["fields_to_add"],
+                "fields_preserved": merge_result["fields_preserved"],
+                "advisories": merge_result["advisories"],
+                "would_write": write,
+                "wrote_file": wrote_file,
+            }
+            print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False))
+            return
+
+        if wrote_file:
+            console.print(f"[green]merged and wrote[/green] {wrote_file}")
+        else:
+            console.print("[bold]Brief Merge Preview[/bold]")
+        _print_merge_preview(merge_result)
+
+        if wrote_file:
+            console.print(
+                "\nThis brief.json was updated by a safe merge - every 'preserved' value above was left "
+                "untouched. A human should still review every newly added field before treating this "
+                "project as ready to plan or build."
+            )
+        else:
+            console.print("\nThis is a preview only - nothing has been written.")
+            console.print("Re-run with --write --update to apply this merge.")
+        return
+
+    if update and not as_json:
+        console.print(
+            "[dim]--update requested but no existing brief.json was found to merge into - generating a "
+            "plain draft instead.[/dim]\n"
+        )
 
     if write:
         try:

@@ -446,6 +446,48 @@ other.** Static HTML/CSS only - no JavaScript, no external assets. See
 `docs/brief-generator.md` for the full draft shape, the human-approval
 model, and this phase's non-goals.
 
+## Brief Update summary and card (Phase 32)
+
+Each project's card also carries `brief_update_summary` - a compact
+`{merge_available, fields_to_add_count, fields_preserved_count,
+human_review_required}` view of `factory.brief_generator.merge_draft_brief()`,
+comparing the project's own existing `brief.json` against its
+`intake_summary`'s draft:
+
+```jsonc
+{
+  "merge_available": true,
+  "fields_to_add_count": 3,
+  "fields_preserved_count": 2,
+  "human_review_required": true
+}
+```
+
+Always a dict, never `None` - computed unconditionally, same reasoning as
+`draft_brief_summary`. Purely additive and purely presentational: never
+read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it.
+
+The board's **HTML** gained a compact "Brief Update" card section, right
+after "Draft Brief" and before "Design Intent" - but **deliberately
+terser** than every other card on this board: when `merge_available` is
+`false` (the common case - most real projects already have real content
+in every field merge cares about), the card renders exactly one line,
+`"Up to date - nothing to merge."`, instead of a status/count block. Only
+when a safe merge is genuinely available does the fuller block appear
+(a `Merge available` badge, fields-to-add count, preserved count, the
+standing "Human review required" reminder). This asymmetry is intentional
+- Phase 32's own requirement was "keep it compact, don't make the board
+noisy," and a third near-identical status card that mostly says "nothing
+to do" on every project would have been exactly that. The full merge
+preview (and the only actual write path, `--write --update`) lives in
+`factory intake suggest-brief --update`, not here - **the preview board
+itself never merges or writes anything, for this card or any other.**
+Static HTML/CSS only - no JavaScript, no external assets. See
+`docs/brief-generator.md`'s "Merge mode (Phase 32)" section for the full
+merge rules and this phase's non-goals.
+
 ## Board JSON shape
 
 ```jsonc
@@ -540,6 +582,12 @@ model, and this phase's non-goals.
           "Dimensions incomplete.",
           "Human approval required before save."
         ]
+      },
+      "brief_update_summary": {
+        "merge_available": false,
+        "fields_to_add_count": 0,
+        "fields_preserved_count": 2,
+        "human_review_required": true
       }
     }
   ],
@@ -587,6 +635,12 @@ model, and this phase's non-goals.
   (`factory intake suggest-brief --write`) is a separate, explicit,
   human-run CLI command the preview board never invokes. See
   `docs/brief-generator.md`.
+- Does not merge or write anything for a project's Brief Update
+  (Phase 32) - `brief_update_summary` and the HTML Brief Update card only
+  display counts from `factory.brief_generator.merge_draft_brief()`; the
+  only write path (`factory intake suggest-brief --write --update`) is a
+  separate, explicit, human-run CLI command the preview board never
+  invokes. See `docs/brief-generator.md`'s "Merge mode (Phase 32)".
 
 ## Readiness signals are not a design-quality score
 
@@ -619,11 +673,13 @@ and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
 `reference_board_summary` and the HTML Reference Board card; Phase 29 -
 the `factory reference-board` CLI), `docs/project-intake.md` (Phase 30 -
 `intake_summary` and the HTML Project Intake card), `docs/brief-generator.md`
-(Phase 31 - `draft_brief_summary` and the HTML Draft Brief card), and
+(Phase 31 - `draft_brief_summary` and the HTML Draft Brief card; Phase 32 -
+`brief_update_summary` and the HTML Brief Update card), and
 `docs/roadmap.md` Phase 8 (board foundation) / Phase 10 (action
 suggestions) / Phase 11 (health signals) / Phase 12 (review gate) /
 Phase 23 (human review quality checklist) / Phase 26 (design intent
 visibility) / Phase 27 (design intent preview board visualization) /
 Phase 28 (source discovery and reference board planning) / Phase 29
 (reference board CLI management) / Phase 30 (intelligent project intake
-engine) / Phase 31 (intake-to-brief draft generation).
+engine) / Phase 31 (intake-to-brief draft generation) / Phase 32 (brief
+update / merge workflow).

@@ -474,10 +474,16 @@ def test_module_has_no_forbidden_network_or_ai_calls():
         assert forbidden_call not in source
 
 
-def test_module_write_path_is_only_save_json_to_brief_json():
-    # write_draft_brief() must be the only place this module calls save_json().
+def test_module_write_paths_only_ever_call_save_json():
+    # write_draft_brief() (Phase 31) and write_merged_brief() (Phase 32) are
+    # the only two functions in this module allowed to write anything, and
+    # both write brief.json exclusively via project_store.save_json() - no
+    # other write path (open(), .write_text(), etc.) exists anywhere here.
     source = inspect.getsource(brief_generator)
-    assert source.count("save_json(") == 1
+    assert source.count("save_json(") == 2
+    assert "write_text(" not in source
+    assert "write_bytes(" not in source
+    assert ".write(" not in source
 
 
 def test_module_does_not_set_human_approved_or_print_ready():

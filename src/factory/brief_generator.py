@@ -30,10 +30,27 @@ itself refusing to overwrite an existing `brief.json` unless `--force` is
 also given.** Every draft is advisory - human review and explicit
 `--write` are always required before anything lands on disk. No AI, no
 LLM, no network, no CAD generation. See `docs/brief-generator.md`.
+
+Phase 32 added a safe **merge/update** path on top of Phase 31's
+all-or-nothing draft write - `merge_draft_brief()` compares a draft
+against an *existing* `brief.json` and proposes only the fields that
+existing brief doesn't already have real content for, so the draft system
+becomes useful for real, partially-authored projects, not just brand new
+ones. The merge rules are the same "never invent, never silently
+overwrite" spirit as the rest of this module: a field already holding
+non-placeholder, human-authored-looking content is always preserved
+untouched; a field that's genuinely empty or still a placeholder (e.g.
+`factory.project_store.default_brief()`'s `"TODO: ..."` text, or a prior
+draft's own `"unknown"`) is eligible to be filled from a confident draft
+value. `--force` (full replacement) and `--update` (safe merge) are two
+different, mutually exclusive operations - `factory intake suggest-brief`
+rejects a combined `--force --update` rather than silently picking one.
+See "Merge mode (Phase 32)" in `docs/brief-generator.md`.
 """
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -79,6 +96,17 @@ class MalformedIntakeSummaryError(Exception):
     given but its content doesn't parse as JSON, or doesn't look like an
     `intake_summary` (Phase 30) shape - the one real error condition when
     loading a pre-computed intake summary from disk."""
+
+
+class MalformedExistingBriefError(Exception):
+    """Raised by `load_existing_brief()` when `<project_dir>/brief.json`
+    exists but can't be parsed as JSON - merging into something that can't
+    be read would risk silently discarding whatever's actually there, so
+    `--update` treats this as a hard error (the same treatment
+    `factory.reference_board`'s `validate` gives a malformed
+    `reference_board.json`). `--force` (full replacement, which never
+    needs to read the existing file) is unaffected by this - it's the
+    escape hatch for a broken existing brief.json."""
 
 
 def _confident_value(field: Any, *, is_list: bool) -> Any:
@@ -357,3 +385,254 @@ def write_draft_brief(project_dir: Path, draft: dict[str, Any], *, force: bool =
 
     project_store.save_json(brief_path, build_brief_json(draft))
     return brief_path
+
+
+# ---- Phase 32: safe merge/update onto an existing brief.json ----
+
+# Draft field -> where that same concept lives in an actual, written
+# brief.json (mirrors build_brief_json()'s own mapping - a merge
+# candidate is only ever a field that has a real home there). category,
+# audience, environment, functional_goals, and commercial_intent have no
+# such home (build_brief_json() never writes them as top-level keys), so
+# they're intentionally absent from this table - they stay visible only
+# via intake_summary/the full draft, never merged into brief.json.
+# (draft_key, existing_path, existing_is_list)
+_MERGE_FIELDS: tuple[tuple[str, tuple[str, ...], bool], ...] = (
+    ("project_name", ("project_name",), False),
+    ("purpose", ("description",), False),
+    ("printer", ("intended_printer",), False),
+    ("dimensional_constraints", ("constraints",), True),
+    ("quality_target", ("design_intent", "quality_standard"), False),
+    ("visual_goals", ("design_intent", "style_direction"), True),
+    ("material", ("manufacturing_notes", "material"), True),
+    ("manufacturing_style", ("manufacturing_notes", "manufacturing_style"), True),
+)
+
+
+def _is_placeholder_text(value: Any) -> bool:
+    """True for text that looks like a placeholder rather than real,
+    human-authored content: blank, the literal word "unknown" (this
+    module's own "no confident value" marker), or a `factory.project_store.default_brief()`-style
+    "TODO: ..." starter string. Never true for a non-string value."""
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return True
+    lowered = stripped.lower()
+    return lowered == "unknown" or lowered.startswith("todo")
+
+
+def _get_existing_value(existing_brief: dict[str, Any], path: tuple[str, ...]) -> Any:
+    node: Any = existing_brief
+    for key in path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node
+
+
+def _is_present(value: Any, *, is_list: bool) -> bool:
+    """True if `value` counts as real, human-authored content worth
+    protecting from `--update` - a placeholder (`"unknown"`, a `"TODO:
+    ..."` string, `""`, `None`, or `[]`) does not."""
+    if is_list:
+        if not isinstance(value, list) or not value:
+            return False
+        if len(value) == 1 and _is_placeholder_text(value[0]):
+            return False
+        return True
+    return value is not None and not _is_placeholder_text(value)
+
+
+def load_existing_brief(project_dir: Path) -> dict[str, Any] | None:
+    """Read `<project_dir>/brief.json`, for `--update`'s merge preview.
+
+    Returns `None` (not an error) if the file simply doesn't exist -
+    normal for a brand new project, and the CLI's cue to fall back to
+    Phase 31's plain draft-write behavior instead of merging. Raises
+    `MalformedExistingBriefError` if it exists but can't be parsed as
+    JSON - merging into unreadable content isn't attempted; use `--force`
+    (full replacement) instead if that's really what's wanted.
+    """
+    path = Path(project_dir) / "brief.json"
+    if not path.is_file():
+        return None
+    try:
+        data = project_store.load_json(path)
+    except (OSError, ValueError) as exc:
+        raise MalformedExistingBriefError(f"{path} exists but is not valid JSON: {exc}") from exc
+    return data if isinstance(data, dict) else {}
+
+
+def merge_draft_brief(existing_brief: dict[str, Any] | None, draft_brief: dict[str, Any]) -> dict[str, Any]:
+    """Deterministic merge preview: compares `draft_brief` (Phase 31's
+    confidence-gated `generate_draft_brief()` output) against an existing
+    `brief.json` dict, field by field, over exactly the fields
+    `build_brief_json()` knows how to write (`_MERGE_FIELDS` above).
+
+    Rules, in order:
+    - A field already holding non-placeholder content in `existing_brief`
+      is **always preserved** - added to `fields_preserved`, never
+      touched, regardless of what the draft has.
+    - Otherwise, if the draft has a confident (already-gated, non-`None`/
+      non-empty) value for that field, **and that value doesn't itself
+      look like a placeholder** (e.g. intake extracting a project's own
+      still-unedited `"TODO: ..."` description text back as its "purpose"
+      - a real, observed edge case, not hypothetical), it's added to
+      `fields_to_add`.
+    - Otherwise (both empty/unknown, or the only available draft value is
+      itself placeholder-looking), the field is simply absent from both
+      lists - nothing to report, nothing changes.
+
+    Never overwrites a known value with unknown, never invents a value the
+    draft doesn't already confidently have, and never writes anything
+    itself - this is a preview, always produced before any write. Missing/
+    malformed `existing_brief` (`None` or not a dict) is treated as "no
+    existing brief at all" - every confident, non-placeholder-looking
+    draft field becomes an addition.
+    """
+    existing_brief = existing_brief if isinstance(existing_brief, dict) else {}
+    draft_brief = draft_brief if isinstance(draft_brief, dict) else {}
+
+    fields_to_add: dict[str, Any] = {}
+    fields_preserved: list[str] = []
+
+    for draft_key, existing_path, existing_is_list in _MERGE_FIELDS:
+        existing_value = _get_existing_value(existing_brief, existing_path)
+        if _is_present(existing_value, is_list=existing_is_list):
+            fields_preserved.append(draft_key)
+            continue
+
+        draft_value = draft_brief.get(draft_key)
+        if isinstance(draft_value, list):
+            has_draft_value = bool(draft_value)
+        else:
+            has_draft_value = draft_value is not None and not _is_placeholder_text(draft_value)
+        if has_draft_value:
+            fields_to_add[draft_key] = draft_value
+
+    advisories = generate_advisories(draft_brief)
+    if not fields_to_add and not fields_preserved:
+        advisories = [
+            "No merge candidates found - the existing brief has no protected values and the draft "
+            "has no confident replacements either."
+        ] + advisories
+
+    return {
+        "fields_to_add": fields_to_add,
+        "fields_preserved": fields_preserved,
+        "advisories": advisories,
+    }
+
+
+def build_merge_preview(existing_brief: dict[str, Any] | None, intake_summary: dict[str, Any]) -> dict[str, Any]:
+    """One entry point for `factory intake suggest-brief --update`'s
+    preview: generates a fresh draft from `intake_summary` and merges it
+    against `existing_brief`. Never writes anything - see
+    `write_merged_brief()` for the one, explicit, opt-in write path.
+    """
+    draft = generate_draft(intake_summary)
+    merge_result = merge_draft_brief(existing_brief, draft["brief"])
+    return {"draft": draft, "merge_preview": merge_result}
+
+
+def apply_merge(existing_brief: dict[str, Any] | None, merge_result: dict[str, Any]) -> dict[str, Any]:
+    """Apply `merge_result["fields_to_add"]` onto a deep copy of
+    `existing_brief`, mapping each draft field to its real `brief.json`
+    home (mirrors `build_brief_json()`'s own mapping - `printer` becomes
+    the scalar `intended_printer`, `material`/`manufacturing_style` nest
+    under `manufacturing_notes`, `quality_target`/`visual_goals` nest under
+    `design_intent`). **Every field not in `fields_to_add` is left
+    completely untouched, byte for byte** - this function never looks at,
+    let alone modifies, anything `merge_draft_brief()` decided to
+    preserve. `required_human_approval` is force-set to `True` and every
+    other schema-required field is filled with `"unknown"`/`[]` only if
+    somehow absent entirely, so the result always stays schema-valid.
+    """
+    result: dict[str, Any] = copy.deepcopy(existing_brief) if isinstance(existing_brief, dict) else {}
+    fields_to_add = merge_result.get("fields_to_add") or {}
+
+    if "project_name" in fields_to_add:
+        result["project_name"] = fields_to_add["project_name"]
+    if "purpose" in fields_to_add:
+        result["description"] = fields_to_add["purpose"]
+    if "printer" in fields_to_add:
+        printer_list = fields_to_add["printer"] or []
+        result["intended_printer"] = printer_list[0] if printer_list else "unknown"
+    if "dimensional_constraints" in fields_to_add:
+        result["constraints"] = list(fields_to_add["dimensional_constraints"])
+
+    design_intent_additions: dict[str, Any] = {}
+    if "quality_target" in fields_to_add:
+        design_intent_additions["quality_standard"] = fields_to_add["quality_target"]
+    if "visual_goals" in fields_to_add:
+        design_intent_additions["style_direction"] = list(fields_to_add["visual_goals"])
+    if design_intent_additions:
+        existing_design_intent = result.get("design_intent")
+        merged_design_intent = dict(existing_design_intent) if isinstance(existing_design_intent, dict) else {}
+        merged_design_intent.update(design_intent_additions)
+        result["design_intent"] = merged_design_intent
+
+    manufacturing_notes_additions: dict[str, Any] = {}
+    if "material" in fields_to_add:
+        manufacturing_notes_additions["material"] = list(fields_to_add["material"])
+    if "manufacturing_style" in fields_to_add:
+        manufacturing_notes_additions["manufacturing_style"] = list(fields_to_add["manufacturing_style"])
+    if manufacturing_notes_additions:
+        existing_manufacturing_notes = result.get("manufacturing_notes")
+        merged_manufacturing_notes = (
+            dict(existing_manufacturing_notes) if isinstance(existing_manufacturing_notes, dict) else {}
+        )
+        merged_manufacturing_notes.update(manufacturing_notes_additions)
+        result["manufacturing_notes"] = merged_manufacturing_notes
+
+    result.setdefault("project_name", "unknown")
+    result.setdefault("status", "brief_created")
+    result.setdefault("owner", "unknown")
+    result.setdefault("intended_printer", "unknown")
+    result.setdefault("description", "unknown")
+    result.setdefault("constraints", [])
+    result["required_human_approval"] = True
+
+    return result
+
+
+def write_merged_brief(
+    project_dir: Path, existing_brief: dict[str, Any] | None, merge_result: dict[str, Any]
+) -> Path:
+    """Write `apply_merge(existing_brief, merge_result)` to
+    `<project_dir>/brief.json` - the merge-mode counterpart to
+    `write_draft_brief()`. Raises `ProjectDirectoryNotFoundError` if
+    `project_dir` doesn't exist. Unlike `write_draft_brief()`, this
+    function is only ever called once a merge preview already exists and
+    has been (at least implicitly, via `--write --update`) reviewed - it
+    never checks for an existing file itself, since the whole point of
+    merge mode is safely writing *alongside* one.
+    """
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        raise ProjectDirectoryNotFoundError(
+            f"{project_dir} is not a directory - check the path, or run `factory init-project` first."
+        )
+
+    brief_path = project_dir / "brief.json"
+    project_store.save_json(brief_path, apply_merge(existing_brief, merge_result))
+    return brief_path
+
+
+def summarize_brief_update(existing_brief: dict[str, Any] | None, intake_summary: dict[str, Any]) -> dict[str, Any]:
+    """Compact summary for `factory.project_inspection.summarize_project()`'s
+    `brief_update_summary` field and the preview board's "Brief Update"
+    card - whether a safe merge is available, and how many fields it would
+    add/preserve, without the full draft/merge_preview payload (that stays
+    in `factory intake suggest-brief --update`'s output).
+    """
+    merge_result = merge_draft_brief(existing_brief, generate_draft_brief(intake_summary))
+    fields_to_add = merge_result["fields_to_add"]
+    return {
+        "merge_available": bool(fields_to_add),
+        "fields_to_add_count": len(fields_to_add),
+        "fields_preserved_count": len(merge_result["fields_preserved"]),
+        "human_review_required": True,
+    }
