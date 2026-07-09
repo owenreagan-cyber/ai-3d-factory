@@ -33,6 +33,15 @@ depends on transitively via `factory.design_intent_check` - no parsing
 logic is duplicated - and never feeds into `visual_readiness_state`,
 `health_signals`, or `suggested_actions`: it is display-only and does not
 change readiness classification, approval, or print-readiness in any way.
+
+Phase 27 added a second, additive-only field, `design_intent_detail` -
+a superset of `design_intent_summary` (adds `style_direction`,
+`reference_input_count`, `design_notes`, and advisory `warnings`) for the
+preview board HTML's new "Design Intent" card
+(`factory.preview_board.build_board_html()`). `design_intent_summary`'s
+own shape is unchanged by this - `design_intent_detail` is a new sibling
+field, not a replacement, kept to the same display-only, non-classifying
+guarantees as `design_intent_summary`.
 """
 
 from __future__ import annotations
@@ -41,7 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from factory import preview_package, project_store
-from factory.design_intent_check import summarize_design_intent
+from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
 from factory.render_coverage import compute_render_coverage, missing_and_stale_mesh_paths
 
 VISUAL_READINESS_STATES = (
@@ -503,6 +512,22 @@ def _compact_design_intent_summary(brief_path: Path) -> dict[str, Any] | None:
     }
 
 
+def _design_intent_board_detail(brief_path: Path) -> dict[str, Any] | None:
+    """Richer, read-only `design_intent` detail for the Preview Board HTML's Phase
+    27 "Design Intent" card - adds `style_direction`, `reference_input_count`,
+    `design_notes`, and advisory `warnings` on top of `design_intent_summary`'s
+    three compact fields above. Kept as a separate field
+    (`design_intent_detail`) rather than changing `design_intent_summary`'s shape,
+    so `design_intent_summary` stays exactly as it was in Phase 26 for anything
+    already depending on that specific shape. Thin wrapper around
+    `factory.design_intent_check.describe_design_intent_for_board()` - no parsing
+    logic duplicated here. Returns `None` under the same conditions as
+    `design_intent_summary` (no `design_intent` block, unreadable file, or
+    malformed shape).
+    """
+    return describe_design_intent_for_board(brief_path)
+
+
 def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -> dict[str, Any]:
     """Read one project's existing files and summarize it for the board/gate.
 
@@ -597,6 +622,7 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
     selected_manufacturing_option = index.get("selected_manufacturing_option")
 
     design_intent_summary = _compact_design_intent_summary(brief_path) if brief_status == "ok" else None
+    design_intent_detail = _design_intent_board_detail(brief_path) if brief_status == "ok" else None
 
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
@@ -631,4 +657,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "suggested_actions": suggested_actions,
         "health_signals": health_signals,
         "design_intent_summary": design_intent_summary,
+        "design_intent_detail": design_intent_detail,
     }

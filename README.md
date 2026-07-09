@@ -124,8 +124,13 @@ section on the board's HTML page as plain text/code blocks. A
 structured `items`) rolls up everything worth flagging - missing/unreadable
 files, render/validation coverage gaps - for scanning many projects at a
 glance, shown in a "Health signals" section and a compact "Health" column.
-Nothing is ever run automatically; the human decides what to copy and
-execute. See `docs/preview-board.md`.
+Each project also gets a "Design Intent" card (quality target, purpose,
+style, manufacturing fit, reference input count, and design notes/warnings
+if the brief declares a `design_intent` block - see
+`docs/design-intent-brief.md`) plus CAD/STL/Render/Review-readiness status
+badges - visualization only, static HTML/CSS, no JavaScript. Nothing is
+ever run automatically; the human decides what to copy and execute. See
+`docs/preview-board.md`.
 
 `factory review-gate` is a read-only pass/warn/fail pre-flight check for
 one project: does it have everything needed on disk for a **human** to

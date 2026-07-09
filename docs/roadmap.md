@@ -812,13 +812,73 @@ network call, writes any file, or sets `human_approved`/`print_ready`.
 Never approves, scores, or replaces the Etsy-worthy/slicer/human review
 described in `docs/review-gate.md`'s "Human review quality checklist."
 
-**Not yet started:** displaying any other `design_intent` field
-(`functional_goals`, `visual_goals`, `iteration_plan`, etc.) - only
-`quality_standard`, `use_case`, `style_direction`, and the Phase 25
-manufacturability advisory are shown by anything so far; a `design_intent`
-section in the preview board's static HTML (the board's JSON gained
-`design_intent_summary`, but the HTML table/health-signals/suggestions
-sections were left unchanged to keep this phase small).
+**Not yet started (at the end of Phase 26):** displaying any other
+`design_intent` field (`functional_goals`, `visual_goals`, `iteration_plan`,
+etc.) beyond `quality_standard`, `use_case`, `style_direction`, and the
+Phase 25 manufacturability advisory; a `design_intent` section in the
+preview board's static HTML (the board's JSON gained `design_intent_summary`,
+but the HTML table/health-signals/suggestions sections were left unchanged
+to keep this phase small) - both picked up by Phase 27 below.
+
+## Phase 27 — design intent preview board visualization (started)
+
+A small, purely presentational follow-on to Phase 26: gives the
+`design_intent` data the board's JSON already carries a first-class visual
+home in the Preview Board's static HTML, instead of requiring a human to
+open `index.json` or run `factory report` separately to see it.
+Visualization only - no schema change, no new approval/scoring/gate
+semantics, and every existing HTML section (summary table, health signals,
+suggested next steps) is preserved unchanged.
+
+**Started:**
+`factory.design_intent_check.describe_design_intent_for_board(file_path)` -
+a new read-only helper alongside Phase 26's `summarize_design_intent()`,
+reusing `check_design_intent_manufacturability()` the same way so no
+parsing/fit logic is duplicated. Adds three fields
+`summarize_design_intent()` intentionally doesn't read: `reference_input_count`
+(length of the optional `design_intent.reference_inputs` list),
+`design_notes` (the optional `design_intent.iteration_plan.acceptance_notes`),
+and `warnings` (the same advisory warnings
+`check_design_intent_manufacturability()` already computes). Returns `None`
+under the same conditions as `summarize_design_intent()`. Two consumers:
+
+- **`factory.project_inspection.summarize_project()`** gained a second,
+  additive field, `design_intent_detail` - a superset of Phase 26's
+  `design_intent_summary`, which keeps its exact three-field shape
+  unchanged. Same `None`-when-absent semantics, same non-classifying
+  guarantee (never read by `classify_visual_readiness()`,
+  `build_health_signals()`, or `build_suggested_actions()`).
+- **`factory.preview_board.build_board_html()`** now renders a per-project
+  overview card - right after the state-count summary and before the
+  existing table - covering Project Header, Design Intent (Quality/
+  Purpose/Style/Design notes), Manufacturing Overview (manufacturing
+  status, selected option, design-intent manufacturability fit, reference
+  input count, warnings/advisories), Artifacts (CAD/STL/Render
+  present-or-missing badges), Health Signals (a compact pointer to the
+  existing detailed section further down the page), and Review Readiness
+  (a Review Ready / Review Not Ready badge from `visual_readiness_state`).
+  Every field renders a clear fallback ("Not specified"/"None"/"Unknown")
+  rather than ever being left blank. Static HTML/CSS only - no JavaScript,
+  no external assets, no CDN, no tracking.
+
+**Explicitly unchanged:** `design_intent_summary`'s shape (still exactly
+`{quality_standard, use_case, manufacturability_result}`); the board's
+existing summary table, "Health signals" section, and "Suggested next
+steps" section (all still present, unchanged, and still follow the new
+cards); `factory.review_gate.evaluate_review_gate()`'s JSON output shape
+(still never includes `design_intent_summary` or `design_intent_detail`).
+See `docs/design-intent-brief.md`'s "Preview Board visualization
+(Phase 27)" and `docs/preview-board.md`.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call, writes any file, or sets `human_approved`/`print_ready`.
+Never approves, scores, or replaces the Etsy-worthy/slicer/human review
+described in `docs/review-gate.md`'s "Human review quality checklist."
+
+**Not yet started:** displaying `functional_goals`/`visual_goals` (mechanical
+behavior, silhouette/proportions/surface-detail goals) anywhere; a source-
+discovery or reference-board feature; any Meshy/Blender-backed workflow -
+all explicitly out of scope for this phase.
 
 ## Future tracks, not yet phase-numbered
 

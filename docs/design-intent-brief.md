@@ -1,4 +1,4 @@
-# Design intent brief fields (planning in Phase 24, first read-only check in Phase 25, visibility in Phase 26)
+# Design intent brief fields (planning in Phase 24, first read-only check in Phase 25, visibility in Phase 26, Preview Board visualization in Phase 27)
 
 **This document is planning-first.** Phase 24 defined the `design_intent`
 shape below without implementing anything - no `factory` command read,
@@ -12,7 +12,10 @@ now *display* `design_intent` (quality standard, use case, style
 direction, declared size, and Phase 25's manufacturability advisory) if a
 brief has one, so a human doesn't have to separately run
 `factory check-design-intent` to see it - see "Visibility in `factory
-report` and the preview board (Phase 26)" below. Nothing else in this
+report` and the preview board (Phase 26)" below. Phase 27 gave that same
+data a first-class visual home in the Preview Board's static HTML - a
+per-project "Design Intent" card, still purely presentational - see
+"Preview Board visualization (Phase 27)" below. Nothing else in this
 document is implemented - `schemas/project_brief.schema.json` is still
 unmodified, and no other field in `design_intent` is read by anything.
 This document exists so a future implementation has a concrete,
@@ -239,6 +242,77 @@ duplicated between the two. Returns `None` (not an error) whenever
   Blender; does not call Meshy; does not install any dependency.
 - Does not duplicate `design_intent` parsing logic -
   `summarize_design_intent()` reuses
+  `check_design_intent_manufacturability()` for every field that function
+  already parses.
+
+## Preview Board visualization (Phase 27)
+
+```bash
+factory preview-board projects/          # index.html now shows a per-project "Design Intent" card
+```
+
+Phase 26 made `design_intent` visible in the preview board's **JSON**
+(`design_intent_summary`) and in `factory report`'s text output; the board's
+**HTML** kept showing only the plain summary table, health signals, and
+suggested actions - a human still had to open `index.json` or run
+`factory report` separately to see design intent. Phase 27 closes that gap
+purely on the presentation side:
+
+- **`factory.design_intent_check.describe_design_intent_for_board()`** - a
+  new function alongside `summarize_design_intent()`, reusing
+  `check_design_intent_manufacturability()` the same way. Adds three fields
+  `summarize_design_intent()` intentionally doesn't read:
+  `reference_input_count` (the length of the optional
+  `design_intent.reference_inputs` list), `design_notes` (the optional
+  `design_intent.iteration_plan.acceptance_notes`), and `warnings` (the
+  same advisory warnings `check_design_intent_manufacturability()` already
+  computes). `summarize_design_intent()` itself is untouched.
+- **`design_intent_detail`** - a new, additive field on each preview-board
+  project entry (`factory.project_inspection.summarize_project()`), built
+  from the function above. `design_intent_summary` (Phase 26) keeps its
+  exact three-field shape unchanged; `design_intent_detail` is a new
+  sibling field, not a replacement, with the same `None`-when-absent
+  semantics and the same non-classifying guarantee (never read by
+  `classify_visual_readiness()`, `build_health_signals()`, or
+  `build_suggested_actions()`).
+- **The board's HTML** gained a per-project overview card, rendered right
+  after the state-count summary and before the existing table: Project
+  Header, Design Intent (Quality/Purpose/Style/Design notes), Manufacturing
+  Overview (manufacturing status, selected option, design-intent
+  manufacturability fit, reference input count, warnings/advisories),
+  Artifacts (CAD/STL/Render present-or-missing badges), Health Signals (a
+  compact pointer to the existing detailed section), and Review Readiness
+  (a Review Ready / Review Not Ready badge). Every field renders a clear
+  fallback ("Not specified"/"None"/"Unknown") instead of ever being left
+  blank - most projects have no `design_intent` block, which renders one
+  explanatory line instead of empty rows. Static HTML/CSS only - no
+  JavaScript, no external assets, no CDN, no tracking.
+- The existing summary table, "Health signals" section, and "Suggested
+  next steps" section are all unchanged and still follow the cards -
+  nothing was removed, only added above it. See `docs/preview-board.md`.
+
+### What Phase 27 does not do
+
+- Does not change `schemas/project_brief.schema.json` or the
+  `design_intent` shape documented above - it only reads fields the shape
+  already documents (`reference_inputs`, `iteration_plan.acceptance_notes`).
+- Does not change `design_intent_summary`'s shape - `design_intent_detail`
+  is a new, additive sibling field.
+- Does not approve designs, score designs, or mark anything
+  `human_approved` or `print_ready`.
+- Does not change `visual_readiness_state`, `health_signals`, or
+  `suggested_actions` - `design_intent_detail` is display-only, exactly
+  like `design_intent_summary`.
+- Does not change `factory review-gate`'s JSON output shape - it still
+  never includes `design_intent_summary` or `design_intent_detail`.
+- Does not remove or restructure the existing summary table, "Health
+  signals" section, or "Suggested next steps" section.
+- Does not add JavaScript, external assets, a CDN dependency, or tracking
+  of any kind to the board's HTML.
+- Does not contact a printer, a slicer, or the network; does not launch
+  Blender; does not call Meshy; does not install any dependency.
+- Does not duplicate `design_intent` parsing logic -
+  `describe_design_intent_for_board()` reuses
   `check_design_intent_manufacturability()` for every field that function
   already parses.
 

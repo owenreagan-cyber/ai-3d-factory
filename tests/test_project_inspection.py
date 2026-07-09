@@ -161,7 +161,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "manufacturing_status", "selected_manufacturing_option", "manifest_exists",
         "render_coverage", "preview_package_exists", "cad_files", "mesh_files",
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
-        "health_signals", "design_intent_summary",
+        "health_signals", "design_intent_summary", "design_intent_detail",
     }
     assert set(project.keys()) == expected_keys
 
@@ -234,6 +234,90 @@ def test_design_intent_summary_never_affects_visual_readiness_or_health(project_
 def test_review_gate_json_excludes_design_intent_summary(project_root):
     gate = evaluate_review_gate(project_root)
     assert "design_intent_summary" not in gate
+
+
+# ---- Phase 27: design_intent_detail field (Preview Board HTML visualization) ----
+
+
+def test_design_intent_detail_is_none_when_brief_has_no_design_intent(project_root):
+    summary = summarize_project(project_root)
+    assert summary["design_intent_detail"] is None
+
+
+def test_design_intent_detail_is_none_when_brief_missing(isolated_projects_dir):
+    empty_dir = isolated_projects_dir / "no-brief-here"
+    empty_dir.mkdir()
+    summary = summarize_project(empty_dir)
+    assert summary["design_intent_detail"] is None
+
+
+def test_design_intent_detail_populated_when_brief_has_design_intent(project_root):
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["design_intent"] = {
+        "quality_standard": "Etsy-worthy",
+        "use_case": "kitchen organization",
+        "style_direction": ["minimalist", "functional"],
+        "reference_inputs": [{"type": "image", "description": "a photo", "local_only": True}],
+        "manufacturability_constraints": {"max_size_mm": [50, 50, 50]},
+        "iteration_plan": {"acceptance_notes": "matches the reference photo's silhouette"},
+    }
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    detail = summary["design_intent_detail"]
+    assert detail is not None
+    assert set(detail.keys()) == {
+        "quality_standard", "use_case", "style_direction", "manufacturability_result",
+        "reference_input_count", "design_notes", "warnings",
+    }
+    assert detail["quality_standard"] == "Etsy-worthy"
+    assert detail["use_case"] == "kitchen organization"
+    assert detail["style_direction"] == ["minimalist", "functional"]
+    assert detail["manufacturability_result"] == "fits_some_printers"
+    assert detail["reference_input_count"] == 1
+    assert detail["design_notes"] == "matches the reference photo's silhouette"
+    assert isinstance(detail["warnings"], list)
+
+
+def test_design_intent_detail_reference_input_count_zero_when_absent(project_root):
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["design_intent"] = {"quality_standard": "Etsy-worthy"}
+    project_store.save_json(brief_path, brief)
+
+    detail = summarize_project(project_root)["design_intent_detail"]
+    assert detail["reference_input_count"] == 0
+    assert detail["design_notes"] is None
+
+
+def test_design_intent_detail_malformed_design_intent_handled_safely(project_root):
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["design_intent"] = "not a dict"
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    assert summary["design_intent_detail"] is None
+
+
+def test_design_intent_detail_never_affects_visual_readiness_or_health(project_root):
+    without_intent = summarize_project(project_root)
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["design_intent"] = {"quality_standard": "Etsy-worthy"}
+    project_store.save_json(brief_path, brief)
+    with_intent = summarize_project(project_root)
+
+    assert with_intent["visual_readiness_state"] == without_intent["visual_readiness_state"]
+    assert with_intent["health_signals"] == without_intent["health_signals"]
+    assert with_intent["suggested_actions"] == without_intent["suggested_actions"]
+
+
+def test_review_gate_json_excludes_design_intent_detail(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "design_intent_detail" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

@@ -255,6 +255,54 @@ It does not judge creativity, approve a design, score anything, or set
 that would otherwise require a separate `factory check-design-intent`
 run to see.
 
+## Design intent detail and the Design Intent card (Phase 27)
+
+Each project's card also carries `design_intent_detail` - a superset of
+`design_intent_summary` above, adding `style_direction`,
+`reference_input_count` (the length of the brief's optional
+`design_intent.reference_inputs` list), `design_notes` (the brief's
+optional `design_intent.iteration_plan.acceptance_notes`), and
+`warnings` (the same advisory warnings `factory check-design-intent`
+already computes, e.g. an unverified printer spec):
+
+```jsonc
+{
+  "quality_standard": "Etsy-worthy",
+  "use_case": "classroom organization",
+  "style_direction": ["minimal", "functional"],
+  "manufacturability_result": "fits_some_printers",
+  "reference_input_count": 1,
+  "design_notes": "Snug fit on the existing bin, no wobble.",
+  "warnings": []
+}
+```
+
+`None` under the exact same conditions as `design_intent_summary` -
+`design_intent_summary`'s own shape is unchanged by this; `design_intent_detail`
+is a new, additive sibling field, built by
+`factory.design_intent_check.describe_design_intent_for_board()` (reuses
+`check_design_intent_manufacturability()`, no parsing logic duplicated).
+
+The board's **HTML** now renders `design_intent_detail` (and the rest of a
+project's existing summary) as a per-project overview card, right after the
+state-count line and before the existing summary table: **Project Header**,
+**Design Intent** (Quality/Purpose/Style/Design notes), **Manufacturing
+Overview** (manufacturing status, selected option, design-intent
+manufacturability fit, reference input count, warnings/advisories),
+**Artifacts** (CAD/STL/Render present-or-missing badges), **Health Signals**
+(a compact badge pointing at the detailed section further down the page),
+and **Review Readiness** (a Review Ready / Review Not Ready badge from
+`visual_readiness_state`). Every field renders a clear fallback ("Not
+specified"/"None"/"Unknown") rather than ever being left blank - most
+projects have no `design_intent` block, which renders a single explanatory
+line instead of empty rows. Static HTML/CSS only: no JavaScript, no
+external assets, no CDN, no tracking. This is purely presentational - it
+adds no new field to the JSON board shape beyond `design_intent_detail`
+above, removes no existing HTML section (the summary table, "Health
+signals", and "Suggested next steps" sections are unchanged and still
+follow the cards), and introduces no new judgment, scoring, or approval
+semantics.
+
 ## Board JSON shape
 
 ```jsonc
@@ -307,7 +355,8 @@ run to see.
           }
         ]
       },
-      "design_intent_summary": null
+      "design_intent_summary": null,
+      "design_intent_detail": null
     }
   ],
   "notes": ["Local static preview only - ...", "..."]
@@ -330,10 +379,11 @@ run to see.
 - Does not set `human_approved` or `print_ready` on anything.
 - Does not execute any `suggested_actions` command - ever, automatically
   or otherwise. There is no "run" button anywhere in the generated HTML.
-- Does not judge, score, or approve a project's `design_intent` (Phase 26)
-  - `design_intent_summary` is a display-only mirror of an existing brief
-    field, never an input to `visual_readiness_state`, `health_signals`,
-    or `suggested_actions`.
+- Does not judge, score, or approve a project's `design_intent` (Phase 26,
+  extended in Phase 27) - `design_intent_summary`/`design_intent_detail`
+  and the HTML Design Intent card are display-only mirrors of an existing
+  brief field, never an input to `visual_readiness_state`,
+  `health_signals`, or `suggested_actions`.
 
 ## Readiness signals are not a design-quality score
 
@@ -361,7 +411,9 @@ directly on this module's `summarize_project()`, not merged into the
 board itself - see that doc's "Why this isn't merged into `factory
 preview-board`" section, and its "Human review quality checklist"),
 `docs/design-quality-standard.md`, `docs/design-intent-brief.md` (Phase 26
-- the `design_intent_summary` field above), and `docs/roadmap.md` Phase 8
-(board foundation) / Phase 10 (action suggestions) / Phase 11 (health
-signals) / Phase 12 (review gate) / Phase 23 (human review quality
-checklist) / Phase 26 (design intent visibility).
+- the `design_intent_summary` field above; Phase 27 - `design_intent_detail`
+and the HTML Design Intent card), and `docs/roadmap.md` Phase 8 (board
+foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
+Phase 12 (review gate) / Phase 23 (human review quality checklist) /
+Phase 26 (design intent visibility) / Phase 27 (design intent preview
+board visualization).

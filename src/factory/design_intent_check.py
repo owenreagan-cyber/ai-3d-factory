@@ -21,6 +21,13 @@ for every field that function already parses rather than re-deriving that
 logic, and returns `None` (not an error) whenever `design_intent` is
 absent - visibility only, still no approval/scoring/print-readiness
 behavior. See `docs/design-intent-brief.md`.
+
+Phase 27 added `describe_design_intent_for_board()` - a superset of
+`summarize_design_intent()` adding `reference_input_count` and
+`design_notes`, for the Preview Board HTML's new "Design Intent" card
+(`factory.preview_board`). Same reuse discipline and the same `None`-not-
+error semantics as `summarize_design_intent()`. See
+`docs/design-intent-brief.md`.
 """
 
 from __future__ import annotations
@@ -235,4 +242,63 @@ def summarize_design_intent(file_path: Path) -> dict[str, Any] | None:
             "result": manufacturability["result"],
             "fitting_printers": [p["display_name"] for p in manufacturability["fitting_printers"]],
         },
+    }
+
+
+def describe_design_intent_for_board(file_path: Path) -> dict[str, Any] | None:
+    """Read-only, board-oriented `design_intent` description, for Phase 27's Preview
+    Board "Design Intent" card - a superset of `summarize_design_intent()`'s fields
+    plus a couple of extra display-only fields that function intentionally omits:
+    `reference_input_count` and `design_notes`.
+
+    Returns `None` (not an error) under the exact same conditions as
+    `summarize_design_intent()` - `design_intent` absent, file unreadable, or
+    `design_intent` not a dict. Reuses `check_design_intent_manufacturability()` for
+    every field it already parses, so this function never re-derives max-size/fit
+    logic; it only adds three fields that function doesn't read (its scope is
+    manufacturability only): `reference_input_count` (the length of the optional
+    `design_intent.reference_inputs` list, 0 if absent/malformed - see
+    `docs/design-intent-brief.md`'s proposed shape), `design_notes` (the optional
+    `design_intent.iteration_plan.acceptance_notes` string, `None` if absent/
+    malformed), and `warnings` (the same advisory warnings
+    `check_design_intent_manufacturability()` already computes, e.g. an otherwise-
+    fitting printer's build volume being unverified, or no known printer fitting at
+    all). Read-only: same guarantees as `check_design_intent_manufacturability()` -
+    no writes, no network, no printer/slicer contact, never sets
+    `human_approved`/`print_ready`.
+    """
+    file_path = Path(file_path)
+
+    try:
+        data = project_store.load_json(file_path)
+    except (OSError, ValueError):
+        return None
+
+    design_intent = data.get("design_intent") if isinstance(data, dict) else None
+    if not isinstance(design_intent, dict):
+        return None
+
+    manufacturability = check_design_intent_manufacturability(file_path)
+
+    use_case = design_intent.get("use_case")
+    style_direction = design_intent.get("style_direction")
+
+    reference_inputs = design_intent.get("reference_inputs")
+    reference_input_count = len(reference_inputs) if isinstance(reference_inputs, list) else 0
+
+    iteration_plan = design_intent.get("iteration_plan")
+    design_notes = None
+    if isinstance(iteration_plan, dict):
+        acceptance_notes = iteration_plan.get("acceptance_notes")
+        if isinstance(acceptance_notes, str) and acceptance_notes.strip():
+            design_notes = acceptance_notes
+
+    return {
+        "quality_standard": manufacturability["quality_standard"],
+        "use_case": use_case if isinstance(use_case, str) else None,
+        "style_direction": style_direction if isinstance(style_direction, list) else None,
+        "manufacturability_result": manufacturability["result"],
+        "reference_input_count": reference_input_count,
+        "design_notes": design_notes,
+        "warnings": list(manufacturability["warnings"]),
     }

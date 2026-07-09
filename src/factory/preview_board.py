@@ -37,6 +37,17 @@ Severities always agree with `classify_visual_readiness()`'s own
 precedence, and the only `"ready"` signal (`slicer_review_ready`)
 explicitly means "ready for human slicer review", never an approval or
 print-readiness claim.
+
+Phase 27 added a per-project "Design Intent" overview card to the HTML
+output only (`_build_project_card_html()` and friends) - Project Header,
+Design Intent, Manufacturing Overview, Artifacts, and Review Readiness,
+built entirely from fields `factory.project_inspection.summarize_project()`
+already computes (including Phase 26/27's `design_intent_summary`/
+`design_intent_detail`). Purely presentational: no new field is added to
+the JSON board shape, no existing HTML section is removed, and this phase
+introduces no JavaScript, no external assets, and no new judgment,
+scoring, or approval semantics. See `docs/design-intent-brief.md` and
+`docs/preview-board.md`.
 """
 
 from __future__ import annotations
@@ -139,6 +150,198 @@ _HEALTH_SEVERITY_LABELS = {
     "blocked": "Blocked",
     "ready": "Ready",
 }
+
+_MANUFACTURABILITY_RESULT_LABELS = {
+    "fits_some_printers": "Fits configured printers",
+    "fits_no_known_printers": "Does not fit any configured printer",
+    "no_max_size": "No size declared",
+    "invalid_max_size": "Declared size is invalid",
+    "missing_printer_config": "No printers configured",
+    "no_design_intent": "No design intent recorded",
+    "unreadable_file": "Brief could not be read",
+}
+
+
+def _text_or_fallback(value: Any, placeholder: str) -> str:
+    """Escape `value` if it's a non-empty string, else render `placeholder` in a
+    dimmed span - so a Design Intent field is never left blank in the HTML."""
+    if isinstance(value, str) and value.strip():
+        return _escape_html(value)
+    return f'<span class="none">{_escape_html(placeholder)}</span>'
+
+
+def _di_row(label: str, value_html: str) -> str:
+    return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
+
+
+def _build_design_intent_section_html(detail: dict[str, Any] | None) -> str:
+    """Render one project's `design_intent_detail` (Phase 27) into a static
+    'Design Intent' card section - Quality Target, Purpose, Style, and Design
+    Notes. Plain text only - no JavaScript. Every field degrades to a clear
+    fallback ("Not specified"/"None") rather than ever being left blank; most
+    projects have no `design_intent` block at all, which renders a single
+    explanatory line instead of empty rows.
+    """
+    if not detail:
+        return '<div class="design-intent"><p class="none">No design intent declared for this project.</p></div>'
+
+    style_direction = detail.get("style_direction")
+    style_html = (
+        _escape_html(" / ".join(style_direction)) if style_direction else '<span class="none">Not specified</span>'
+    )
+    design_notes = detail.get("design_notes")
+    notes_html = _escape_html(design_notes) if design_notes else '<span class="none">None</span>'
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Quality", _text_or_fallback(detail.get("quality_standard"), "Not specified")),
+            ("Purpose", _text_or_fallback(detail.get("use_case"), "Not specified")),
+            ("Style", style_html),
+            ("Design notes", notes_html),
+        )
+    )
+    return f'<div class="design-intent">{rows}</div>'
+
+
+def _build_manufacturing_overview_html(project: dict[str, Any]) -> str:
+    """Render one project's manufacturing-related state into a static
+    'Manufacturing Overview' card section: `build_plan.json`'s manufacturing
+    status/selected option (already tracked elsewhere on the board) alongside
+    the Phase 27 `design_intent_detail`'s manufacturability fit result,
+    declared reference input count, and any advisory warnings. Plain text
+    only - no JavaScript. Every field degrades to a clear fallback rather than
+    ever being left blank.
+    """
+    status_html = _text_or_fallback(project.get("manufacturing_status"), "Not specified")
+    option_html = _text_or_fallback(project.get("selected_manufacturing_option"), "Not selected")
+
+    detail = project.get("design_intent_detail")
+    if detail:
+        result = detail.get("manufacturability_result")
+        manufacturing_html = _escape_html(_MANUFACTURABILITY_RESULT_LABELS.get(result, result or "Unknown"))
+        reference_count = detail.get("reference_input_count") or 0
+        warnings = detail.get("warnings") or []
+    else:
+        manufacturing_html = '<span class="none">Unknown</span>'
+        reference_count = 0
+        warnings = []
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Manufacturing status", status_html),
+            ("Selected option", option_html),
+            ("Design-intent fit", manufacturing_html),
+            ("Reference inputs", _escape_html(str(reference_count))),
+        )
+    )
+
+    if warnings:
+        warnings_html = "".join(f"<li>{_escape_html(w)}</li>" for w in warnings)
+        rows += f'<div class="di-row"><span class="di-label">Warnings:</span></div><ul class="di-warnings">{warnings_html}</ul>'
+    else:
+        rows += _di_row("Warnings", '<span class="none">None</span>')
+
+    return f'<div class="manufacturing-overview">{rows}</div>'
+
+
+def _build_artifact_badges_html(project: dict[str, Any]) -> str:
+    """Render lightweight CSS-only status badges for CAD/STL/render presence -
+    no JavaScript, no external assets."""
+
+    def badge(present: bool, label: str) -> str:
+        cls = "badge-present" if present else "badge-missing"
+        text = f"{label} Present" if present else f"{label} Missing"
+        return f'<span class="badge {cls}">{_escape_html(text)}</span>'
+
+    return (
+        '<div class="artifact-badges">'
+        + badge(bool(project.get("cad_files")), "CAD")
+        + badge(bool(project.get("mesh_files")), "STL")
+        + badge(bool(project.get("render_files")), "Render")
+        + "</div>"
+    )
+
+
+def _build_health_mini_html(project: dict[str, Any]) -> str:
+    """Compact health-signal badge for a project's card - the full per-item
+    breakdown remains in the existing 'Health signals' section further down
+    the page (see `_build_health_signals_html`); this is just a glanceable
+    pointer, not a duplicate of that detail."""
+    health = project.get("health_signals") or {"summary": "ok", "items": []}
+    summary = health.get("summary", "ok")
+    label = _HEALTH_SUMMARY_LABELS.get(summary, summary)
+    count = len(health.get("items") or [])
+    text = f"{label} ({count})" if count else label
+    return (
+        '<div class="health-mini">'
+        f'<span class="badge health-summary-{_escape_html(summary)}">{_escape_html(text)}</span> '
+        '<span class="di-value">see &ldquo;Health signals&rdquo; below for details</span>'
+        "</div>"
+    )
+
+
+def _build_review_readiness_html(project: dict[str, Any]) -> str:
+    """Render a project's `visual_readiness_state` as a Review Ready / Review
+    Not Ready badge. `slicer_review_ready` means ready for *human* slicer
+    review only - never an approval or print-readiness claim, exactly as
+    elsewhere on this board."""
+    state = project.get("visual_readiness_state")
+    ready = state == "slicer_review_ready"
+    cls = "badge-review-ready" if ready else "badge-review-not-ready"
+    text = "Review Ready" if ready else "Review Not Ready"
+    state_label = _STATE_LABELS.get(state, state or "Unknown")
+    return (
+        '<div class="review-readiness">'
+        f'<span class="badge {cls}">{_escape_html(text)}</span> '
+        f'<span class="di-value">{_escape_html(state_label)}</span>'
+        "</div>"
+    )
+
+
+def _build_project_card_html(project: dict[str, Any]) -> str:
+    """Render one project's Phase 27 overview card: Project Header, Design
+    Intent, Manufacturing Overview, Artifacts, Health Signals, and Review
+    Readiness. Static HTML/CSS only - no JavaScript, no external assets.
+    Purely presentational: it never recomputes or overrides
+    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
+    only displays fields `factory.project_inspection.summarize_project()`
+    already computed.
+    """
+    project_name = project.get("project_name") or "(unnamed project)"
+    project_dir = project.get("project_dir") or ""
+
+    return (
+        '<div class="project-card">'
+        f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
+        '<div class="card-section"><h4>Design Intent</h4>'
+        + _build_design_intent_section_html(project.get("design_intent_detail"))
+        + "</div>"
+        '<div class="card-section"><h4>Manufacturing Overview</h4>'
+        + _build_manufacturing_overview_html(project)
+        + "</div>"
+        '<div class="card-section"><h4>Artifacts</h4>'
+        + _build_artifact_badges_html(project)
+        + "</div>"
+        '<div class="card-section"><h4>Health Signals</h4>'
+        + _build_health_mini_html(project)
+        + "</div>"
+        '<div class="card-section"><h4>Review Readiness</h4>'
+        + _build_review_readiness_html(project)
+        + "</div>"
+        "</div>"
+    )
+
+
+def _build_project_cards_html(projects: list[dict[str, Any]]) -> str:
+    """Render every project's Phase 27 overview card - see
+    `_build_project_card_html`. This is additive presentation only; it never
+    replaces the existing summary table, health-signals section, or
+    suggested-actions section below it."""
+    if not projects:
+        return "<p>No projects found under this projects_root.</p>"
+    return "".join(_build_project_card_html(project) for project in projects)
 
 
 def _build_health_signals_html(projects: list[dict[str, Any]]) -> str:
@@ -279,6 +482,7 @@ def build_board_html(board: dict[str, Any]) -> str:
     notes_html = "".join(f"<li>{_escape_html(n)}</li>" for n in board["notes"])
     suggestions_html = _build_suggestions_html(board["projects"])
     health_signals_html = _build_health_signals_html(board["projects"])
+    project_cards_html = _build_project_cards_html(board["projects"])
 
     return f"""<!doctype html>
 <html lang="en">
@@ -330,12 +534,36 @@ def build_board_html(board: dict[str, Any]) -> str:
   .health-summary-ok {{ background: #d4edda; }}
   .health-summary-attention_needed {{ background: #fff3cd; }}
   .health-summary-blocked {{ background: #fde2e2; }}
+  .cards {{ margin: 1.5rem 0; }}
+  .cards-intro {{ color: #555; }}
+  .project-card {{ background: #fff; border: 1px solid #ddd; border-radius: 0.5rem; padding: 1rem 1.25rem; margin-bottom: 1rem; }}
+  .project-card .card-title {{ margin: 0 0 0.75rem 0; font-size: 1.15rem; }}
+  .card-section {{ margin-bottom: 0.85rem; }}
+  .card-section:last-child {{ margin-bottom: 0; }}
+  .card-section h4 {{ margin: 0 0 0.35rem 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #777; }}
+  .di-row {{ font-size: 0.9rem; margin-bottom: 0.2rem; }}
+  .di-label {{ font-weight: 600; color: #444; }}
+  .di-value {{ color: #1a1a1a; }}
+  ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
+  .design-intent p.none {{ margin: 0; }}
+  .artifact-badges .badge {{ margin-right: 0.35rem; }}
+  .badge-present {{ background: #d4edda; color: #1e5b2e; }}
+  .badge-missing {{ background: #eee; color: #666; }}
+  .badge-review-ready {{ background: #d4edda; color: #1e5b2e; }}
+  .badge-review-not-ready {{ background: #fde2e2; color: #8a1f1f; }}
 </style>
 </head>
 <body>
 <h1>ai-3d-factory preview board</h1>
 <p class="meta">Generated {_escape_html(board["generated_at"])} &middot; projects_root: <code>{_escape_html(board["projects_root"])}</code> &middot; {board["project_count"]} project(s)</p>
 <p>{state_summary}</p>
+<div class="cards">
+<h2>Project Overview</h2>
+<p class="cards-intro">Design intent (if the brief declares one), manufacturing overview, artifact
+presence, and readiness at a glance for each project. Advisory only - see the detailed sections
+below for the full picture; nothing here is an approval or a print-readiness signal.</p>
+{project_cards_html}
+</div>
 <table>
 <thead>
 <tr>
