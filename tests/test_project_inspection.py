@@ -162,6 +162,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_coverage", "preview_package_exists", "cad_files", "mesh_files",
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
+        "reference_board_summary",
     }
     assert set(project.keys()) == expected_keys
 
@@ -318,6 +319,90 @@ def test_design_intent_detail_never_affects_visual_readiness_or_health(project_r
 def test_review_gate_json_excludes_design_intent_detail(project_root):
     gate = evaluate_review_gate(project_root)
     assert "design_intent_detail" not in gate
+
+
+# ---- Phase 28: reference_board_summary field (Reference Board planning) ----
+
+
+def test_reference_board_summary_is_clean_empty_result_when_file_missing(project_root):
+    summary = summarize_project(project_root)
+    assert summary["reference_board_summary"] == {
+        "reference_count": 0,
+        "by_license": {},
+        "by_source_type": {},
+        "by_usage_intent": {},
+        "attached_to_design_intent_count": 0,
+        "warnings": [],
+    }
+
+
+def test_reference_board_summary_populated_when_file_present(project_root):
+    board_path = project_root / "reference_board.json"
+    project_store.save_json(
+        board_path,
+        {
+            "references": [
+                {
+                    "title": "Classroom storage inspiration",
+                    "source_url": "https://example.com/classroom-storage-reference",
+                    "source_type": "inspiration",
+                    "license": "unknown",
+                    "usage_intent": "design_reference_only",
+                    "attached_to": "design_intent.reference_inputs",
+                    "notes": "Used only as a style and organization reference.",
+                }
+            ]
+        },
+    )
+
+    summary = summarize_project(project_root)
+    reference_board_summary = summary["reference_board_summary"]
+    assert reference_board_summary["reference_count"] == 1
+    assert reference_board_summary["by_license"] == {"unknown": 1}
+    assert reference_board_summary["by_source_type"] == {"inspiration": 1}
+    assert reference_board_summary["by_usage_intent"] == {"design_reference_only": 1}
+    assert reference_board_summary["attached_to_design_intent_count"] == 1
+    assert any("commercial use unclear" in w for w in reference_board_summary["warnings"])
+
+
+def test_reference_board_summary_malformed_file_handled_safely(project_root):
+    (project_root / "reference_board.json").write_text("{not valid json", encoding="utf-8")
+    summary = summarize_project(project_root)
+    assert summary["reference_board_summary"]["reference_count"] == 0
+
+
+def test_reference_board_summary_never_affects_visual_readiness_or_health(project_root):
+    without_board = summarize_project(project_root)
+
+    project_store.save_json(
+        project_root / "reference_board.json",
+        {"references": [{"title": "x", "source_type": "unknown", "license": "unknown"}]},
+    )
+    with_board = summarize_project(project_root)
+
+    assert with_board["visual_readiness_state"] == without_board["visual_readiness_state"]
+    assert with_board["health_signals"] == without_board["health_signals"]
+    assert with_board["suggested_actions"] == without_board["suggested_actions"]
+
+
+def test_reference_board_summary_independent_of_brief_status(isolated_projects_dir):
+    # A project with no brief.json at all can still have a reference board -
+    # reference_board_summary must not be gated on brief_status like
+    # design_intent_summary/design_intent_detail are.
+    empty_dir = isolated_projects_dir / "no-brief-here"
+    empty_dir.mkdir()
+    project_store.save_json(
+        empty_dir / "reference_board.json",
+        {"references": [{"title": "x", "source_type": "sketch", "license": "public_domain"}]},
+    )
+    summary = summarize_project(empty_dir)
+    assert summary["brief_exists"] is False
+    assert summary["reference_board_summary"]["reference_count"] == 1
+
+
+def test_review_gate_json_excludes_reference_board_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "reference_board_summary" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

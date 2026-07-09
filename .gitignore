@@ -28,3 +28,7 @@ htmlcov/
 # User project data (each project can be large: renders, STLs, etc.)
 projects/*
 !projects/.gitkeep
+
+# Generated preview-board output (regeneratable from committed source data;
+# same reasoning as projects/* above - never a hand-authored file to commit)
+preview_board/

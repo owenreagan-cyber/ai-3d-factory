@@ -42,6 +42,16 @@ preview board HTML's new "Design Intent" card
 own shape is unchanged by this - `design_intent_detail` is a new sibling
 field, not a replacement, kept to the same display-only, non-classifying
 guarantees as `design_intent_summary`.
+
+Phase 28 added a third additive field, `reference_board_summary` - a
+read-only, advisory summary of the project's optional
+`reference_board.json` (`factory.reference_board`), independent of
+`brief.json`/`design_intent` entirely (computed unconditionally, not
+gated on `brief_status`). Always a dict, never `None` - "clean empty
+result" whenever no reference board exists. Same non-classifying
+guarantee as the `design_intent_*` fields: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`. See `docs/reference-board.md`.
 """
 
 from __future__ import annotations
@@ -51,6 +61,7 @@ from typing import Any
 
 from factory import preview_package, project_store
 from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
+from factory.reference_board import summarize_reference_board
 from factory.render_coverage import compute_render_coverage, missing_and_stale_mesh_paths
 
 VISUAL_READINESS_STATES = (
@@ -624,6 +635,11 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
     design_intent_summary = _compact_design_intent_summary(brief_path) if brief_status == "ok" else None
     design_intent_detail = _design_intent_board_detail(brief_path) if brief_status == "ok" else None
 
+    # Independent of brief.json/brief_status - a project can have a reference
+    # board before it even has a brief. Always returns a dict (never None);
+    # "clean empty result" whenever reference_board.json is absent.
+    reference_board_summary = summarize_reference_board(project_dir)
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -658,4 +674,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "health_signals": health_signals,
         "design_intent_summary": design_intent_summary,
         "design_intent_detail": design_intent_detail,
+        "reference_board_summary": reference_board_summary,
     }

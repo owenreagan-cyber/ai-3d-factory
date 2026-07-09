@@ -215,6 +215,43 @@ def test_lid_example_preview_data_reports_multi_part_true():
     assert index["mesh_files"] == []
 
 
+# ---- storage-bin-lid reference board (Phase 28 example data) ----
+
+
+def test_lid_example_has_a_reference_board():
+    from factory.reference_board import summarize_reference_board
+
+    board_path = EXAMPLES_DIR / LID_EXAMPLE / "reference_board.json"
+    assert board_path.is_file()
+
+    summary = summarize_reference_board(EXAMPLES_DIR / LID_EXAMPLE)
+    assert summary["reference_count"] == 2
+    assert summary["by_source_type"] == {"inspiration": 1, "sketch": 1}
+    assert summary["attached_to_design_intent_count"] == 1
+
+
+def test_lid_example_reference_board_summary_is_included_via_summarize_project():
+    summary = project_inspection.summarize_project(EXAMPLES_DIR / LID_EXAMPLE)
+    assert summary["reference_board_summary"]["reference_count"] == 2
+
+
+def test_lid_example_reference_board_has_no_local_binary_assets():
+    # A URL string is fine as inert metadata (never fetched by anything that
+    # reads this file) but this example must not bundle any downloaded or
+    # copyrighted binary asset alongside it.
+    lid_dir = EXAMPLES_DIR / LID_EXAMPLE
+    assert not any(lid_dir.rglob("*.jpg"))
+    assert not any(lid_dir.rglob("*.jpeg"))
+    assert not any(lid_dir.rglob("*.gif"))
+    assert not any(lid_dir.rglob("*.webp"))
+
+
+def test_lid_example_reference_board_included_when_gathering_examples_root():
+    board = gather_board_data(EXAMPLES_DIR)
+    project = next(p for p in board["projects"] if p["slug"] == LID_EXAMPLE)
+    assert project["reference_board_summary"]["reference_count"] == 2
+
+
 # ---- future concepts ----
 
 

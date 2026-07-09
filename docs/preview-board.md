@@ -303,6 +303,52 @@ signals", and "Suggested next steps" sections are unchanged and still
 follow the cards), and introduces no new judgment, scoring, or approval
 semantics.
 
+## Reference Board summary and card (Phase 28)
+
+Each project's card also carries `reference_board_summary` - a read-only,
+advisory summary of the project's optional `reference_board.json`
+(`factory.reference_board`, `docs/reference-board.md`), independent of
+`brief.json`/`design_intent` entirely (computed even for a project with no
+brief at all):
+
+```jsonc
+{
+  "reference_count": 1,
+  "by_license": {"unknown": 1},
+  "by_source_type": {"inspiration": 1},
+  "by_usage_intent": {"design_reference_only": 1},
+  "attached_to_design_intent_count": 1,
+  "warnings": ["Classroom storage inspiration: license is unknown - commercial use unclear."]
+}
+```
+
+Always a dict, never `None` - a "clean empty result"
+(`reference_count: 0`, empty breakdowns, no warnings) whenever no
+`reference_board.json` exists, exactly like `design_intent_summary`/
+`design_intent_detail` return `None` for a brief with no `design_intent`.
+Purely additive and purely presentational, the same guarantees as
+`design_intent_summary`/`design_intent_detail`: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it.
+
+The board's **HTML** gained a compact "Reference Board" card section,
+right after "Design Intent" (references feed design intent) and before
+"Manufacturing Overview" - reference count, a license-status breakdown, a
+usage-intent breakdown, and any advisory warnings (missing/unknown/
+proprietary license, missing `source_url`, a `remix_candidate` with an
+unsafe license, an unsupported field value, or no references attached to
+`design_intent.reference_inputs`). Compact by design: counts and
+warnings, not a full per-reference listing - no titles or URLs rendered
+individually. A project with zero references renders a single
+explanatory line instead of empty rows. Static HTML/CSS only - no
+JavaScript, no external assets, no CDN, no tracking - and, same as the
+module itself, no `source_url` is ever fetched, downloaded, or rendered as
+a clickable link. See `docs/reference-board.md` for the full field/
+vocabulary reference and what this phase explicitly does not do (no
+Source Discovery, no scraping, no downloading, no search, no API
+integration).
+
 ## Board JSON shape
 
 ```jsonc
@@ -356,7 +402,15 @@ semantics.
         ]
       },
       "design_intent_summary": null,
-      "design_intent_detail": null
+      "design_intent_detail": null,
+      "reference_board_summary": {
+        "reference_count": 0,
+        "by_license": {},
+        "by_source_type": {},
+        "by_usage_intent": {},
+        "attached_to_design_intent_count": 0,
+        "warnings": []
+      }
     }
   ],
   "notes": ["Local static preview only - ...", "..."]
@@ -384,6 +438,12 @@ semantics.
   and the HTML Design Intent card are display-only mirrors of an existing
   brief field, never an input to `visual_readiness_state`,
   `health_signals`, or `suggested_actions`.
+- Does not fetch, download, scrape, or search anything for a project's
+  Reference Board (Phase 28) - `reference_board_summary` and the HTML
+  Reference Board card only read and summarize a local
+  `reference_board.json`; every `source_url` on it is inert metadata,
+  never a target this board (or anything it calls) opens. See
+  `docs/reference-board.md`.
 
 ## Readiness signals are not a design-quality score
 
@@ -412,8 +472,10 @@ board itself - see that doc's "Why this isn't merged into `factory
 preview-board`" section, and its "Human review quality checklist"),
 `docs/design-quality-standard.md`, `docs/design-intent-brief.md` (Phase 26
 - the `design_intent_summary` field above; Phase 27 - `design_intent_detail`
-and the HTML Design Intent card), and `docs/roadmap.md` Phase 8 (board
-foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
-Phase 12 (review gate) / Phase 23 (human review quality checklist) /
-Phase 26 (design intent visibility) / Phase 27 (design intent preview
-board visualization).
+and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
+`reference_board_summary` and the HTML Reference Board card), and
+`docs/roadmap.md` Phase 8 (board foundation) / Phase 10 (action
+suggestions) / Phase 11 (health signals) / Phase 12 (review gate) /
+Phase 23 (human review quality checklist) / Phase 26 (design intent
+visibility) / Phase 27 (design intent preview board visualization) /
+Phase 28 (source discovery and reference board planning).

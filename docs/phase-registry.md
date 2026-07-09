@@ -38,7 +38,8 @@ whenever a phase completes.
 | 24 | Design intent brief schema planning | 2826680 | complete | `docs/design-intent-brief.md`; additive `design_intent` shape; two concept examples illustrate it. Docs/planning only - no schema or product code changed. |
 | 25 | Design intent manufacturability check | 1ee322a | complete | `factory/design_intent_check.py`, `factory check-design-intent`. Read-only advisory `max_size_mm` vs. known printer build volumes; no approval/print-readiness behavior. |
 | 26 | Design intent visibility in project reports | 8e3efaf | complete | `summarize_design_intent()`; `factory report`'s `Design Intent:` section; `design_intent_summary` field on preview-board project entries. Visibility only - `review-gate` unchanged, no approval/scoring/print-readiness behavior. |
-| 27 | Design intent preview board visualization | (this phase) | complete | `describe_design_intent_for_board()`; `design_intent_detail` field on preview-board project entries; a per-project "Design Intent" HTML card (design intent, manufacturing overview, artifact/review badges). Visualization only - JSON/report compatibility preserved, no approval/scoring/print-readiness behavior. |
+| 27 | Design intent preview board visualization | ca8df64 | complete | `describe_design_intent_for_board()`; `design_intent_detail` field on preview-board project entries; a per-project "Design Intent" HTML card (design intent, manufacturing overview, artifact/review badges). Visualization only - JSON/report compatibility preserved, no approval/scoring/print-readiness behavior. |
+| 28 | Source discovery and reference board planning | (this phase) | complete | `factory/reference_board.py`; `reference_board_summary` field on preview-board project entries; a compact "Reference Board" HTML card. Planning/data-model only - no web crawling, scraping, search, downloading, or API integration; every `source_url` is inert metadata, never fetched. |
 
 ## Future tracks (not phase-numbered)
 

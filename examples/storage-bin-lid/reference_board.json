@@ -1,0 +1,21 @@
+{
+  "references": [
+    {
+      "title": "Classroom storage inspiration",
+      "source_url": "https://example.com/classroom-storage-reference",
+      "source_type": "inspiration",
+      "license": "unknown",
+      "usage_intent": "design_reference_only",
+      "attached_to": "design_intent.reference_inputs",
+      "notes": "Used only as a style and organization reference - not a dimensional source."
+    },
+    {
+      "title": "Hand-measured bin opening sketch",
+      "source_type": "sketch",
+      "license": "personal_use",
+      "usage_intent": "dimensional_reference",
+      "attached_to": "part",
+      "notes": "Owen's own pencil sketch with measured opening dimensions - not a downloaded or scraped source."
+    }
+  ]
+}

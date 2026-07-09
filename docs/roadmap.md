@@ -875,10 +875,92 @@ network call, writes any file, or sets `human_approved`/`print_ready`.
 Never approves, scores, or replaces the Etsy-worthy/slicer/human review
 described in `docs/review-gate.md`'s "Human review quality checklist."
 
-**Not yet started:** displaying `functional_goals`/`visual_goals` (mechanical
-behavior, silhouette/proportions/surface-detail goals) anywhere; a source-
-discovery or reference-board feature; any Meshy/Blender-backed workflow -
-all explicitly out of scope for this phase.
+**Not yet started (at the end of Phase 27):** displaying `functional_goals`/
+`visual_goals` (mechanical behavior, silhouette/proportions/surface-detail
+goals) anywhere; a source-discovery or reference-board feature; any
+Meshy/Blender-backed workflow - the reference-board planning piece is
+picked up by Phase 28 below (Meshy/Blender/functional-visual-goals display
+remain out of scope for both phases).
+
+## Phase 28 — source discovery and reference board planning (started)
+
+**Planning/data-model scaffolding, the same spirit as Phase 24's
+`design_intent` shape** - not a Source Discovery *feature*. Defines a
+structured, local record of where a project's design intent came from (a
+photo, an existing STL, a MakerWorld/Thingiverse/Reddit/Pinterest/
+DeviantArt page, a sketch, a classroom/product photo, a remixable source
+file) and gives it a read-only, advisory summary, wired into the same
+`summarize_project()`/preview-board layers Phase 26/27 extended. No web
+crawling, no scraping, no external search, no downloading, and no API
+integration exist anywhere in this phase - a recorded `source_url` is
+inert metadata, never fetched.
+
+**Started:** `factory.reference_board` - a new module, read-only and
+local-filesystem-only, reading an optional `<project_dir>/reference_board.json`
+(a flat `references` list). Defines the closed vocabularies for
+`source_type`, `license`, `usage_intent`, and `attached_to`, and two
+functions:
+
+- `read_reference_board(project_dir)` - raw, unvalidated read. Returns
+  `{"references": []}` (not an error) whenever the file is missing,
+  unreadable, or malformed - most projects won't have one.
+- `summarize_reference_board(project_dir)` - validated, advisory summary:
+  `reference_count`, `by_license`/`by_source_type`/`by_usage_intent`
+  breakdowns, `attached_to_design_intent_count`, and a list of plain-text
+  advisory `warnings` (missing/unknown/proprietary license, missing
+  `source_url`, a `remix_candidate` with an unsafe license, an unsupported
+  field value, a malformed entry, or no references attached to
+  `design_intent.reference_inputs`). Always a dict, never `None` - "clean
+  empty result" whenever no reference board exists. Every condition here
+  is advisory, never a hard failure.
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained a third
+  additive field, `reference_board_summary`, computed unconditionally
+  (independent of `brief_status` - a project can have a reference board
+  before it even has a `brief.json`). `design_intent_summary` and
+  `design_intent_detail` are completely unchanged by this phase. Same
+  non-classifying guarantee as those two fields.
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Reference Board" card section, right after "Design Intent" (references
+  feed design intent) and before "Manufacturing Overview" - reference
+  count, a license-status breakdown, a usage-intent breakdown, and any
+  advisory warnings. Compact by design: counts and warnings, not a full
+  per-reference listing. A project with zero references renders a single
+  explanatory line instead of empty rows. Static HTML/CSS only - no
+  JavaScript, no external assets, no CDN, no tracking, and no
+  `source_url` is ever rendered as a clickable link.
+
+One committed, safe local example:
+`examples/storage-bin-lid/reference_board.json` (no copyrighted assets, no
+downloaded files - a URL string is present only as inert metadata). See
+`docs/reference-board.md` for the full field/vocabulary reference.
+
+**Explicitly unchanged:** `design_intent_summary`'s and
+`design_intent_detail`'s shapes; the board's existing summary table,
+"Health signals" section, and "Suggested next steps" section; the preview
+board's JSON top-level shape (`reference_board_summary` is additive on
+each project entry, not a new top-level key);
+`factory.review_gate.evaluate_review_gate()`'s JSON output shape (still
+never includes `reference_board_summary`). See `docs/reference-board.md`
+and `docs/preview-board.md`.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind, writes any file, or sets
+`human_approved`/`print_ready`. Never fetches, downloads, scrapes, or
+searches anything - a `source_url` is read and echoed back in warnings/
+summaries, never opened.
+
+**Not yet started:** the actual Source Discovery feature (crawling,
+scraping, external search, downloading) - this phase is the data model
+and local advisory layer it would eventually populate, not the feature
+itself; automatically copying a reference into
+`brief.json`'s `design_intent.reference_inputs`; a UI for adding/editing
+references (`reference_board.json` is hand-authored JSON for now);
+per-reference detail in the HTML card (currently counts/breakdowns/
+warnings only, by design, to stay compact); any Meshy/Blender/slicer
+integration - all explicitly out of scope for this phase.
 
 ## Future tracks, not yet phase-numbered
 

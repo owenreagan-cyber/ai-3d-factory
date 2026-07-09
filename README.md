@@ -127,10 +127,13 @@ glance, shown in a "Health signals" section and a compact "Health" column.
 Each project also gets a "Design Intent" card (quality target, purpose,
 style, manufacturing fit, reference input count, and design notes/warnings
 if the brief declares a `design_intent` block - see
-`docs/design-intent-brief.md`) plus CAD/STL/Render/Review-readiness status
-badges - visualization only, static HTML/CSS, no JavaScript. Nothing is
-ever run automatically; the human decides what to copy and execute. See
-`docs/preview-board.md`.
+`docs/design-intent-brief.md`), a compact "Reference Board" card right
+next to it (reference count, license-status/usage-intent breakdowns, and
+advisory warnings if the project has an optional `reference_board.json` -
+see `docs/reference-board.md`), plus CAD/STL/Render/Review-readiness
+status badges - visualization only, static HTML/CSS, no JavaScript.
+Nothing is ever run automatically; the human decides what to copy and
+execute. See `docs/preview-board.md`.
 
 `factory review-gate` is a read-only pass/warn/fail pre-flight check for
 one project: does it have everything needed on disk for a **human** to

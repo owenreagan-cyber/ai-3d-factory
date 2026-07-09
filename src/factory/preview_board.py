@@ -48,6 +48,16 @@ the JSON board shape, no existing HTML section is removed, and this phase
 introduces no JavaScript, no external assets, and no new judgment,
 scoring, or approval semantics. See `docs/design-intent-brief.md` and
 `docs/preview-board.md`.
+
+Phase 28 added a compact "Reference Board" section to that same card,
+right after "Design Intent" (references feed design intent) - reference
+count, a license-status breakdown, a usage-intent breakdown, and any
+advisory warnings, built from `factory.project_inspection.summarize_project()`'s
+new `reference_board_summary` field (`factory.reference_board`). Same
+guarantees as Phase 27: purely presentational, no JavaScript, no external
+assets, and this module never reads, fetches, or contacts any reference's
+`source_url` - it only displays a structured local record. See
+`docs/reference-board.md`.
 """
 
 from __future__ import annotations
@@ -161,6 +171,27 @@ _MANUFACTURABILITY_RESULT_LABELS = {
     "unreadable_file": "Brief could not be read",
 }
 
+_REFERENCE_LICENSE_LABELS = {
+    "unknown": "unknown",
+    "personal_use": "personal use",
+    "commercial_allowed": "commercial allowed",
+    "cc_by": "CC BY",
+    "cc_by_sa": "CC BY-SA",
+    "cc_by_nc": "CC BY-NC",
+    "public_domain": "public domain",
+    "proprietary": "proprietary",
+    "custom": "custom",
+}
+
+_REFERENCE_USAGE_INTENT_LABELS = {
+    "design_reference_only": "design reference only",
+    "remix_candidate": "remix candidate",
+    "dimensional_reference": "dimensional reference",
+    "style_reference": "style reference",
+    "functional_reference": "functional reference",
+    "manufacturing_reference": "manufacturing reference",
+}
+
 
 def _text_or_fallback(value: Any, placeholder: str) -> str:
     """Escape `value` if it's a non-empty string, else render `placeholder` in a
@@ -202,6 +233,50 @@ def _build_design_intent_section_html(detail: dict[str, Any] | None) -> str:
         )
     )
     return f'<div class="design-intent">{rows}</div>'
+
+
+def _build_reference_board_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `reference_board_summary` (Phase 28) into a compact
+    static 'Reference Board' card section - reference count, a license-status
+    breakdown, a usage-intent breakdown, and any advisory warnings (e.g. an
+    unknown/proprietary license, a missing source_url, or a reference not yet
+    attached to `design_intent.reference_inputs`). Placed next to Design
+    Intent because references feed design intent. Plain text only - no
+    JavaScript. Every field degrades to a clear fallback rather than ever
+    being left blank; a project with no references at all renders a single
+    explanatory line instead of empty rows. Never fetches, downloads, or
+    otherwise contacts any reference's `source_url`.
+    """
+    summary = summary or {}
+    count = summary.get("reference_count", 0)
+    if not count:
+        return '<div class="reference-board"><p class="none">No references recorded for this project.</p></div>'
+
+    def _breakdown_text(counts: dict[str, int], labels: dict[str, str]) -> str:
+        if not counts:
+            return "Not specified"
+        return ", ".join(f"{n} {labels.get(key, key)}" for key, n in sorted(counts.items()))
+
+    license_html = _escape_html(_breakdown_text(summary.get("by_license") or {}, _REFERENCE_LICENSE_LABELS))
+    usage_html = _escape_html(_breakdown_text(summary.get("by_usage_intent") or {}, _REFERENCE_USAGE_INTENT_LABELS))
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("References", _escape_html(str(count))),
+            ("License status", license_html),
+            ("Usage", usage_html),
+        )
+    )
+
+    warnings = summary.get("warnings") or []
+    if warnings:
+        warnings_html = "".join(f"<li>{_escape_html(w)}</li>" for w in warnings)
+        rows += f'<div class="di-row"><span class="di-label">Warnings:</span></div><ul class="di-warnings">{warnings_html}</ul>'
+    else:
+        rows += _di_row("Warnings", '<span class="none">None</span>')
+
+    return f'<div class="reference-board">{rows}</div>'
 
 
 def _build_manufacturing_overview_html(project: dict[str, Any]) -> str:
@@ -301,13 +376,13 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
-    """Render one project's Phase 27 overview card: Project Header, Design
-    Intent, Manufacturing Overview, Artifacts, Health Signals, and Review
-    Readiness. Static HTML/CSS only - no JavaScript, no external assets.
-    Purely presentational: it never recomputes or overrides
-    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
-    only displays fields `factory.project_inspection.summarize_project()`
-    already computed.
+    """Render one project's overview card: Project Header, Design Intent
+    (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
+    Artifacts, Health Signals, and Review Readiness. Static HTML/CSS only -
+    no JavaScript, no external assets. Purely presentational: it never
+    recomputes or overrides `visual_readiness_state`, `health_signals`, or
+    `suggested_actions`, it only displays fields
+    `factory.project_inspection.summarize_project()` already computed.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -317,6 +392,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
         '<div class="card-section"><h4>Design Intent</h4>'
         + _build_design_intent_section_html(project.get("design_intent_detail"))
+        + "</div>"
+        '<div class="card-section"><h4>Reference Board</h4>'
+        + _build_reference_board_section_html(project.get("reference_board_summary"))
         + "</div>"
         '<div class="card-section"><h4>Manufacturing Overview</h4>'
         + _build_manufacturing_overview_html(project)
@@ -545,7 +623,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}
