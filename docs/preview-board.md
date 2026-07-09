@@ -355,6 +355,56 @@ module, still entirely local. The board's HTML/JSON output is unaffected
 by that CLI (Phase 29 is CLI-only, no board layout changes) - see
 `docs/reference-board.md`'s "CLI management (Phase 29)" section.
 
+## Project Intake summary and card (Phase 30)
+
+Each project's card also carries `intake_summary` - a read-only, fully
+deterministic heuristic analysis (`factory.project_intake`,
+`docs/project-intake.md`) of the project's `brief.json`
+`project_name`/`description`/`constraints` free text. **No AI, no LLM, no
+network** - closed keyword tables and regexes only:
+
+```jsonc
+{
+  "project_name": {"value": "Demo Project", "confidence": "high"},
+  "category": {"value": "sign", "confidence": "medium"},
+  "purpose": {"value": "A premium classroom sign...", "confidence": "medium"},
+  "audience": {"value": "Students", "confidence": "medium"},
+  "environment": {"value": "classroom", "confidence": "medium"},
+  "material_assumptions": {"value": ["PLA"], "confidence": "high"},
+  "printer_assumptions": {"value": ["Bambu"], "confidence": "high"},
+  "quality_target": {"value": "etsy-worthy", "confidence": "medium"},
+  "manufacturing_style": {"value": [], "confidence": "unknown"},
+  "functional_goals": {"value": [], "confidence": "unknown"},
+  "visual_goals": {"value": [], "confidence": "unknown"},
+  "dimensional_constraints": {"value": [], "confidence": "unknown"},
+  "commercial_intent": {"value": false, "confidence": "unknown"},
+  "warnings": ["Dimensions not specified."],
+  "source": "brief_description"
+}
+```
+
+Always a dict, never `None` - computed unconditionally (independent of
+`brief_status`, a project can be intake-analyzed before it has anything
+else). Purely additive and purely presentational, the same guarantees as
+`design_intent_summary`/`design_intent_detail`/`reference_board_summary`:
+never read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it.
+
+The board's **HTML** gained a compact "Project Intake" card section,
+placed *first* in each project's card - upstream of "Design Intent" in
+this repo's pipeline (User Idea -> Project Intake -> Project Brief ->
+Design Intent -> Reference Board -> ...) - category, audience,
+environment, quality target, material assumptions, and advisory warnings.
+Deliberately compact: per-field confidence levels and less commonly needed
+fields (printer assumptions, manufacturing style, functional/visual goals,
+dimensional constraints, commercial intent) stay in `factory intake
+analyze --json` output, not duplicated in the card. Static HTML/CSS only -
+no JavaScript, no external assets, no CDN, no tracking, and (same
+guarantee as the module itself) no network call, AI/LLM API call, web
+search, or download of any kind. See `docs/project-intake.md` for the full
+field/heuristic/confidence reference and this phase's non-goals.
+
 ## Board JSON shape
 
 ```jsonc
@@ -416,6 +466,23 @@ by that CLI (Phase 29 is CLI-only, no board layout changes) - see
         "by_usage_intent": {},
         "attached_to_design_intent_count": 0,
         "warnings": []
+      },
+      "intake_summary": {
+        "project_name": {"value": "Demo Bracket", "confidence": "high"},
+        "category": {"value": "unknown", "confidence": "unknown"},
+        "purpose": {"value": null, "confidence": "unknown"},
+        "audience": {"value": null, "confidence": "unknown"},
+        "environment": {"value": "unknown", "confidence": "unknown"},
+        "material_assumptions": {"value": [], "confidence": "unknown"},
+        "printer_assumptions": {"value": [], "confidence": "unknown"},
+        "quality_target": {"value": "unknown", "confidence": "unknown"},
+        "manufacturing_style": {"value": [], "confidence": "unknown"},
+        "functional_goals": {"value": [], "confidence": "unknown"},
+        "visual_goals": {"value": [], "confidence": "unknown"},
+        "dimensional_constraints": {"value": [], "confidence": "unknown"},
+        "commercial_intent": {"value": false, "confidence": "unknown"},
+        "warnings": ["Dimensions not specified.", "Printer not specified.", "Material not specified."],
+        "source": "brief_description"
       }
     }
   ],
@@ -450,6 +517,13 @@ by that CLI (Phase 29 is CLI-only, no board layout changes) - see
   `reference_board.json`; every `source_url` on it is inert metadata,
   never a target this board (or anything it calls) opens. See
   `docs/reference-board.md`.
+- Does not call an AI/LLM, does not perform a web search, and does not
+  read a project's free-form idea text with anything other than closed
+  keyword tables and regexes (Phase 30) - `intake_summary` and the HTML
+  Project Intake card only reflect
+  `factory.project_intake`'s fully deterministic analysis of
+  `brief.json`'s own `project_name`/`description`/`constraints` text. See
+  `docs/project-intake.md`.
 
 ## Readiness signals are not a design-quality score
 
@@ -480,9 +554,11 @@ preview-board`" section, and its "Human review quality checklist"),
 - the `design_intent_summary` field above; Phase 27 - `design_intent_detail`
 and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
 `reference_board_summary` and the HTML Reference Board card; Phase 29 -
-the `factory reference-board` CLI), and `docs/roadmap.md` Phase 8 (board
-foundation) / Phase 10 (action suggestions) / Phase 11 (health signals) /
-Phase 12 (review gate) / Phase 23 (human review quality checklist) /
-Phase 26 (design intent visibility) / Phase 27 (design intent preview
-board visualization) / Phase 28 (source discovery and reference board
-planning) / Phase 29 (reference board CLI management).
+the `factory reference-board` CLI), `docs/project-intake.md` (Phase 30 -
+`intake_summary` and the HTML Project Intake card), and `docs/roadmap.md`
+Phase 8 (board foundation) / Phase 10 (action suggestions) / Phase 11
+(health signals) / Phase 12 (review gate) / Phase 23 (human review quality
+checklist) / Phase 26 (design intent visibility) / Phase 27 (design intent
+preview board visualization) / Phase 28 (source discovery and reference
+board planning) / Phase 29 (reference board CLI management) / Phase 30
+(intelligent project intake engine).

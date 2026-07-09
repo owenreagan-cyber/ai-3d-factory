@@ -58,6 +58,16 @@ guarantees as Phase 27: purely presentational, no JavaScript, no external
 assets, and this module never reads, fetches, or contacts any reference's
 `source_url` - it only displays a structured local record. See
 `docs/reference-board.md`.
+
+Phase 30 added a compact "Project Intake" section, placed *first* in the
+card (upstream of Design Intent in this repo's pipeline: User Idea ->
+Project Intake -> Project Brief -> Design Intent -> ...) - category,
+audience, environment, quality target, material assumptions, and advisory
+warnings, built from `summarize_project()`'s new `intake_summary` field
+(`factory.project_intake`, a fully deterministic keyword/regex heuristic
+engine - no AI, no LLM, no network). Same guarantees as Phase 27/28: purely
+presentational, no JavaScript, no external assets. See
+`docs/project-intake.md`.
 """
 
 from __future__ import annotations
@@ -171,6 +181,39 @@ _MANUFACTURABILITY_RESULT_LABELS = {
     "unreadable_file": "Brief could not be read",
 }
 
+_INTAKE_CATEGORY_LABELS = {
+    "sign": "Sign",
+    "organizer": "Organizer",
+    "toy": "Toy",
+    "décor": "Décor",
+    "fixture": "Fixture",
+    "mechanical": "Mechanical",
+    "educational": "Educational",
+    "storage": "Storage",
+    "replacement part": "Replacement part",
+    "accessory": "Accessory",
+    "unknown": "Unknown",
+}
+
+_INTAKE_ENVIRONMENT_LABELS = {
+    "classroom": "Classroom",
+    "office": "Office",
+    "home": "Home",
+    "garage": "Garage",
+    "outdoor": "Outdoor",
+    "unknown": "Unknown",
+}
+
+_INTAKE_QUALITY_LABELS = {
+    "prototype": "Prototype",
+    "functional": "Functional",
+    "premium": "Premium",
+    "etsy-worthy": "Etsy-worthy",
+    "presentation": "Presentation",
+    "gift": "Gift",
+    "unknown": "Unknown",
+}
+
 _REFERENCE_LICENSE_LABELS = {
     "unknown": "unknown",
     "personal_use": "personal use",
@@ -203,6 +246,58 @@ def _text_or_fallback(value: Any, placeholder: str) -> str:
 
 def _di_row(label: str, value_html: str) -> str:
     return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
+
+
+def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
+    """Render one project's `intake_summary` (Phase 30) into a compact static
+    'Project Intake' card section - category, audience, environment, quality
+    target, material assumptions, and advisory warnings. Placed first in the
+    card, upstream of Design Intent in this repo's pipeline (User Idea ->
+    Project Intake -> Project Brief -> Design Intent -> ...). Plain text
+    only - no JavaScript. Every field degrades to a clear fallback rather
+    than ever being left blank. Deliberately compact: per-field confidence
+    levels and less commonly needed fields (printer assumptions,
+    manufacturing style, functional/visual goals, dimensional constraints,
+    commercial intent) are available via `factory intake analyze --json`
+    and are not duplicated here.
+    """
+    if not intake:
+        return '<div class="project-intake"><p class="none">No intake analysis available for this project.</p></div>'
+
+    category = (intake.get("category") or {}).get("value")
+    category_html = _escape_html(_INTAKE_CATEGORY_LABELS.get(category, category or "Unknown"))
+
+    audience = (intake.get("audience") or {}).get("value")
+    audience_html = _text_or_fallback(audience, "Not specified")
+
+    environment = (intake.get("environment") or {}).get("value")
+    environment_html = _escape_html(_INTAKE_ENVIRONMENT_LABELS.get(environment, environment or "Unknown"))
+
+    quality = (intake.get("quality_target") or {}).get("value")
+    quality_html = _escape_html(_INTAKE_QUALITY_LABELS.get(quality, quality or "Unknown"))
+
+    materials = (intake.get("material_assumptions") or {}).get("value") or []
+    material_html = _escape_html(", ".join(materials)) if materials else '<span class="none">Not specified</span>'
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Category", category_html),
+            ("Audience", audience_html),
+            ("Environment", environment_html),
+            ("Quality", quality_html),
+            ("Material", material_html),
+        )
+    )
+
+    warnings = intake.get("warnings") or []
+    if warnings:
+        warnings_html = "".join(f"<li>{_escape_html(w)}</li>" for w in warnings)
+        rows += f'<div class="di-row"><span class="di-label">Warnings:</span></div><ul class="di-warnings">{warnings_html}</ul>'
+    else:
+        rows += _di_row("Warnings", '<span class="none">None</span>')
+
+    return f'<div class="project-intake">{rows}</div>'
 
 
 def _build_design_intent_section_html(detail: dict[str, Any] | None) -> str:
@@ -376,13 +471,16 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
-    """Render one project's overview card: Project Header, Design Intent
-    (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
-    Artifacts, Health Signals, and Review Readiness. Static HTML/CSS only -
-    no JavaScript, no external assets. Purely presentational: it never
-    recomputes or overrides `visual_readiness_state`, `health_signals`, or
-    `suggested_actions`, it only displays fields
-    `factory.project_inspection.summarize_project()` already computed.
+    """Render one project's overview card: Project Header, Project Intake
+    (Phase 30), Design Intent (Phase 27), Reference Board (Phase 28),
+    Manufacturing Overview, Artifacts, Health Signals, and Review Readiness -
+    in that order, matching this repo's pipeline (User Idea -> Project
+    Intake -> Project Brief -> Design Intent -> Reference Board -> ...).
+    Static HTML/CSS only - no JavaScript, no external assets. Purely
+    presentational: it never recomputes or overrides
+    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
+    only displays fields `factory.project_inspection.summarize_project()`
+    already computed.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -390,6 +488,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     return (
         '<div class="project-card">'
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
+        '<div class="card-section"><h4>Project Intake</h4>'
+        + _build_project_intake_section_html(project.get("intake_summary"))
+        + "</div>"
         '<div class="card-section"><h4>Design Intent</h4>'
         + _build_design_intent_section_html(project.get("design_intent_detail"))
         + "</div>"
@@ -623,7 +724,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}

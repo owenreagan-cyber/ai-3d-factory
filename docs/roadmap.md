@@ -1022,15 +1022,128 @@ plain text, never opened. Never performs automated license detection -
 `--license` is exactly what a human passes (or omits), classified
 advisory-only exactly like Phase 28's hand-authored entries.
 
-**Not yet started:** the actual Source Discovery feature; a `factory
-reference-board remove`/`edit` command (only `add` exists - removing or
-editing an entry still means hand-editing the JSON, or `init --force` to
-start over); attaching a reference to `design_intent.reference_inputs`
-automatically from the CLI (`--attached-to design_intent.reference_inputs`
-records the *declared* intent, same as Phase 28 - nothing copies it into
-`brief.json`); per-reference detail in the HTML card; any Meshy/Blender/
-CAD-generation/AI-ranking integration - all explicitly out of scope for
-this phase.
+**Not yet started (at the end of Phase 29):** the actual Source Discovery
+feature; a `factory reference-board remove`/`edit` command (only `add`
+exists - removing or editing an entry still means hand-editing the JSON,
+or `init --force` to start over); attaching a reference to
+`design_intent.reference_inputs` automatically from the CLI
+(`--attached-to design_intent.reference_inputs` records the *declared*
+intent, same as Phase 28 - nothing copies it into `brief.json`);
+per-reference detail in the HTML card; any Meshy/Blender/CAD-generation/
+AI-ranking integration; a way to go from a free-form idea to a structured
+brief without hand-authoring `brief.json` - the last piece is picked up by
+Phase 30 below (Meshy/Blender/CAD generation remain out of scope for both
+phases).
+
+## Phase 30 — intelligent project intake engine (started)
+
+The first step in this repo's pipeline gets its own module:
+
+```
+User Idea -> Project Intake -> Project Brief -> Design Intent ->
+Reference Board -> Manufacturing Planning -> CAD Generation ->
+Preview Board -> Review Gate -> Slicer Review -> (never automatic printing)
+```
+
+Converts a free-form natural-language product idea (plain text, Markdown,
+or an existing project's `brief.json` description) into structured intake
+metadata. **Fully deterministic, no AI/LLM/network of any kind** - closed
+keyword tables and regexes only, checked in a fixed order, so the same
+input always produces the same output. This phase does not generate CAD
+and does not perform AI reasoning beyond structured extraction - it
+prepares every downstream system, it doesn't replace any of them.
+
+**Started:** `factory.project_intake`, a new module with one core function
+and three read-only entry points:
+
+- `extract_intake_fields(text)` - the heuristic engine itself. Extracts
+  `project_name`, `category`, `purpose`, `audience`, `environment`,
+  `material_assumptions`, `printer_assumptions`, `quality_target`,
+  `manufacturing_style`, `functional_goals`, `visual_goals`,
+  `dimensional_constraints`, and `commercial_intent` - each
+  `{"value": ..., "confidence": "high"|"medium"|"low"|"unknown"}` - plus
+  advisory `warnings`. See `docs/project-intake.md` for the full
+  heuristic/confidence reference.
+- `analyze_text_file(path)` - reads a `.txt`/`.md` file (Markdown heading
+  becomes the project name) and runs the engine over it.
+- `analyze_project(project_dir)` - reads `<project_dir>/brief.json`'s
+  `project_name`/`description`/`constraints` free text (only those three -
+  deliberately not every structured field elsewhere in the same file) and
+  runs the engine over it; the brief's own literal `project_name` always
+  wins over any inferred guess.
+- `analyze(path)` - the single dispatch entry point `factory intake
+  analyze` uses: directory -> `analyze_project()`, file ->
+  `analyze_text_file()`.
+
+All keyword matching is **word-boundary matching, not substring
+matching** - fixed during this phase's own development after an early
+draft matched "de**sign**" against the `sign` category keyword and
+"b**rack**et" against the `organizer` keyword `rack`; every match is now a
+whole word/phrase, never a fragment.
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained a fourth
+  additive field, `intake_summary`, computed unconditionally (independent
+  of `brief_status`, same reasoning as Phase 28's
+  `reference_board_summary`). `design_intent_summary`, `design_intent_detail`,
+  and `reference_board_summary` are completely unchanged by this phase.
+- **`factory.preview_board.build_board_html()`** gained a compact "Project
+  Intake" card section, placed *first* in each project's card (upstream of
+  "Design Intent" in the pipeline above) - category, audience,
+  environment, quality target, material assumptions, and advisory
+  warnings. Deliberately compact: confidence levels and less commonly
+  needed fields stay in `--json` output, not the card.
+
+**New CLI:** `factory intake analyze <project_dir_or_text_or_markdown_file>
+[--json]` - a thin wrapper around `analyze()`. Sample output against the
+committed benchmark:
+
+```
+$ factory intake analyze examples/intake-benchmarks/teacher-nameplate.md
+Project Intake Analysis
+source: markdown_file
+
+Project name: Mr. Reagan Classroom Nameplate  (confidence: high)
+Category: Sign  (confidence: medium)
+...
+Quality target: Etsy-worthy  (confidence: medium)
+Manufacturing style: Multi-part, AMS, Multi-color  (confidence: high)
+...
+Dimensional constraints: 48-inch  (confidence: high)
+Commercial intent: No  (confidence: unknown)
+
+advisory warnings:
+  - Reference images recommended - see `factory reference-board add`.
+```
+
+One committed benchmark: `examples/intake-benchmarks/teacher-nameplate.md`
+- a shortened "Mr. Reagan" classroom-nameplate concept (modular teacher
+desk nameplate, premium/Etsy-worthy/gift-quality, anime-inspired
+lettering, AMS on a Bambu printer, a 48-inch desk, PLA) written to exercise
+most of this engine's heuristics in one file. Exists only to validate
+intake parsing - never generates CAD, a brief, or any other artifact.
+
+**Explicitly unchanged:** `design_intent_summary`'s, `design_intent_detail`'s,
+and `reference_board_summary`'s shapes; the board's existing summary
+table, "Health signals", "Suggested next steps", "Design Intent", and
+"Reference Board" sections; `factory.review_gate.evaluate_review_gate()`'s
+JSON output shape (still never includes `intake_summary`).
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind, or sets `human_approved`/`print_ready`. Never
+calls an AI/LLM API, never performs a web search, never scrapes a website,
+never downloads anything, never performs OCR or computer vision. Writes
+nothing - `factory intake analyze` is entirely read-only.
+
+**Not yet started:** using `intake_summary` to auto-generate or
+auto-populate a `brief.json`/`design_intent` (this phase produces metadata
+only - a human still authors the actual brief by hand, the same
+human-in-the-loop principle as everywhere else in this repo); multi-language
+keyword support; negation/context understanding (documented limitation,
+not a bug - see `docs/project-intake.md`); any AI/LLM-backed extraction;
+CAD generation of any kind; Meshy/Blender/slicer integration - all
+explicitly out of scope for this phase.
 
 ## Future tracks, not yet phase-numbered
 

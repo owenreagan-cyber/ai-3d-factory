@@ -50,6 +50,7 @@ from factory.planner import plan_from_brief_path
 from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
+from factory.project_intake import analyze as analyze_intake
 from factory.reference_board import (
     ATTACHED_TO_VALUES,
     LICENSES,
@@ -113,6 +114,7 @@ AVAILABLE_COMMANDS = (
     "reference-board validate <project_dir> [--json]",
     "reference-board list <project_dir> [--json]",
     "reference-board add --project <project_dir> --title <title> [--url ...] [--type ...] [--license ...] [--usage ...] [--attached-to ...] [--notes ...]",
+    "intake analyze <project_dir_or_text_or_markdown_file> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1263,6 +1265,85 @@ def reference_board_add_cmd(
     console.print(
         "\nLocal only - this reference's source_url (if any) was saved as plain text, never fetched, "
         "downloaded, scraped, or searched."
+    )
+
+
+intake_app = typer.Typer(
+    name="intake",
+    help=(
+        "Analyze a free-form project idea (plain text, Markdown, or an existing project's brief.json) "
+        "into structured intake metadata (Phase 30). Fully local and fully deterministic - no AI, no LLM, "
+        "no network, no search. See docs/project-intake.md."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(intake_app, name="intake")
+
+
+def _capitalize_first(value: str) -> str:
+    return value[0].upper() + value[1:] if value else value
+
+
+def _print_intake_field(label: str, field: dict, *, humanize: bool = True) -> None:
+    value = field.get("value")
+    if isinstance(value, list):
+        display = ", ".join(_capitalize_first(v) if humanize else v for v in value) if value else "(none detected)"
+    elif isinstance(value, bool):
+        display = "Yes" if value else "No"
+    elif value is None:
+        display = "(not detected)"
+    elif humanize:
+        display = _capitalize_first(value)
+    else:
+        display = value
+    console.print(f"[bold]{label}[/bold]: {display}  [dim](confidence: {field.get('confidence')})[/dim]")
+
+
+@intake_app.command(name="analyze")
+def intake_analyze_cmd(
+    path: Path = typer.Argument(..., help="A project directory, or a plain-text/Markdown file describing the idea"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable summary"),
+) -> None:
+    """Analyze a project idea into structured intake metadata: category, audience,
+    environment, material/printer assumptions, quality target, manufacturing style,
+    functional/visual goals, dimensional constraints, and commercial intent - each
+    with a confidence level, plus advisory warnings. Accepts a project directory
+    (reads brief.json's project_name/description/constraints) or a plain-text/
+    Markdown file. Fully local, fully deterministic (no AI, no LLM, no network, no
+    search) - see docs/project-intake.md."""
+    summary = analyze_intake(path)
+
+    if as_json:
+        print(json.dumps(summary, indent=2, sort_keys=False, ensure_ascii=False))
+        return
+
+    console.print("[bold]Project Intake Analysis[/bold]")
+    console.print(f"source: {summary['source']}\n")
+
+    _print_intake_field("Project name", summary["project_name"], humanize=False)
+    _print_intake_field("Category", summary["category"])
+    _print_intake_field("Purpose", summary["purpose"], humanize=False)
+    _print_intake_field("Audience", summary["audience"], humanize=False)
+    _print_intake_field("Environment", summary["environment"])
+    _print_intake_field("Material assumptions", summary["material_assumptions"], humanize=False)
+    _print_intake_field("Printer assumptions", summary["printer_assumptions"], humanize=False)
+    _print_intake_field("Quality target", summary["quality_target"])
+    _print_intake_field("Manufacturing style", summary["manufacturing_style"])
+    _print_intake_field("Functional goals", summary["functional_goals"], humanize=False)
+    _print_intake_field("Visual goals", summary["visual_goals"])
+    _print_intake_field("Dimensional constraints", summary["dimensional_constraints"], humanize=False)
+    _print_intake_field("Commercial intent", summary["commercial_intent"])
+
+    if summary["warnings"]:
+        console.print("\n[yellow]advisory warnings[/yellow]:")
+        for warning in summary["warnings"]:
+            console.print(f"  - {warning}")
+    else:
+        console.print("\nNo advisory warnings.")
+
+    console.print(
+        "\nThis is a fully local, deterministic heuristic analysis - no AI, no LLM, no network, and no "
+        "search were used. See docs/project-intake.md."
     )
 
 

@@ -52,6 +52,21 @@ result" whenever no reference board exists. Same non-classifying
 guarantee as the `design_intent_*` fields: never read by
 `classify_visual_readiness()`, `build_health_signals()`, or
 `build_suggested_actions()`. See `docs/reference-board.md`.
+
+Phase 30 added a fourth additive field, `intake_summary` - a read-only,
+fully deterministic heuristic analysis (`factory.project_intake`) of the
+project's `brief.json` `project_name`/`description`/`constraints` free
+text (category, audience, environment, material/printer assumptions,
+quality target, manufacturing style, functional/visual goals, dimensional
+constraints, commercial intent - each with a `confidence` level - plus
+advisory `warnings`). Computed unconditionally, independent of
+`brief_status` (same reasoning as `reference_board_summary` - a project
+can be intake-analyzed before it has anything else). Always a dict, never
+`None`. Same non-classifying guarantee: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and no other Phase 26/27/28
+`design_intent_*`/`reference_board_summary` field is read or modified by
+this. See `docs/project-intake.md`.
 """
 
 from __future__ import annotations
@@ -61,6 +76,7 @@ from typing import Any
 
 from factory import preview_package, project_store
 from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
+from factory.project_intake import analyze_project as analyze_project_intake
 from factory.reference_board import summarize_reference_board
 from factory.render_coverage import compute_render_coverage, missing_and_stale_mesh_paths
 
@@ -640,6 +656,10 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
     # "clean empty result" whenever reference_board.json is absent.
     reference_board_summary = summarize_reference_board(project_dir)
 
+    # Also independent of brief_status - degrades to a clean "no signal"
+    # result if brief.json is missing/unreadable, rather than requiring one.
+    intake_summary = analyze_project_intake(project_dir)
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -675,4 +695,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "design_intent_summary": design_intent_summary,
         "design_intent_detail": design_intent_detail,
         "reference_board_summary": reference_board_summary,
+        "intake_summary": intake_summary,
     }

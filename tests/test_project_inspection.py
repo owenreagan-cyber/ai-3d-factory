@@ -162,7 +162,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_coverage", "preview_package_exists", "cad_files", "mesh_files",
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
-        "reference_board_summary",
+        "reference_board_summary", "intake_summary",
     }
     assert set(project.keys()) == expected_keys
 
@@ -403,6 +403,81 @@ def test_reference_board_summary_independent_of_brief_status(isolated_projects_d
 def test_review_gate_json_excludes_reference_board_summary(project_root):
     gate = evaluate_review_gate(project_root)
     assert "reference_board_summary" not in gate
+
+
+# ---- Phase 30: intake_summary field (Project Intake Engine) ----
+
+
+def test_intake_summary_present_and_shaped_for_minimal_project(project_root):
+    summary = summarize_project(project_root)
+    intake = summary["intake_summary"]
+    assert intake is not None
+    assert set(intake.keys()) == {
+        "project_name", "category", "purpose", "audience", "environment",
+        "material_assumptions", "printer_assumptions", "quality_target",
+        "manufacturing_style", "functional_goals", "visual_goals",
+        "dimensional_constraints", "commercial_intent", "warnings", "source",
+    }
+    assert intake["source"] == "brief_description"
+
+
+def test_intake_summary_is_clean_result_when_brief_missing(isolated_projects_dir):
+    empty_dir = isolated_projects_dir / "no-brief-here"
+    empty_dir.mkdir()
+    summary = summarize_project(empty_dir)
+    intake = summary["intake_summary"]
+    assert intake["source"] == "none"
+    assert intake["category"]["value"] == "unknown"
+
+
+def test_intake_summary_reflects_brief_description(project_root):
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium classroom sign for my teacher's desk, made from PLA on a Bambu printer."
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    intake = summary["intake_summary"]
+    assert intake["category"]["value"] == "sign"
+    assert intake["material_assumptions"]["value"] == ["PLA"]
+    assert intake["printer_assumptions"]["value"] == ["Bambu"]
+
+
+def test_intake_summary_malformed_brief_handled_safely(project_root):
+    (project_root / "brief.json").write_text("{not valid json", encoding="utf-8")
+    summary = summarize_project(project_root)
+    assert summary["intake_summary"]["source"] == "none"
+
+
+def test_intake_summary_never_affects_visual_readiness_or_health(project_root):
+    without_intake = summarize_project(project_root)
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy gift for the classroom, made with PLA."
+    project_store.save_json(brief_path, brief)
+    with_intake = summarize_project(project_root)
+
+    assert with_intake["visual_readiness_state"] == without_intake["visual_readiness_state"]
+    assert with_intake["health_signals"] == without_intake["health_signals"]
+    assert with_intake["suggested_actions"] == without_intake["suggested_actions"]
+
+
+def test_intake_summary_does_not_affect_design_intent_or_reference_board_fields(project_root):
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy gift for the classroom."
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    assert summary["design_intent_summary"] is None
+    assert summary["design_intent_detail"] is None
+    assert summary["reference_board_summary"]["reference_count"] == 0
+
+
+def test_review_gate_json_excludes_intake_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "intake_summary" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

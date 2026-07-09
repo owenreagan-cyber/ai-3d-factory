@@ -175,6 +175,21 @@ additive - never overwriting or removing an existing entry. Fully local:
 no search, scraping, downloading, or API/network call of any kind - a
 recorded `--url` is inert metadata, never fetched.
 
+`factory intake analyze <project_dir_or_text_or_markdown_file> [--json]` is
+the Project Intake Engine (`factory.project_intake`, see
+`docs/project-intake.md`) - the first step in this repo's pipeline (User
+Idea -> Project Intake -> Project Brief -> Design Intent -> Reference
+Board -> ...). Converts a free-form idea (plain text, Markdown, or an
+existing project's `brief.json` description) into structured metadata -
+category, audience, environment, material/printer assumptions, quality
+target, manufacturing style, functional/visual goals, dimensional
+constraints, and commercial intent, each with a confidence level, plus
+advisory warnings. **Fully deterministic - no AI, no LLM, no network, no
+search, no downloading**: every field comes from a closed keyword table or
+regex, never a model. Entirely read-only - it never creates or edits a
+`brief.json`, `design_intent`, or `reference_board.json`; a human still
+authors the actual brief by hand.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.
@@ -190,7 +205,10 @@ are real, runnable demos built with the actual CLI/OpenSCAD source
 placeholders (no CAD/mesh/render) for future Blender/Meshy-backed organic
 modeling. `factory list-examples`/`show-example <name>` inspect the
 library (read-only). See
-`docs/examples-library.md`.
+`docs/examples-library.md`. `examples/intake-benchmarks/` is a separate,
+small set of plain-Markdown files (not `factory`-managed projects) used
+only to exercise the Project Intake Engine's parsing - see
+`docs/project-intake.md`.
 
 ## Workflow
 
