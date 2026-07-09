@@ -190,6 +190,22 @@ regex, never a model. Entirely read-only - it never creates or edits a
 `brief.json`, `design_intent`, or `reference_board.json`; a human still
 authors the actual brief by hand.
 
+`factory intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json>
+[--json] [--write] [--force]` is the Intake-to-Brief Draft Generator
+(`factory.brief_generator`, see `docs/brief-generator.md`) - the next
+pipeline step: User Idea -> Project Intake -> **Draft Brief** -> Design
+Intent -> Reference Board -> .... Shapes an already-computed
+`intake_summary` into a proposed `brief.json`/`design_intent`/
+manufacturing-notes draft - a field is only populated when its intake
+confidence is high/medium, everything else stays explicitly "unknown"/"not
+specified," never guessed. **Without `--write`, this is entirely
+read-only** - it just prints the draft. **With `--write`, it writes
+exactly one file**, `<project_dir>/brief.json`, and only after confirming
+the project directory exists and `brief.json` doesn't already exist there
+(`--force` to intentionally replace it). Every draft ends with "Human
+approval required before save" - a generated draft, however complete, is
+never itself an approval.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

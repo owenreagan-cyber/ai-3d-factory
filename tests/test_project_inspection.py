@@ -162,7 +162,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_coverage", "preview_package_exists", "cad_files", "mesh_files",
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
-        "reference_board_summary", "intake_summary",
+        "reference_board_summary", "intake_summary", "draft_brief_summary",
     }
     assert set(project.keys()) == expected_keys
 
@@ -478,6 +478,56 @@ def test_intake_summary_does_not_affect_design_intent_or_reference_board_fields(
 def test_review_gate_json_excludes_intake_summary(project_root):
     gate = evaluate_review_gate(project_root)
     assert "intake_summary" not in gate
+
+
+# ---- Phase 31: draft_brief_summary field (Intake-to-Brief Draft Generation) ----
+
+
+def test_draft_brief_summary_present_and_shaped(project_root):
+    summary = summarize_project(project_root)
+    draft = summary["draft_brief_summary"]
+    assert set(draft.keys()) == {"readiness", "advisories"}
+    assert draft["readiness"]["status"] == "Ready"
+    assert draft["readiness"]["human_review_required"] is True
+    assert "Human approval required before save." in draft["advisories"]
+
+
+def test_draft_brief_summary_derived_from_intake_summary(project_root):
+    from factory.brief_generator import summarize_draft_brief
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy classroom sign made of PLA on a Bambu printer."
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    assert summary["draft_brief_summary"] == summarize_draft_brief(summary["intake_summary"])
+
+
+def test_draft_brief_summary_never_affects_visual_readiness_or_health(project_root):
+    without_draft = summarize_project(project_root)
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy gift for the classroom, made with PLA."
+    project_store.save_json(brief_path, brief)
+    with_draft = summarize_project(project_root)
+
+    assert with_draft["visual_readiness_state"] == without_draft["visual_readiness_state"]
+    assert with_draft["health_signals"] == without_draft["health_signals"]
+    assert with_draft["suggested_actions"] == without_draft["suggested_actions"]
+
+
+def test_draft_brief_summary_does_not_affect_other_summary_fields(project_root):
+    summary = summarize_project(project_root)
+    assert summary["design_intent_summary"] is None
+    assert summary["design_intent_detail"] is None
+    assert summary["reference_board_summary"]["reference_count"] == 0
+
+
+def test_review_gate_json_excludes_draft_brief_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "draft_brief_summary" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

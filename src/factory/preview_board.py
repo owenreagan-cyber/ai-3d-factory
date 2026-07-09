@@ -68,6 +68,17 @@ warnings, built from `summarize_project()`'s new `intake_summary` field
 engine - no AI, no LLM, no network). Same guarantees as Phase 27/28: purely
 presentational, no JavaScript, no external assets. See
 `docs/project-intake.md`.
+
+Phase 31 added a compact "Draft Brief" section right after "Project
+Intake" - readiness status, percent populated, unknown-field count, and a
+standing "Human review required" reminder, built from
+`summarize_project()`'s new `draft_brief_summary` field
+(`factory.brief_generator`, derived from `intake_summary` - never
+re-parses free text). Same guarantees as every other card section here:
+purely presentational, no JavaScript, no external assets, and this card
+never writes anything - the only write path
+(`factory intake suggest-brief --write`) is a separate, explicit,
+human-run CLI command. See `docs/brief-generator.md`.
 """
 
 from __future__ import annotations
@@ -300,6 +311,39 @@ def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     return f'<div class="project-intake">{rows}</div>'
 
 
+def _build_draft_brief_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `draft_brief_summary` (Phase 31) into a compact
+    static 'Draft Brief' card section - readiness status, percent populated,
+    unknown-field count, and a standing "Human review required" reminder.
+    Placed right after "Project Intake" (a draft brief is the next pipeline
+    step after intake, before Design Intent). Plain text only - no
+    JavaScript. This card never links to or triggers a write - `factory
+    intake suggest-brief --write` is a separate, explicit, human-run
+    command; nothing here writes a file.
+    """
+    if not summary:
+        return '<div class="draft-brief"><p class="none">No draft brief available for this project.</p></div>'
+
+    readiness = summary.get("readiness") or {}
+    status = readiness.get("status") or "Unknown"
+    percent = readiness.get("percent_populated")
+    percent_html = f"{percent}%" if isinstance(percent, (int, float)) else "Unknown"
+    unknown_count = readiness.get("unknown_count")
+    unknown_html = str(unknown_count) if isinstance(unknown_count, int) else "Unknown"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Status", f'<span class="badge badge-present">{_escape_html(status)}</span>'),
+            ("Populated", _escape_html(percent_html)),
+            ("Unknown fields", _escape_html(unknown_html)),
+        )
+    )
+    rows += _di_row("Review", '<span class="none">Human review required</span>')
+
+    return f'<div class="draft-brief">{rows}</div>'
+
+
 def _build_design_intent_section_html(detail: dict[str, Any] | None) -> str:
     """Render one project's `design_intent_detail` (Phase 27) into a static
     'Design Intent' card section - Quality Target, Purpose, Style, and Design
@@ -472,12 +516,12 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
     """Render one project's overview card: Project Header, Project Intake
-    (Phase 30), Design Intent (Phase 27), Reference Board (Phase 28),
-    Manufacturing Overview, Artifacts, Health Signals, and Review Readiness -
-    in that order, matching this repo's pipeline (User Idea -> Project
-    Intake -> Project Brief -> Design Intent -> Reference Board -> ...).
-    Static HTML/CSS only - no JavaScript, no external assets. Purely
-    presentational: it never recomputes or overrides
+    (Phase 30), Draft Brief (Phase 31), Design Intent (Phase 27), Reference
+    Board (Phase 28), Manufacturing Overview, Artifacts, Health Signals, and
+    Review Readiness - in that order, matching this repo's pipeline (User
+    Idea -> Project Intake -> Draft Brief -> Design Intent -> Reference
+    Board -> ...). Static HTML/CSS only - no JavaScript, no external
+    assets. Purely presentational: it never recomputes or overrides
     `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
     only displays fields `factory.project_inspection.summarize_project()`
     already computed.
@@ -490,6 +534,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Draft Brief</h4>'
+        + _build_draft_brief_section_html(project.get("draft_brief_summary"))
         + "</div>"
         '<div class="card-section"><h4>Design Intent</h4>'
         + _build_design_intent_section_html(project.get("design_intent_detail"))
@@ -724,7 +771,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none, .project-intake p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}

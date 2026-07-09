@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 from rich.console import Console
@@ -50,6 +50,14 @@ from factory.planner import plan_from_brief_path
 from factory.preview_board import VISUAL_READINESS_STATES, write_preview_board
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
 from factory.previews.render_preview import render_preview
+from factory.brief_generator import (
+    BriefAlreadyExistsError,
+    MalformedIntakeSummaryError,
+    ProjectDirectoryNotFoundError as DraftProjectDirectoryNotFoundError,
+    generate_draft,
+    load_intake_summary_from_path,
+    write_draft_brief,
+)
 from factory.project_intake import analyze as analyze_intake
 from factory.reference_board import (
     ATTACHED_TO_VALUES,
@@ -115,6 +123,7 @@ AVAILABLE_COMMANDS = (
     "reference-board list <project_dir> [--json]",
     "reference-board add --project <project_dir> --title <title> [--url ...] [--type ...] [--license ...] [--usage ...] [--attached-to ...] [--notes ...]",
     "intake analyze <project_dir_or_text_or_markdown_file> [--json]",
+    "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1344,6 +1353,117 @@ def intake_analyze_cmd(
     console.print(
         "\nThis is a fully local, deterministic heuristic analysis - no AI, no LLM, no network, and no "
         "search were used. See docs/project-intake.md."
+    )
+
+
+def _print_draft_field(label: str, value: Any, *, humanize: bool = True) -> None:
+    if isinstance(value, list):
+        display = ", ".join(_capitalize_first(v) if humanize else v for v in value) if value else "not specified"
+    elif isinstance(value, bool):
+        display = "Yes" if value else "unknown"
+    elif value is None:
+        display = "unknown"
+    elif humanize:
+        display = _capitalize_first(value)
+    else:
+        display = value
+    console.print(f"  [bold]{label}[/bold]: {display}")
+
+
+@intake_app.command(name="suggest-brief")
+def intake_suggest_brief_cmd(
+    path: Path = typer.Argument(
+        ...,
+        help="A project directory, a plain-text/Markdown idea file, or a saved `factory intake analyze --json` output file",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable draft"),
+    write: bool = typer.Option(
+        False, "--write", help="Write the draft as <project_dir>/brief.json (path must be a project directory)"
+    ),
+    force: bool = typer.Option(False, "--force", help="With --write, replace an existing brief.json"),
+) -> None:
+    """Generate a deterministic, human-reviewable draft brief/design_intent/
+    manufacturing-notes from an intake_summary (Phase 30) - never re-parses free
+    text itself, only shapes what `factory intake analyze` already extracted, and
+    only populates a field when its confidence is high/medium (an absent/unclear
+    field stays explicitly unknown - never invented). Without --write, this is
+    entirely read-only: nothing is saved. With --write, writes exactly one file,
+    <project_dir>/brief.json, and only after confirming the project directory
+    exists and brief.json doesn't already exist (use --force to replace it
+    intentionally). Human review and approval are always required before saving -
+    see docs/brief-generator.md."""
+    try:
+        intake = load_intake_summary_from_path(path)
+    except MalformedIntakeSummaryError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    draft = generate_draft(intake)
+
+    if write:
+        try:
+            written_path = write_draft_brief(path, draft, force=force)
+        except DraftProjectDirectoryNotFoundError as exc:
+            console.print(f"[red]error[/red]: {exc}")
+            raise typer.Exit(code=1)
+        except BriefAlreadyExistsError:
+            console.print("[yellow]Brief already exists.[/yellow] Use --force to replace.")
+            raise typer.Exit(code=1)
+        console.print(f"[green]wrote[/green] {written_path}")
+        console.print(
+            "\nThis brief.json was generated from a deterministic draft - a human should still review "
+            "every field (especially anything marked 'unknown') before treating this project as ready "
+            "to plan or build."
+        )
+        return
+
+    if as_json:
+        print(json.dumps(draft, indent=2, sort_keys=False, ensure_ascii=False))
+        return
+
+    readiness = draft["readiness"]
+    brief = draft["brief"]
+    design_intent = draft["design_intent"]
+
+    console.print("[bold]Draft Brief Suggestion[/bold]")
+    console.print(f"source: {intake.get('source', 'unknown')}")
+    console.print(
+        f"\n[bold]Status[/bold]: {readiness['status']}   "
+        f"[bold]Populated[/bold]: {readiness['percent_populated']}%   "
+        f"[bold]Unknown fields[/bold]: {readiness['unknown_count']}"
+    )
+
+    console.print("\n[bold]Brief[/bold]")
+    _print_draft_field("Project name", brief["project_name"], humanize=False)
+    _print_draft_field("Category", brief["category"])
+    _print_draft_field("Purpose", brief["purpose"], humanize=False)
+    _print_draft_field("Audience", brief["audience"], humanize=False)
+    _print_draft_field("Environment", brief["environment"])
+    _print_draft_field("Printer", brief["printer"], humanize=False)
+    _print_draft_field("Material", brief["material"], humanize=False)
+    _print_draft_field("Quality target", brief["quality_target"])
+    _print_draft_field("Manufacturing style", brief["manufacturing_style"])
+    _print_draft_field("Dimensional constraints", brief["dimensional_constraints"], humanize=False)
+    _print_draft_field("Visual goals", brief["visual_goals"])
+    _print_draft_field("Functional goals", brief["functional_goals"], humanize=False)
+    _print_draft_field("Commercial intent", brief["commercial_intent"])
+
+    console.print("\n[bold]Design Intent[/bold]")
+    _print_draft_field("Quality standard", design_intent["quality_target"])
+    _print_draft_field("Use case", design_intent["purpose"], humanize=False)
+    _print_draft_field("Style", design_intent["style"])
+    _print_draft_field("Manufacturing notes", design_intent["manufacturing_notes"])
+    console.print("  [bold]Reference inputs[/bold]: none - add via `factory reference-board add`")
+    console.print(f"  [bold]Review required[/bold]: {'Yes' if design_intent['review_required'] else 'No'}")
+
+    console.print("\n[bold]Advisories[/bold]")
+    for advisory in draft["advisories"]:
+        console.print(f"  - {advisory}")
+
+    console.print(
+        "\nThis is a DRAFT only - nothing has been written. Re-run with --write to save as "
+        "<project_dir>/brief.json after reviewing (never overwrites an existing brief.json unless "
+        "--force is also given). See docs/brief-generator.md."
     )
 
 

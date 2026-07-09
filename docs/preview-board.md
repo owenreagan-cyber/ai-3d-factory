@@ -405,6 +405,47 @@ guarantee as the module itself) no network call, AI/LLM API call, web
 search, or download of any kind. See `docs/project-intake.md` for the full
 field/heuristic/confidence reference and this phase's non-goals.
 
+## Draft Brief summary and card (Phase 31)
+
+Each project's card also carries `draft_brief_summary` - a compact
+`{readiness, advisories}` view of `factory.brief_generator.generate_draft()`,
+derived from the project's own `intake_summary` above (never re-parses
+`brief.json`'s free text a second time):
+
+```jsonc
+{
+  "readiness": {
+    "status": "Ready",
+    "percent_populated": 85,
+    "populated_count": 11,
+    "unknown_count": 2,
+    "total_fields": 13,
+    "human_review_required": true
+  },
+  "advisories": [
+    "Reference board recommended - see `factory reference-board add`.",
+    "Human approval required before save."
+  ]
+}
+```
+
+Always a dict, never `None` - computed unconditionally, same reasoning as
+`intake_summary`. Purely additive and purely presentational: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it.
+
+The board's **HTML** gained a compact "Draft Brief" card section, right
+after "Project Intake" (a draft brief is the next pipeline step) and
+before "Design Intent" - readiness status, percent populated, unknown-
+field count, and a standing "Human review required" reminder. The full
+`brief`/`design_intent`/`manufacturing_notes` draft (and the only actual
+write path, `--write`) live in `factory intake suggest-brief`, not here -
+**the preview board itself never writes anything, for this card or any
+other.** Static HTML/CSS only - no JavaScript, no external assets. See
+`docs/brief-generator.md` for the full draft shape, the human-approval
+model, and this phase's non-goals.
+
 ## Board JSON shape
 
 ```jsonc
@@ -483,6 +524,22 @@ field/heuristic/confidence reference and this phase's non-goals.
         "commercial_intent": {"value": false, "confidence": "unknown"},
         "warnings": ["Dimensions not specified.", "Printer not specified.", "Material not specified."],
         "source": "brief_description"
+      },
+      "draft_brief_summary": {
+        "readiness": {
+          "status": "Ready",
+          "percent_populated": 0,
+          "populated_count": 0,
+          "unknown_count": 13,
+          "total_fields": 13,
+          "human_review_required": true
+        },
+        "advisories": [
+          "Material not specified.",
+          "Printer not specified.",
+          "Dimensions incomplete.",
+          "Human approval required before save."
+        ]
       }
     }
   ],
@@ -524,6 +581,12 @@ field/heuristic/confidence reference and this phase's non-goals.
   `factory.project_intake`'s fully deterministic analysis of
   `brief.json`'s own `project_name`/`description`/`constraints` text. See
   `docs/project-intake.md`.
+- Does not write anything for a project's Draft Brief (Phase 31) -
+  `draft_brief_summary` and the HTML Draft Brief card only display
+  `factory.brief_generator`'s readiness/advisories; the only write path
+  (`factory intake suggest-brief --write`) is a separate, explicit,
+  human-run CLI command the preview board never invokes. See
+  `docs/brief-generator.md`.
 
 ## Readiness signals are not a design-quality score
 
@@ -555,10 +618,12 @@ preview-board`" section, and its "Human review quality checklist"),
 and the HTML Design Intent card), `docs/reference-board.md` (Phase 28 -
 `reference_board_summary` and the HTML Reference Board card; Phase 29 -
 the `factory reference-board` CLI), `docs/project-intake.md` (Phase 30 -
-`intake_summary` and the HTML Project Intake card), and `docs/roadmap.md`
-Phase 8 (board foundation) / Phase 10 (action suggestions) / Phase 11
-(health signals) / Phase 12 (review gate) / Phase 23 (human review quality
-checklist) / Phase 26 (design intent visibility) / Phase 27 (design intent
-preview board visualization) / Phase 28 (source discovery and reference
-board planning) / Phase 29 (reference board CLI management) / Phase 30
-(intelligent project intake engine).
+`intake_summary` and the HTML Project Intake card), `docs/brief-generator.md`
+(Phase 31 - `draft_brief_summary` and the HTML Draft Brief card), and
+`docs/roadmap.md` Phase 8 (board foundation) / Phase 10 (action
+suggestions) / Phase 11 (health signals) / Phase 12 (review gate) /
+Phase 23 (human review quality checklist) / Phase 26 (design intent
+visibility) / Phase 27 (design intent preview board visualization) /
+Phase 28 (source discovery and reference board planning) / Phase 29
+(reference board CLI management) / Phase 30 (intelligent project intake
+engine) / Phase 31 (intake-to-brief draft generation).

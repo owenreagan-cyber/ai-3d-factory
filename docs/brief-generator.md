@@ -1,0 +1,289 @@
+# Intake-to-Brief Draft Generation (Phase 31)
+
+`factory.brief_generator` is the second step in this repo's pipeline:
+
+```
+User Idea -> Project Intake -> Draft Brief -> Design Intent ->
+Reference Board -> Manufacturing Planning -> CAD Generation ->
+Preview Board -> Review Gate -> Slicer Review -> (never automatic printing)
+```
+
+It converts an already-computed `intake_summary` (Phase 30,
+`factory.project_intake`) into a **human-reviewable draft**: a proposed
+`brief.json`, a proposed `design_intent` block, and a set of manufacturing
+notes. It never writes anything by itself, and it never re-parses free
+text - the keyword/regex heuristics that produced `intake_summary` live
+entirely in `factory.project_intake` and are never duplicated here. This
+module's only job is *shaping* already-extracted data into draft artifacts.
+
+## Purpose
+
+Phase 30 tells you *what a human's idea seems to contain*. Phase 31 turns
+that into *what a project's files could look like* - without ever
+committing to it. The gap between "here's what I think you meant" and
+"here's what's now saved to disk" is deliberate and permanent: a draft is
+always a suggestion, never a decision.
+
+## Human approval model
+
+- **Nothing is written unless `--write` is explicitly given.**
+  `factory intake suggest-brief <path>` alone is entirely read-only - it
+  prints a draft and exits.
+- **`--write` writes exactly one file**: `<project_dir>/brief.json`. It
+  never touches `design_intent.json` (there is no such file - Phase 24's
+  `design_intent` lives *inside* `brief.json`, and this module follows
+  that same convention), never touches `reference_board.json`, and never
+  touches any other project file.
+- **An existing `brief.json` is never silently overwritten.** `--write`
+  checks first; if the file already exists, it prints `Brief already
+  exists. Use --force to replace.` and exits without touching anything.
+  Only an explicit `--force` (a second, deliberate flag) permits a
+  replacement.
+- **`--write` requires the project directory to already exist.** This
+  module never creates a project directory - only, with explicit
+  permission, a file inside one that's already there.
+- **Every draft says "Human approval required before save"** as its last
+  advisory, unconditionally - not because a check failed, but because
+  that's this module's standing position: a generated draft, however
+  complete, is not itself an approval.
+- **A written `brief.json` still isn't `human_approved` or `print_ready`.**
+  `required_human_approval` is always written as `true`; nothing in this
+  module ever sets `human_approved` or `print_ready` on anything.
+
+## Confidence gating, not invention
+
+**A field is only populated in the draft when its `intake_summary`
+confidence is `"high"` or `"medium"`.** `"low"`/`"unknown"` fields degrade
+to `None` (scalars) or `[]` (lists) in the draft's JSON shape, rendered as
+"unknown"/"not specified" text by whatever reads it (CLI, HTML). This
+module never guesses, never fills a gap with a plausible-sounding default,
+and never invents a value a human didn't (indirectly, via their own
+written idea text) provide.
+
+The one field this matters most for: `commercial_intent`. Its
+`intake_summary` value is a boolean that defaults to `False` whenever no
+explicit commercial keyword was found - but a low-confidence `False`
+doesn't mean "confirmed no commercial intent," it means "no signal either
+way." The draft never silently promotes that `False` into
+`draft["brief"]["commercial_intent"]` - it stays `None` ("unknown")
+exactly like every other low-confidence field, and only becomes `True`
+when `intake_summary` found an explicit, high-confidence commercial
+keyword.
+
+## Draft artifacts
+
+`generate_draft(intake_summary)` returns:
+
+```jsonc
+{
+  "readiness": { "status": "Ready", "percent_populated": 85, "populated_count": 11,
+                 "unknown_count": 2, "total_fields": 13, "human_review_required": true },
+  "brief": {
+    "project_name": "...", "category": "sign", "purpose": "...", "audience": "Students",
+    "environment": "classroom", "printer": ["Bambu"], "material": ["PLA"],
+    "quality_target": "etsy-worthy", "manufacturing_style": ["multi-part", "AMS", "multi-color"],
+    "dimensional_constraints": ["48-inch"], "visual_goals": ["anime", "raised", "lettering"],
+    "functional_goals": [], "commercial_intent": null, "review_notes": ["...", "..."]
+  },
+  "design_intent": {
+    "purpose": "...", "quality_target": "etsy-worthy", "style": ["anime", "raised", "lettering"],
+    "manufacturing_notes": ["multi-part", "AMS", "multi-color"], "reference_inputs": [],
+    "warnings": ["..."], "design_notes": [], "review_required": true,
+    "confidence_summary": {"category": "medium", "environment": "medium", "...": "..."}
+  },
+  "manufacturing_notes": {
+    "printer": ["Bambu"], "material": ["PLA"],
+    "manufacturing_style": ["multi-part", "AMS", "multi-color"], "dimensional_constraints": ["48-inch"]
+  },
+  "advisories": ["Reference board recommended - see `factory reference-board add`.",
+                 "Human approval required before save."]
+}
+```
+
+### `readiness`
+
+`percent_populated`/`unknown_count`/`populated_count` are computed over
+exactly **13 tracked fields** (`project_name`, `category`, `purpose`,
+`audience`, `environment`, `printer_assumptions`, `material_assumptions`,
+`quality_target`, `manufacturing_style`, `dimensional_constraints`,
+`visual_goals`, `functional_goals`, `commercial_intent`) - a field counts
+as "populated" exactly when its own `intake_summary` confidence is
+`"high"`/`"medium"`, the same gate the draft itself uses, so the
+percentage and the draft it describes never disagree. `status` is always
+the literal string `"Ready"` - "ready to review," never "ready to
+auto-save" (the same non-approval meaning `slicer_review_ready` carries
+elsewhere in this repo).
+
+### `brief`
+
+The 13 tracked fields above, confidence-gated, plus `review_notes` (a
+copy of the top-level `advisories` list, repeated here for a human
+reading only the brief section). This is **not** literally
+`schemas/project_brief.schema.json`'s shape - it's a richer,
+review-oriented view. `build_brief_json()` (below) is what converts it
+into an actual schema-valid `brief.json`.
+
+### `design_intent`
+
+A subset of `docs/design-intent-brief.md`'s proposed shape - only what can
+be honestly derived: `quality_standard` (from `quality_target`),
+`use_case` (from `purpose`), `style_direction` (from `visual_goals`).
+**`reference_inputs` is always `[]`** - this phase never invents or
+auto-populates reference inputs; a human adds them via `factory
+reference-board add` (Phase 28/29). **`manufacturability_constraints.max_size_mm`
+is never synthesized** from `dimensional_constraints` - a raw match like
+`"48-inch"` names one axis of an object, not a confirmed `[x, y, z]`
+triple; guessing the other two would be inventing data this module has no
+basis for.
+
+### `manufacturing_notes`
+
+A focused subset (printer/material/manufacturing-style/dimensional-
+constraints only) - a separate "view" of the same underlying data, for a
+future manufacturing-planning consumer that only cares about this slice.
+
+### `advisories`
+
+```
+Material not specified.
+Printer not specified.
+Dimensions incomplete.
+Reference board recommended - see `factory reference-board add`.
+Commercial review recommended - see docs/licensing-policy.md.
+Mechanical review recommended - functional/moving parts detected.
+Human approval required before save.
+```
+
+Conditions, in order: no `material`; no `printer`; no
+`dimensional_constraints`; `quality_target` is
+`premium`/`etsy-worthy`/`gift`/`presentation`; `commercial_intent` is
+`True`; `functional_goals` non-empty. `"Human approval required before
+save."` is always the last entry, unconditionally.
+
+## `build_brief_json()`: from draft to schema-valid `brief.json`
+
+`build_brief_json(draft)` produces the actual dict `write_draft_brief()`
+writes - validated against `schemas/project_brief.schema.json` in this
+phase's own test suite, for both a fully-populated draft and a completely
+empty one. Every schema-required field with no confident signal is
+written as the literal string `"unknown"` (`constraints` as `[]`) rather
+than a guessed system default - **not even `factory.project_store.default_brief()`'s
+own conventional defaults** (`owner: "Owen"`, `intended_printer: "Bambu
+H2D"`). Those defaults are appropriate when a human runs `factory
+init-project` with genuinely no other information; here, this module *did*
+attempt extraction and came up empty, so writing a specific person's name
+or printer model would misrepresent an actual absence of signal as a
+confirmed fact.
+
+- `status`: always `"brief_created"` (matches
+  `factory.project_store.default_brief()`'s own convention: the moment a
+  `brief.json` exists, that's what its status means).
+- `required_human_approval`: always `true`.
+- `intended_printer`: the first entry of `brief["printer"]` if any,
+  else `"unknown"`.
+- `description`: `brief["purpose"]` if known, else `"unknown"`.
+- `constraints`: `brief["dimensional_constraints"]` (may be `[]`).
+- `design_intent`: included only if at least one of
+  `quality_standard`/`use_case`/`style_direction` has real signal -
+  omitted entirely for an all-unknown draft (matches `design_intent`'s own
+  "every field optional, whole block optional" philosophy).
+- `manufacturing_notes`: included only if non-empty - a purely additive
+  extra key `schemas/project_brief.schema.json`'s `additionalProperties:
+  true` already allows.
+
+## The `factory intake suggest-brief` CLI
+
+```bash
+factory intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force]
+```
+
+Accepts the same three input kinds `factory intake analyze` does (a
+project directory, a plain-text file, a Markdown file), plus a fourth: a
+`.json` file containing a previously-saved `intake_summary` (e.g. from
+`factory intake analyze --json > my_intake.json`) - read directly and used
+as-is, never re-analyzed.
+
+- **No flags** - prints the human-readable draft (status/populated/unknown
+  header, Brief section, Design Intent section, Advisories) and exits.
+  Nothing is written.
+- **`--json`** - prints `generate_draft()`'s dict directly. Nothing is
+  written.
+- **`--write`** - writes `<path>/brief.json` (`path` must be a project
+  *directory* for this to succeed - a text/Markdown file path fails
+  cleanly, since there's no directory to write into). Refuses if
+  `brief.json` already exists; add `--force` to intentionally replace it.
+  Every `--write` (with or without `--force`) prints a closing reminder
+  that a human should still review the result.
+
+## Connected to project inspection and the preview board
+
+`factory.project_inspection.summarize_project()` gained a fifth additive
+field alongside Phase 26-30's `design_intent_summary`/`design_intent_detail`/
+`reference_board_summary`/`intake_summary`: `draft_brief_summary` - a
+compact `{readiness, advisories}` view, derived from the project's own
+`intake_summary` (never re-parses `brief.json`'s free text a second time).
+Always a dict, never `None`. Purely additive: none of the earlier four
+fields are read or modified, and `draft_brief_summary` is never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`.
+
+The preview board's **HTML** gained a compact "Draft Brief" card section,
+placed right after "Project Intake" (a draft brief is the next pipeline
+step) and before "Design Intent" - readiness status, percent populated,
+unknown-field count, and a standing "Human review required" reminder.
+Deliberately compact: the full brief/design_intent/manufacturing_notes
+draft stays in `factory intake suggest-brief`'s output, not duplicated in
+the card. Static HTML/CSS only - no JavaScript, no external assets, and
+(same guarantee as the module itself) this card never writes anything -
+the only write path (`factory intake suggest-brief --write`) is a
+separate, explicit, human-run CLI command the board itself never invokes.
+
+## Limitations
+
+- **Inherits every Phase 30 limitation** - English-only keyword matching,
+  no negation understanding, a naive `project_name`/`purpose` fallback for
+  unstructured input. A weak intake analysis produces a weak (low
+  percent-populated) draft; this module doesn't compensate for that, it
+  just reports it honestly via `readiness`.
+- **`dimensional_constraints` are raw text, not structured geometry.**
+  `"48-inch"` in `constraints` is a note for a human to interpret, not a
+  parsed, axis-assigned measurement - this module never tries to guess
+  which axis, or convert units.
+- **`owner` is never derivable.** Phase 30 has no keyword table for who a
+  project's owner is - every written `brief.json`'s `owner` field is
+  `"unknown"` and needs a human to fill in.
+- **One field, one shot.** There's no `factory intake suggest-brief
+  --update` that merges a fresh draft into an *existing* brief - `--write`
+  either creates a new file or (with `--force`) fully replaces one; it
+  never merges.
+
+## Non-goals
+
+- **No AI, no LLM, no machine learning of any kind** - `generate_draft()`
+  and everything it calls are pure functions over an already-structured
+  dict; there is no model anywhere in this module.
+- **No network calls, no web search, no scraping.**
+- **No CAD generation, no OpenSCAD generation** - this phase produces
+  metadata only, never geometry.
+- **No Meshy, no Blender integration.**
+- **No automatic project creation** - `write_draft_brief()` requires an
+  already-existing project directory; it never runs the equivalent of
+  `factory init-project` for you.
+- **No automatic brief overwrite** - covered above; `--force` is the one,
+  explicit, opt-in exception, and even that never runs without a human
+  typing the flag.
+- **No automatic `design_intent` editing on an already-`human_approved`
+  or otherwise-advanced project** - `write_draft_brief()` treats "does
+  `brief.json` exist" as the only gate; it has no concept of a project's
+  current lifecycle status and makes no attempt to protect an in-progress
+  project beyond the existing-file check. Don't run `--write --force` on
+  a project you don't intend to fully replace the brief for.
+- **No automatic reference generation** - `design_intent.reference_inputs`
+  is always `[]`; a human still runs `factory reference-board add` by
+  hand.
+- **Does not set `human_approved` or `print_ready`** on anything, ever.
+
+See also `docs/project-intake.md` (Phase 30, this module's sole input
+source), `docs/design-intent-brief.md`, `docs/reference-board.md`,
+`docs/preview-board.md`, `docs/design-quality-standard.md`,
+`docs/licensing-policy.md`, and `docs/roadmap.md` Phase 31.
