@@ -253,6 +253,33 @@ duplicating it); dry runs never produce one. Fully deterministic: reuses
 the Design Orchestrator's already-computed readiness summary outright,
 never re-scores anything.
 
+`factory export-from-cad <project_dir> [--confirm-export] [--json]
+[--source ...] [--output-dir ...] [--overwrite-stl] [--validate] [--render]
+[--all] [--resume]` is the Guided Export Pipeline (`factory.export_pipeline`,
+see `docs/export-pipeline.md`) - the pipeline's next step: CAD Source
+Generation -> **Guided Export Pipeline** -> STL Verification -> Validation
+and Preview -> Artifact Finalization -> Human Review Gate -> .... **This
+orchestrates existing local commands - it never re-implements CAD
+generation, STL export, mesh validation, or preview rendering.** Dry run by
+default: always computes a full export plan (CAD source found, exporter
+detected, expected output, collisions/staleness) but invokes no subprocess
+and writes nothing. Only with `--confirm-export`, and only for OpenSCAD
+source with a local `openscad` executable found and no unresolved output
+collision (pass `--overwrite-stl` to allow one), does it actually export -
+using argument-list subprocess execution, a bounded timeout, and full
+post-exit verification (output exists, is non-empty, has a plausible mesh
+extension - a zero exit code alone is never treated as success). **CadQuery
+source is never executed automatically** - this repo's existing
+manual-export policy for CadQuery is unchanged; the exact manual command is
+shown instead. `--validate`/`--render`/`--all` optionally call the existing
+`factory.validators.mesh_validate`/`factory.previews.render_preview`
+directly against the resulting (or an already-existing) STL, and
+`--resume` skips a source file's step when a prior export receipt already
+records it as current for that exact fingerprint. Writes
+`<project_dir>/generated/export_receipt.json` (a sibling of Phase 34's
+generation receipt, upserted per source file - dry runs never produce one)
+and never invokes Blender, Meshy, a slicer, or a printer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

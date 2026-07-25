@@ -49,6 +49,12 @@ from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
 from factory.design_orchestrator import evaluate_readiness_for_path
 from factory.generation_gate import evaluate_generation_gate_for_path, run_generation, write_generation_receipt
+from factory.export_pipeline import (
+    UnsafePathError,
+    build_artifact_registry,
+    evaluate_export_pipeline_for_path,
+    run_export_pipeline,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -133,6 +139,8 @@ AVAILABLE_COMMANDS = (
     "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force] [--update]",
     "readiness <project_dir_or_projects_root_or_text_or_markdown_file> [--json]",
     "generate-from-readiness <project_dir_or_text_or_markdown_file> [--confirm-generate] [--json]",
+    "export-from-cad <project_dir> [--confirm-export] [--json] [--source ...] [--output-dir ...] "
+    "[--overwrite-stl] [--validate] [--render] [--all] [--resume]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -980,6 +988,191 @@ def generate_from_readiness_cmd(
     )
 
     if generation_error is not None:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="export-from-cad")
+def export_from_cad_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    confirm_export: bool = typer.Option(
+        False,
+        "--confirm-export",
+        help="Actually run the OpenSCAD CLI to export STL(s), if the plan allows it; without this flag, only "
+        "a dry-run plan is shown and no subprocess is ever invoked",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    source: Optional[str] = typer.Option(
+        None, "--source", help="Project-relative CAD source file, to disambiguate when more than one exists"
+    ),
+    output_dir: Optional[str] = typer.Option(
+        None, "--output-dir", help="Project-relative output directory for exported STLs (default: stl/)"
+    ),
+    overwrite_stl: bool = typer.Option(
+        False, "--overwrite-stl", help="Allow overwriting an existing STL at the expected output path"
+    ),
+    validate: bool = typer.Option(
+        False, "--validate", help="After a successful export, run the existing mesh validator (factory.validators.mesh_validate)"
+    ),
+    render: bool = typer.Option(False, "--render", help="After a successful export, render a preview image"),
+    all_steps: bool = typer.Option(False, "--all", help="Equivalent to --validate --render"),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Skip export/validate/render steps the prior export receipt already records as current for "
+        "this exact source; only re-run what's missing, failed, or stale",
+    ),
+) -> None:
+    """Guided Export Pipeline (Phase 35) - the next gated step after Phase 34's Readiness-Gated CAD
+    Generation Router. Dry run by default: always computes and shows a full export plan (which CAD
+    source, which exporter, expected outputs, collisions/staleness) but invokes no subprocess and writes
+    nothing. Pass --confirm-export to actually export - only happens for OpenSCAD source, only if a local
+    `openscad` executable is found, and only if there's no unresolved output collision (pass
+    --overwrite-stl to allow one). CadQuery source always resolves to 'manual_export_required' - this repo's
+    existing policy of never executing generated CadQuery scripts automatically is unchanged; the exact
+    manual command is shown instead. --validate/--render/--all optionally run the existing validator/
+    renderer against the resulting STL (or an already-existing one) and update the execution receipt
+    (<project_dir>/generated/export_receipt.json - dry runs never produce one). Never invokes Blender,
+    Meshy, a slicer, or a printer; never installs anything. See docs/export-pipeline.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    try:
+        plan = evaluate_export_pipeline_for_path(
+            project_dir,
+            source=source,
+            output_dir=output_dir,
+            overwrite_stl=overwrite_stl,
+            confirm_export=confirm_export,
+        )
+    except UnsafePathError as exc:
+        if as_json:
+            print(json.dumps({"errors": [str(exc)], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    pipeline_result: dict | None = None
+    want_action = confirm_export or validate or render or all_steps or resume
+    if want_action:
+        pipeline_result = run_export_pipeline(
+            project_dir, plan, validate=validate, render=render, all_steps=all_steps, resume=resume
+        )
+
+    errors: list[str] = []
+    if pipeline_result:
+        for record in pipeline_result["per_source"]:
+            export_record = record.get("export") or {}
+            errors.extend(export_record.get("errors") or [])
+
+    if as_json:
+        payload = {
+            "export_plan": plan,
+            "dry_run": plan["dry_run"],
+            "decision": plan["decision"],
+            "source": {
+                "engine": plan["source_engine"],
+                "backend": plan["source_backend"],
+                "files": plan["source_files"],
+                "selected": plan["selected_source"],
+            },
+            "exporter": {"tool": plan["export_tool"], "available": plan["export_tool_available"]},
+            "expected_outputs": plan["expected_stl_files"],
+            "freshness": {"existing": plan["existing_stl_files"], "stale": plan["stale_stl_files"]},
+            "collisions": plan["output_collisions"],
+            "blockers": plan["blocking_reasons"],
+            "advisories": plan["advisories"],
+            "execution": pipeline_result["per_source"] if pipeline_result else None,
+            "validation": (
+                [r["validation"] for r in pipeline_result["per_source"]] if pipeline_result else None
+            ),
+            "preview": [r["render"] for r in pipeline_result["per_source"]] if pipeline_result else None,
+            "artifact_registry": build_artifact_registry(project_dir),
+            "receipt": {
+                "path": plan["receipt_path"],
+                "pipeline_state": pipeline_result["pipeline_state"] if pipeline_result else None,
+            },
+            "errors": errors,
+            "no_automatic_print": True,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        if errors:
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]Guided Export Plan[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(plan["project_name"])
+    console.print()
+    console.print("[bold]Source engine:[/bold]")
+    console.print(plan["source_engine"] or "None")
+    console.print()
+    console.print("[bold]CAD source:[/bold]")
+    console.print(", ".join(plan["source_files"]) if plan["source_files"] else "(none found)")
+    console.print()
+    console.print("[bold]Exporter:[/bold]")
+    console.print(plan["export_tool"] or "N/A")
+    console.print()
+    console.print("[bold]Exporter available:[/bold]")
+    console.print("Yes" if plan["export_tool_available"] else "No")
+    console.print()
+    console.print("[bold]Expected output:[/bold]")
+    console.print(", ".join(plan["expected_stl_files"]) if plan["expected_stl_files"] else "(none)")
+    console.print()
+    console.print("[bold]Decision:[/bold]")
+    console.print(plan["decision"])
+    console.print()
+
+    if plan["blocking_reasons"]:
+        console.print("[bold]Blocking Reasons:[/bold]")
+        for reason in plan["blocking_reasons"]:
+            console.print(f"- {reason}")
+        console.print()
+
+    if plan["advisories"]:
+        console.print("[bold]Advisories:[/bold]")
+        for advisory in plan["advisories"]:
+            console.print(f"- {advisory}")
+        console.print()
+
+    console.print("[bold]Post-export checks:[/bold]")
+    console.print("- Verify output exists")
+    console.print("- Verify output is non-empty")
+    console.print("- Validate mesh")
+    console.print("- Render preview")
+    console.print("- Update artifact tracking")
+    console.print("- Update execution receipt")
+    console.print()
+
+    if pipeline_result is None:
+        console.print("No files written.")
+        console.print("Re-run with --confirm-export to begin export.")
+    else:
+        for record in pipeline_result["per_source"]:
+            export_record = record.get("export") or {}
+            if export_record.get("success"):
+                console.print(f"[green]exported[/green] {record['output_stl']}")
+            elif export_record.get("errors"):
+                console.print(f"[red]export error[/red] ({record['source_file']}): {'; '.join(export_record['errors'])}")
+            validation = record.get("validation", {})
+            if validation.get("status") not in (None, "not_run"):
+                console.print(f"  validation: {validation['status']} ({validation.get('report_path')})")
+            render_info = record.get("render", {})
+            if render_info.get("status") not in (None, "not_run"):
+                console.print(f"  render: {render_info['status']} ({render_info.get('render_path')})")
+        console.print(f"\npipeline state: {pipeline_result['pipeline_state']}")
+
+    console.print(
+        "\nThis only inspected/exported existing local CAD source and, if requested, ran this repo's "
+        "existing local validator/renderer - it never invoked Blender, never called Meshy, never sliced, "
+        "and never contacted any printer/network. No automatic printing."
+    )
+
+    if errors:
         raise typer.Exit(code=1)
 
 

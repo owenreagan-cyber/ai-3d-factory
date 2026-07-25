@@ -121,6 +121,16 @@ exactly as every current Generation Gate test already pins it. Always a
 dict, never `None`. Purely additive, purely advisory: never read by
 `classify_visual_readiness()`, `build_health_signals()`, or
 `build_suggested_actions()`. See `docs/generation-gate.md`.
+
+Phase 35 added a tenth additive field, `export_pipeline_summary` - a
+compact view of `factory.export_pipeline.summarize_export_pipeline()`:
+which CAD source engine was found, whether a local exporter is available,
+expected/current/stale STL counts, aggregate validation/preview status,
+and the last completed pipeline stage (from `generated/export_receipt.json`
+if one exists). Read-only: never exports, validates, renders, or invokes a
+subprocess. Always a dict, never `None`. Purely additive, purely advisory:
+never read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`. See `docs/export-pipeline.md`.
 """
 
 from __future__ import annotations
@@ -131,6 +141,7 @@ from typing import Any
 from factory import preview_package, project_store
 from factory.brief_generator import summarize_brief_update, summarize_draft_brief
 from factory.design_orchestrator import evaluate_project_readiness
+from factory.export_pipeline import summarize_export_pipeline
 from factory.generation_gate import summarize_generation_execution, summarize_generation_gate
 from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
 from factory.project_intake import analyze_project as analyze_project_intake
@@ -759,6 +770,15 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
     # pinned by every current Generation Gate test.
     generation_execution_summary = summarize_generation_execution(project_dir)
 
+    # Phase 35: a tenth additive field - the Guided Export Pipeline's
+    # current state for this project (CAD source found, exporter
+    # available, expected/current/stale STL counts, validation/preview
+    # status, last completed stage). Read-only: never exports, validates,
+    # renders, or invokes a subprocess - summarize_export_pipeline() only
+    # reads plan_export()'s already-deterministic plan plus, if present,
+    # generated/export_receipt.json.
+    export_pipeline_summary = summarize_export_pipeline(project_dir)
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -800,4 +820,5 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "design_orchestrator_summary": design_orchestrator_summary,
         "generation_gate_summary": generation_gate_summary,
         "generation_execution_summary": generation_execution_summary,
+        "export_pipeline_summary": export_pipeline_summary,
     }

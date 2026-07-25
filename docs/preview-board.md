@@ -583,6 +583,60 @@ assets. Every existing detail card is unchanged and still follows it. See
 `docs/generation-gate.md` for the full decision-state priority order,
 execution-receipt schema, and artifact-tracking breakdown.
 
+## Post-Generation Pipeline section (Phase 35)
+
+Each project's card also carries `export_pipeline_summary` -
+`factory.export_pipeline.summarize_export_pipeline()`'s compact view:
+
+```jsonc
+{
+  "decision": "needs_confirmation",
+  "source_engine": "OpenSCAD",
+  "source_count": 1,
+  "exporter": "OpenSCAD CLI",
+  "exporter_available": true,
+  "expected_stl_count": 1,
+  "current_stl_count": 0,
+  "stale_stl_count": 0,
+  "cad_source_status": "current",
+  "stl_status": "missing",
+  "validation_status": "not_run",
+  "preview_status": "not_run",
+  "last_completed_stage": null,
+  "pipeline_complete": false,
+  "next_step": "Confirm STL export (--confirm-export)",
+  "blockers": [],
+  "receipt_path": null
+}
+```
+
+Always evaluated read-only (never exports, validates, renders, or invokes
+a subprocess), reusing `plan_export()` and, if one exists,
+`<project_dir>/generated/export_receipt.json` (Phase 35 execution
+receipts) - never re-deriving anything. Stale-render detection reuses
+`factory.render_coverage.compute_render_coverage()` rather than
+re-implementing render-vs-mesh staleness. Always a dict, never `None`,
+purely additive and purely advisory: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes it. **No export, validation, render, or subprocess is ever
+triggered by computing this field** - the only write/execution path
+(`factory export-from-cad --confirm-export`/`--validate`/`--render`) is a
+separate, explicit, human-run CLI command the preview board never
+invokes.
+
+The board's **HTML** gained a compact "Post-Generation Pipeline" card
+section, placed right after "Generation Gate": CAD source status, STL
+status, validation status, preview status, and either the next suggested
+step or - once every requested stage has actually succeeded - a "Pending
+human approval" reminder (this card never claims a project is
+`human_approved` or `print_ready`; that reminder is itself an explicit
+statement that human review is still outstanding). Static HTML/CSS only -
+no JavaScript, no external assets. Every existing detail card is unchanged
+and still follows it. See `docs/export-pipeline.md` for the full
+decision-state priority order, execution-receipt schema, and artifact
+registry.
+
 ## Board JSON shape
 
 ```jsonc
@@ -711,6 +765,25 @@ execution-receipt schema, and artifact-tracking breakdown.
         "receipt_available": false,
         "last_execution": null,
         "last_execution_engine": null
+      },
+      "export_pipeline_summary": {
+        "decision": "blocked",
+        "source_engine": null,
+        "source_count": 0,
+        "exporter": null,
+        "exporter_available": null,
+        "expected_stl_count": 0,
+        "current_stl_count": 0,
+        "stale_stl_count": 0,
+        "cad_source_status": "missing",
+        "stl_status": "missing",
+        "validation_status": "not_run",
+        "preview_status": "not_run",
+        "last_completed_stage": null,
+        "pipeline_complete": false,
+        "next_step": "Add CAD source (factory generate-openscad / generate-cadquery)",
+        "blockers": ["no CAD source found under cad/ - run factory generate-openscad or factory generate-cadquery first"],
+        "receipt_path": null
       }
     }
   ],

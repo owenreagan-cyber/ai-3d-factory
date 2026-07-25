@@ -411,6 +411,90 @@ def _build_generation_gate_section_html(
     return f'<div class="generation-gate">{rows}</div>'
 
 
+_EXPORT_STATUS_LABELS = {
+    "current": "Current",
+    "stale": "Stale",
+    "missing": "Missing",
+}
+
+_EXPORT_VALIDATION_LABELS = {
+    "not_run": "Not run",
+    "passed": "Passed",
+    "passed_with_warnings": "Passed with warnings",
+    "failed": "Failed",
+    "unavailable": "Unavailable",
+    "partial": "Partial",
+}
+
+_EXPORT_PREVIEW_LABELS = {
+    "not_run": "Missing",
+    "passed": "Available",
+    "stale": "Stale",
+    "failed": "Failed",
+    "unavailable": "Unavailable",
+    "partial": "Partial",
+}
+
+_EXPORT_ARTIFACT_BADGE_CLASSES = {
+    "current": "badge-review-ready",
+    "passed": "badge-review-ready",
+    "stale": "health-warning",
+    "passed_with_warnings": "health-warning",
+    "partial": "health-warning",
+    "missing": "badge-missing",
+    "not_run": "badge-missing",
+    "failed": "health-blocked",
+    "unavailable": "badge-missing",
+}
+
+
+def _build_export_pipeline_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `export_pipeline_summary` (Phase 35) into a
+    compact static 'Post-Generation Pipeline' card section - CAD source,
+    STL, validation, and preview status, plus either the next suggested
+    step or (once the pipeline is complete) a reminder that human review
+    is still pending. Placed right after "Generation Gate" (all three -
+    Project Readiness, Generation Gate, Post-Generation Pipeline - are
+    "meta" cards summarizing what's possible next). Plain text only - no
+    JavaScript. This card never exports, validates, renders, or invokes a
+    subprocess - the only write/execution path
+    (`factory export-from-cad --confirm-export`/`--validate`/`--render`)
+    is a separate, explicit, human-run CLI command the preview board never
+    invokes.
+    """
+    if not summary:
+        return '<div class="export-pipeline"><p class="none">No export pipeline analysis available for this project.</p></div>'
+
+    cad_status = summary.get("cad_source_status") or "missing"
+    stl_status = summary.get("stl_status") or "missing"
+    validation_status = summary.get("validation_status") or "not_run"
+    preview_status = summary.get("preview_status") or "not_run"
+
+    def _badge(value: str, label: str) -> str:
+        badge_class = _EXPORT_ARTIFACT_BADGE_CLASSES.get(value, "badge-missing")
+        return f'<span class="badge {badge_class}">{_escape_html(label)}</span>'
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("CAD source", _badge(cad_status, _EXPORT_STATUS_LABELS.get(cad_status, cad_status.title()))),
+            ("STL", _badge(stl_status, _EXPORT_STATUS_LABELS.get(stl_status, stl_status.title()))),
+            (
+                "Validation",
+                _badge(validation_status, _EXPORT_VALIDATION_LABELS.get(validation_status, validation_status)),
+            ),
+            ("Preview", _badge(preview_status, _EXPORT_PREVIEW_LABELS.get(preview_status, preview_status))),
+        )
+    )
+
+    if summary.get("pipeline_complete"):
+        rows += _di_row("Review", "Pending human approval")
+    else:
+        rows += _di_row("Next step", _text_or_fallback(summary.get("next_step"), "None"))
+
+    return f'<div class="export-pipeline">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -702,22 +786,28 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
     """Render one project's overview card: Project Readiness dashboard
-    (Phase 33), Generation Gate (Phase 34), Project Header, Project Intake
-    (Phase 30), Draft Brief (Phase 31), Brief Update (Phase 32), Design
-    Intent (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
-    Artifacts, Health Signals, and Review Readiness - in that order,
-    matching this repo's pipeline (User Idea -> Project Intake -> Draft
-    Brief -> Brief Merge/Update -> Design Intent -> Reference Board ->
-    Project Readiness -> Design Orchestrator -> Readiness-Gated CAD Router
-    -> ...). Static HTML/CSS only - no JavaScript, no external assets.
-    Purely presentational: it never recomputes or overrides
-    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
-    only displays fields `factory.project_inspection.summarize_project()`
-    already computed. The Project Readiness dashboard *summarizes* the
-    cards below it - Phase 33 adds it without removing or replacing any
-    existing detail card. The Generation Gate card (Phase 34) is purely
-    advisory too: this board never generates CAD, it only shows the dry-run
-    decision `factory.generation_gate` already computed.
+    (Phase 33), Generation Gate (Phase 34), Post-Generation Pipeline
+    (Phase 35), Project Header, Project Intake (Phase 30), Draft Brief
+    (Phase 31), Brief Update (Phase 32), Design Intent (Phase 27),
+    Reference Board (Phase 28), Manufacturing Overview, Artifacts, Health
+    Signals, and Review Readiness - in that order, matching this repo's
+    pipeline (User Idea -> Project Intake -> Draft Brief -> Brief
+    Merge/Update -> Design Intent -> Reference Board -> Project Readiness
+    -> Design Orchestrator -> Readiness-Gated CAD Router -> CAD Source
+    Generation -> Guided Export Pipeline -> ...). Static HTML/CSS only - no
+    JavaScript, no external assets. Purely presentational: it never
+    recomputes or overrides `visual_readiness_state`, `health_signals`, or
+    `suggested_actions`, it only displays fields
+    `factory.project_inspection.summarize_project()` already computed. The
+    Project Readiness dashboard *summarizes* the cards below it - Phase 33
+    adds it without removing or replacing any existing detail card. The
+    Generation Gate card (Phase 34) is purely advisory too: this board
+    never generates CAD, it only shows the dry-run decision
+    `factory.generation_gate` already computed. The Post-Generation
+    Pipeline card (Phase 35) is the same: this board never exports,
+    validates, renders, or invokes a subprocess - it only shows what
+    `factory.export_pipeline.summarize_export_pipeline()` already computed
+    from the plan and (if one exists) `generated/export_receipt.json`.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -732,6 +822,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + _build_generation_gate_section_html(
             project.get("generation_gate_summary"), project.get("generation_execution_summary")
         )
+        + "</div>"
+        '<div class="card-section"><h4>Post-Generation Pipeline</h4>'
+        + _build_export_pipeline_section_html(project.get("export_pipeline_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))
@@ -975,7 +1068,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none, .project-readiness p.none, .generation-gate p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none, .project-readiness p.none, .generation-gate p.none, .export-pipeline p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}

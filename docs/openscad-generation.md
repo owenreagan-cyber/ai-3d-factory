@@ -58,11 +58,18 @@ Beyond writing `.scad` files, each run:
 
 ## What it does not do
 
-- It does not invoke OpenSCAD. Exporting to STL is a manual step — run the
-  commands written to `slicer_review/openscad_export_instructions.md`
-  yourself, once you've reviewed the generated source.
+- **This command itself** does not invoke OpenSCAD — exporting to STL from
+  `factory generate-openscad` is still a manual step, run the commands
+  written to `slicer_review/openscad_export_instructions.md` yourself,
+  once you've reviewed the generated source. A separate, opt-in command,
+  `factory export-from-cad --confirm-export` (Phase 35, see
+  `docs/export-pipeline.md`), *can* invoke a local `openscad` executable
+  for you — dry run by default, only with explicit confirmation, and only
+  if the executable is found; it never replaces the instructions file
+  above and never runs automatically as part of generation.
 - It does not call `factory validate` or `factory render` for you. Do that
-  after exporting, per the instructions file.
+  after exporting (`factory export-from-cad --validate --render`, or
+  those two commands directly), per the instructions file.
 - It does not fuse `multipart-nameplate`'s two files into one STL. Keep
   them as separate aligned exports for per-part color assignment in the
   slicer — see `docs/slicer-review-workflow.md`.
@@ -84,9 +91,18 @@ Studio/OrcaSlicer as separate parts, do not re-center either one — their
 shared origin is what keeps them aligned. `part_manifest.json` records
 this in each part's `transform_notes`.
 
-## Future: BOSL2 and automated export
+## Automated export (Phase 35)
 
-Plain OpenSCAD is intentionally sufficient for Phase 2. BOSL2 (a popular
-OpenSCAD utility library) and an optional, explicit, locally-validated
-export command are both candidates for a later phase — see
-`docs/roadmap.md`. Neither is implemented here.
+The "optional, explicit, locally-validated export command" this section
+used to describe as a future candidate is now implemented — see
+`factory export-from-cad` in `docs/export-pipeline.md`. It orchestrates
+the existing OpenSCAD CLI (never re-implementing generation or export),
+is dry-run by default, and only invokes a subprocess with explicit
+`--confirm-export` and a detected local executable.
+
+## Future: BOSL2
+
+BOSL2 (a popular OpenSCAD utility library) remains a candidate for a
+later phase — see `docs/roadmap.md`. Plain OpenSCAD (no external library)
+is still intentionally sufficient for every template this repo generates
+today.

@@ -104,7 +104,14 @@ Beyond writing the `.py` source, each run:
 - It does not import or execute the CadQuery source it writes. Exporting
   to STL is a manual step — run `python cad/mechanical_plate.py` yourself
   (see `slicer_review/cadquery_export_instructions.md`), once you've
-  reviewed the generated source.
+  reviewed the generated source. **This remains true after Phase 35**
+  (`docs/export-pipeline.md`): `factory export-from-cad` never executes
+  CadQuery source either — for a CadQuery-sourced project it always
+  reports `"manual_export_required"` and shows this exact manual command,
+  regardless of `--confirm-export`. Once you've run it yourself,
+  `factory export-from-cad --validate --render` (or `factory validate`/
+  `factory render` directly) works against the resulting STL exactly as
+  it would for an OpenSCAD-sourced one.
 - It does not call `factory validate` or `factory render` for you. Do that
   after exporting.
 - It does not install `cadquery`, or any other package.

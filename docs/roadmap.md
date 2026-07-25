@@ -1663,6 +1663,136 @@ append-only execution-receipt history (one receipt reflects only the most
 recent confirmed run); any AI/LLM-backed decision-making; Blender/Meshy/
 slicer execution - all explicitly out of scope for this phase.
 
+## Phase 35 — Guided Export, Validation, Preview, and Artifact Finalization (complete)
+
+The first complete, explicitly confirmed, local post-generation workflow -
+guides Phase 34's CAD source through export, verification, validation,
+preview, and artifact finalization, still stopping well short of any
+slicer or printer:
+
+```
+CAD Source Generation -> Guided Export Pipeline -> STL Verification ->
+Validation and Preview -> Artifact Finalization -> Human Review Gate ->
+Slicer Review -> (never automatic printing)
+```
+
+**This orchestrates existing local commands - it never re-implements CAD
+generation, STL export, mesh validation, or preview rendering.** Its one
+new capability - actually invoking the OpenSCAD CLI to export an STL - is
+the first automated subprocess execution in this repo. **Dry run by
+default**, same convention as every gated phase before it: every entry
+point defaults to `confirm_export=False`, always computing and returning a
+full export plan without ever invoking a subprocess, unless
+`confirm_export=True` is explicitly passed *and* every gate independently
+passes.
+
+**New module:** `factory.export_pipeline`:
+
+- `plan_export(...)` - the core, pure planning decision, in a fixed
+  priority order (see `docs/export-pipeline.md` "Decision states"):
+  an unsafe `--source`/`--output-dir` or no recognized CAD source resolves
+  to `"blocked"`; an unrecognized source type to `"unsupported_source"`;
+  both OpenSCAD and CadQuery source present with no `--source` given to
+  `"ambiguous_source"`; CadQuery source always to `"manual_export_required"`
+  (this repo's existing manual-only CadQuery policy is unchanged - see
+  "OpenSCAD only for automatic export" in `docs/export-pipeline.md`); a
+  missing local `openscad` executable to `"export_tool_missing"`; an
+  un-overridden existing output STL to `"output_collision"`; otherwise
+  `"needs_confirmation"`/`"allowed"` depending on confirmation.
+- `resolve_openscad_executable()` - read-only local discovery (a known
+  macOS `.app` bundle path, then `PATH` via `shutil.which()`), mirroring
+  `factory.slicer.local_slicer_probe.probe_slicers()`'s exact style.
+  Never installs, downloads, or launches anything.
+- **Freshness/stale detection** - never treats file existence alone as
+  currentness. Prefers a `sha256` fingerprint comparison against a prior
+  export receipt entry (immune to a modification-time reset); falls back
+  to the same epsilon-guarded mtime comparison
+  `factory.render_coverage.compute_render_coverage()` already uses.
+- `run_export(...)` - the one, explicit subprocess/write path. Only ever
+  called when the plan says `"allowed"`; uses argument-list subprocess
+  execution (never a shell string), a 120-second timeout, and full
+  post-exit verification (output exists, is non-empty, has a `.stl`
+  extension) - **a zero exit code alone is never treated as success**.
+  Rejects if the source's fingerprint changed since planning (a race).
+- `run_validation(...)` / `run_multipart_check(...)` / `run_render(...)` -
+  thin wrappers reusing `factory.validators.mesh_validate.validate_mesh()`,
+  `factory.validators.multipart_check.check_manifest()`, and
+  `factory.previews.render_preview.render_preview()` directly - never
+  re-implemented, never reinterpreted (only the PASS/WARN/FAIL label is
+  normalized into this phase's own vocabulary). A renderer that reports
+  success but produced no non-empty file is never trusted at face value.
+- `build_execution_receipt`-equivalent `write_export_receipt(...)` /
+  `read_export_receipt(...)` - **execution receipts**:
+  `<project_dir>/generated/export_receipt.json`, a **sibling** of Phase
+  34's `generation_receipt.json` (never merged into it, so that file's
+  shape stays exactly as every current Generation Gate test pins it).
+  Upserted **by source file** - the same upsert-by-key pattern
+  `factory.openscad.generate._upsert_manifest_parts()` already uses for
+  `part_manifest.json` - so a failed or partial run never destroys a
+  prior successful record for a different (or untouched) source file.
+  Written only after a confirmed run actually attempts something; never
+  for a dry run.
+- `build_artifact_registry(...)` - normalizes CAD source, STL, validation,
+  preview, review, and both receipts into one read-only structure, reusing
+  the plan and both receipts rather than re-deriving anything. `"review"`
+  is a pointer string, not a computed result, since this module must stay
+  a leaf the same way `factory.generation_gate` does.
+- `--resume` support - skips a source file's export/validate/render step
+  when the receipt already records it as current for that exact source
+  fingerprint; reruns only what's missing, failed, or stale.
+
+**New CLI:** `factory export-from-cad <path> [--confirm-export] [--json]
+[--source ...] [--output-dir ...] [--overwrite-stl] [--validate] [--render]
+[--all] [--resume]` - dry run by default; only writes/executes with
+`--confirm-export` and only if the plan allows it. `--json` output is the
+entire stdout on every path, including errors (missing project, an unsafe
+path) - no plain text is ever printed before or after the JSON payload.
+Writing the receipt itself triggers no console confirmation message in
+human-readable mode; `--json` surfaces `receipt.path` as data instead.
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained a tenth
+  additive field, `export_pipeline_summary` (source engine/count, exporter
+  availability, expected/current/stale STL counts, aggregate validation/
+  preview status, last completed stage, `pipeline_complete`, blockers).
+  Read-only - never exports, validates, renders, or invokes a subprocess.
+  Every earlier field is completely unchanged.
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Post-Generation Pipeline" card section, placed right after "Generation
+  Gate" - CAD source/STL/validation/preview status, and either the next
+  suggested step or (once complete) a "Pending human approval" reminder.
+  Every existing detail card is unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-34 field's shape;
+`factory.generation_gate`'s own receipt file and its exact schema; the
+board's existing summary table and every existing card section;
+`factory.review_gate.evaluate_review_gate()`'s JSON output shape (still
+never includes `export_pipeline_summary`); `factory generate-openscad`/
+`generate-cadquery`/`validate`/`render` all unchanged and still fully
+functional on their own.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never invokes
+Blender, Meshy, or FreeCAD. Never installs anything (not OpenSCAD, not
+`cadquery`). **Never executes CadQuery source automatically** - this
+repo's existing manual-export policy for CadQuery is unchanged. Never
+slices, never prints, never sets `human_approved`/`print_ready`. Never
+re-scores project readiness or the Generation Gate decision - those are
+read from Phase 30-34's own already-computed summaries where relevant,
+never recomputed here. Never duplicates mesh validation, multipart
+validation, dimension validation, or manufacturing inspection - existing
+validators/checks are called directly, never re-implemented.
+
+**Not yet started (at the end of Phase 35):** a configurable export
+timeout (fixed at 120 seconds); an append-only execution-receipt history
+across every past run (one receipt entry per source file reflects only
+its most recent attempt); automatic CadQuery script execution (remains an
+explicit, out-of-scope policy decision, not a technical gap); any AI/LLM-
+backed decision-making; Blender/Meshy/slicer/printer execution - all
+explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

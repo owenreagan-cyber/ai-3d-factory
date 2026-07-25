@@ -20,7 +20,25 @@ projects/<slug>/
 ## When files move
 
 - **`cad/` → `stl/`**: when a CAD script is exported to a mesh. Keep the
-  source in `cad/` so the part can be re-parameterized later.
+  source in `cad/` so the part can be re-parameterized later. For OpenSCAD
+  source, `factory export-from-cad <project_dir> --confirm-export` (Phase
+  35, `docs/export-pipeline.md`) can do this export for you - dry run by
+  default, only writes with explicit confirmation, and only if a local
+  `openscad` executable is found; never overwrites an existing STL without
+  `--overwrite-stl`. CadQuery source (`cad/*.py`) remains a manual step -
+  run `python cad/<name>.py` yourself, exactly as before this phase.
+- **`generated/`**: `generation_receipt.json` (Phase 34) and
+  `export_receipt.json` (Phase 35) - machine-readable execution history
+  for confirmed CAD generation and export/validate/render runs,
+  respectively. Never written by a dry run. Not one of the fixed
+  `factory init-project` subfolders above - both files are created lazily,
+  only after a real confirmed run.
+- **`stl/` → `validation/` + `renders/`**: `factory validate` and
+  `factory render` write their outputs into these folders automatically
+  when the input mesh lives under a project's `stl/` directory (or
+  anywhere else under `projects/<slug>/`). `factory export-from-cad
+  --validate --render` (or `--all`) calls these same two commands for you
+  right after a confirmed export.
 - **`stl/` → `validation/` + `renders/`**: `factory validate` and
   `factory render` write their outputs into these folders automatically
   when the input mesh lives under a project's `stl/` directory (or
