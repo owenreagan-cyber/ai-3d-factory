@@ -27,12 +27,15 @@ projects/<slug>/
   `openscad` executable is found; never overwrites an existing STL without
   `--overwrite-stl`. CadQuery source (`cad/*.py`) remains a manual step -
   run `python cad/<name>.py` yourself, exactly as before this phase.
-- **`generated/`**: `generation_receipt.json` (Phase 34) and
-  `export_receipt.json` (Phase 35) - machine-readable execution history
-  for confirmed CAD generation and export/validate/render runs,
-  respectively. Never written by a dry run. Not one of the fixed
-  `factory init-project` subfolders above - both files are created lazily,
-  only after a real confirmed run.
+- **`generated/`**: `generation_receipt.json` (Phase 34),
+  `export_receipt.json` (Phase 35), and `slicer_readiness_receipt.json`
+  (Phase 36) - machine-readable execution history for confirmed CAD
+  generation, export/validate/render, and slicer-review approval/package
+  runs, respectively. Never written by a dry run - `slicer_readiness_receipt.json`
+  specifically is only ever written by `factory slicer-readiness --approve`
+  or `--create-package --confirm-package`, never by the plain read-only
+  assessment. Not one of the fixed `factory init-project` subfolders above
+  - all three files are created lazily, only after a real confirmed run.
 - **`stl/` → `validation/` + `renders/`**: `factory validate` and
   `factory render` write their outputs into these folders automatically
   when the input mesh lives under a project's `stl/` directory (or
@@ -47,7 +50,13 @@ projects/<slug>/
   has a clean-enough validation report and a preview render, it's ready
   for a human to review it in a slicer. `slicer_review/` holds the
   human-facing checklist/record of that review (see
-  `docs/slicer-review-workflow.md`), not new geometry.
+  `docs/slicer-review-workflow.md`), not new geometry. `factory
+  slicer-readiness <project> --create-package --confirm-package` (Phase
+  36, `docs/slicer-readiness.md`) can populate `slicer_review/
+  slicer_review_manifest.json` (+ a README checklist) for you - only once
+  every technical signal is satisfied and a separate `--approve` step has
+  already been recorded - **referencing** the STL/validation/render files
+  above by relative path rather than copying them into `slicer_review/`.
 - **`slicer_review/` → `final_candidate/`**: only after a human has
   explicitly approved a part in `slicer_review/` (i.e. recorded
   `human_approval.approved: true`) should its files be copied into

@@ -405,7 +405,20 @@ pipeline completion (`partial_pipeline`/`*_failed`, never `completed`).
   validation, or manufacturing inspection** - `factory.validators.*` is
   called directly, never re-implemented.
 
+## Phase 36: consumed directly by `factory.slicer_readiness`
+
+`generated/export_receipt.json` (written here) and this module's
+`summarize_export_pipeline()` output (folded into
+`export_pipeline_summary`) are both read directly by
+`factory.slicer_readiness.assess_slicer_readiness()` (Phase 36, see
+`docs/slicer-readiness.md`) to derive STL/validation/preview readiness -
+neither is re-derived or re-parsed independently. This module stays
+unchanged by Phase 36: it does not know about Slicer Review Readiness,
+approval, or review packages, and nothing in `factory.slicer_readiness`
+ever exports, validates, or renders on its own.
+
 See also `docs/generation-gate.md` (Phase 34), `docs/openscad-generation.md`,
 `docs/cad-backends.md`, `docs/render-coverage.md`, `docs/preview-board.md`,
 `docs/review-gate.md`, `docs/slicer-review-workflow.md`,
+`docs/slicer-readiness.md` (Phase 36, the next pipeline step),
 `docs/file-lifecycle.md`, and `docs/roadmap.md` Phase 35.

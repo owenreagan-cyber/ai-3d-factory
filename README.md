@@ -280,6 +280,29 @@ records it as current for that exact fingerprint. Writes
 generation receipt, upserted per source file - dry runs never produce one)
 and never invokes Blender, Meshy, a slicer, or a printer.
 
+`factory slicer-readiness <project_dir> [--json] [--create-package]
+[--confirm-package] [--output-dir ...] [--approve] [--approval-note ...]
+[--refresh] [--include-warnings] [--force-package]` is Slicer Review
+Readiness Promotion (`factory.slicer_readiness`, see
+`docs/slicer-readiness.md`) - the pipeline's next step: Guided Export
+Pipeline -> STL Validation and Preview -> **Slicer Review Readiness** ->
+Human Approval -> Manual Slicer Review -> .... **A thin assessment/
+promotion layer over already-computed state, never re-implementing mesh
+validation, review-gate logic, slicer detection, or manufacturing
+checks.** Read-only by default: always computes a full readiness
+assessment (11 machine-readable states, a documented weighted score that
+can never override a hard blocker) but writes nothing, records no
+approval, creates no package, and never invokes a slicer. Only
+`--approve` records human approval (fails cleanly unless every technical
+signal is already satisfied; automatically invalidated the moment a
+relevant artifact's fingerprint changes), and only `--create-package
+--confirm-package` (both required together, and only once approved)
+writes `slicer_review/slicer_review_manifest.json` - conforming to the
+pre-existing `schemas/slicer_review.schema.json` - plus a human-readable
+checklist README, **referencing existing STL/validation/render files by
+relative path, never copying them**. `auto_print_allowed` is always
+`false`; the CLI always ends with an explicit no-automatic-print trailer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

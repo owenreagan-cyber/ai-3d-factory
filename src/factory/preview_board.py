@@ -142,6 +142,7 @@ from factory.project_inspection import (
     classify_visual_readiness,
     summarize_project,
 )
+from factory.slicer_readiness import summarize_slicer_readiness
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -176,11 +177,20 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     """Read every project under `projects_root` and compute the board index.
 
     Read-only: never writes, generates, renders, exports, or contacts
-    anything.
+    anything. Merges `slicer_readiness_summary` (Phase 36) into each
+    project's dict here, at the aggregation point, rather than inside
+    `factory.project_inspection.summarize_project()` itself - see
+    `factory.slicer_readiness.summarize_slicer_readiness()`'s
+    "Architectural note" for why: `factory.slicer_readiness` consumes
+    `factory.review_gate`, which already imports `project_inspection`, so
+    adding the field inside `project_inspection.py` would be a circular
+    import. This function is where the two layers meet instead.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
     projects = [summarize_project(p, projects_root=projects_root) for p in project_dirs]
+    for project, project_dir in zip(projects, project_dirs):
+        project["slicer_readiness_summary"] = summarize_slicer_readiness(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -495,6 +505,101 @@ def _build_export_pipeline_section_html(summary: dict[str, Any] | None) -> str:
     return f'<div class="export-pipeline">{rows}</div>'
 
 
+_SLICER_READINESS_STATUS_LABELS = {
+    "unsupported_project_state": "Unsupported project state",
+    "blocked": "Blocked",
+    "not_ready": "Not ready",
+    "stale_artifacts": "Stale artifacts",
+    "needs_validation": "Needs validation",
+    "needs_preview": "Needs preview",
+    "needs_manifest_completion": "Needs manifest completion",
+    "needs_information": "Needs information",
+    "needs_human_approval": "Needs human approval",
+    "ready_for_review_package": "Ready for review package",
+    "review_package_created": "Review package created",
+}
+
+_SLICER_READINESS_STATUS_BADGE_CLASSES = {
+    "unsupported_project_state": "badge-missing",
+    "blocked": "health-blocked",
+    "not_ready": "health-blocked",
+    "stale_artifacts": "health-warning",
+    "needs_validation": "health-warning",
+    "needs_preview": "health-warning",
+    "needs_manifest_completion": "health-warning",
+    "needs_information": "health-warning",
+    "needs_human_approval": "health-warning",
+    "ready_for_review_package": "badge-review-ready",
+    "review_package_created": "badge-review-ready",
+}
+
+_SLICER_READINESS_APPROVAL_LABELS = {
+    "not_approved": "Not approved",
+    "approved": "Approved",
+    "invalidated": "Invalidated - source changed",
+}
+
+_SLICER_READINESS_PACKAGE_LABELS = {
+    "not_created": "Not created",
+    "current": "Current",
+    "stale": "Stale - source changed",
+    "unknown": "Unknown",
+}
+
+
+def _build_slicer_readiness_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `slicer_readiness_summary` (Phase 36) into a
+    compact static 'Slicer Review Readiness' card section - technical
+    readiness status, score, human approval status, and review package
+    status. Placed right after "Post-Generation Pipeline" (all four - Project
+    Readiness, Generation Gate, Post-Generation Pipeline, Slicer Review
+    Readiness - are "meta" cards summarizing what's possible next). Plain
+    text only - no JavaScript. This card never assesses, approves, or
+    creates a package itself - it only displays what
+    `factory.slicer_readiness.summarize_slicer_readiness()` already computed
+    read-only from existing receipts/state; the only write paths (`factory
+    slicer-readiness --approve` / `--create-package --confirm-package`) are
+    separate, explicit, human-run CLI commands the preview board never
+    invokes. It never opens a slicer, uploads a file, queues, or prints
+    anything.
+    """
+    if not summary:
+        return '<div class="slicer-readiness"><p class="none">No slicer readiness analysis available for this project.</p></div>'
+
+    status = summary.get("status") or "unsupported_project_state"
+    status_badge_class = _SLICER_READINESS_STATUS_BADGE_CLASSES.get(status, "badge-missing")
+    status_label = _SLICER_READINESS_STATUS_LABELS.get(status, status)
+
+    approval_status = summary.get("approval_status") or "not_approved"
+    approval_label = _SLICER_READINESS_APPROVAL_LABELS.get(approval_status, approval_status)
+    approval_badge_class = "badge-review-ready" if approval_status == "approved" else "badge-missing"
+
+    package_status = summary.get("package_status") or "not_created"
+    package_label = _SLICER_READINESS_PACKAGE_LABELS.get(package_status, package_status)
+    package_badge_class = "badge-review-ready" if package_status == "current" else "badge-missing"
+
+    score = summary.get("score")
+    score_html = f"{score}%" if isinstance(score, (int, float)) else "Unknown"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Status", f'<span class="badge {status_badge_class}">{_escape_html(status_label)}</span>'),
+            ("Score", _escape_html(score_html)),
+            ("Human approval", f'<span class="badge {approval_badge_class}">{_escape_html(approval_label)}</span>'),
+            ("Review package", f'<span class="badge {package_badge_class}">{_escape_html(package_label)}</span>'),
+        )
+    )
+
+    blocker_count = summary.get("blocker_count") or 0
+    warning_count = summary.get("warning_count") or 0
+    rows += _di_row("Blockers", _escape_html(str(blocker_count)))
+    rows += _di_row("Warnings", _escape_html(str(warning_count)))
+    rows += _di_row("Next action", _text_or_fallback(summary.get("next_action"), "None"))
+
+    return f'<div class="slicer-readiness">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -787,16 +892,17 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 def _build_project_card_html(project: dict[str, Any]) -> str:
     """Render one project's overview card: Project Readiness dashboard
     (Phase 33), Generation Gate (Phase 34), Post-Generation Pipeline
-    (Phase 35), Project Header, Project Intake (Phase 30), Draft Brief
-    (Phase 31), Brief Update (Phase 32), Design Intent (Phase 27),
-    Reference Board (Phase 28), Manufacturing Overview, Artifacts, Health
-    Signals, and Review Readiness - in that order, matching this repo's
-    pipeline (User Idea -> Project Intake -> Draft Brief -> Brief
-    Merge/Update -> Design Intent -> Reference Board -> Project Readiness
-    -> Design Orchestrator -> Readiness-Gated CAD Router -> CAD Source
-    Generation -> Guided Export Pipeline -> ...). Static HTML/CSS only - no
-    JavaScript, no external assets. Purely presentational: it never
-    recomputes or overrides `visual_readiness_state`, `health_signals`, or
+    (Phase 35), Slicer Review Readiness (Phase 36), Project Header, Project
+    Intake (Phase 30), Draft Brief (Phase 31), Brief Update (Phase 32),
+    Design Intent (Phase 27), Reference Board (Phase 28), Manufacturing
+    Overview, Artifacts, Health Signals, and Review Readiness - in that
+    order, matching this repo's pipeline (User Idea -> Project Intake ->
+    Draft Brief -> Brief Merge/Update -> Design Intent -> Reference Board ->
+    Project Readiness -> Design Orchestrator -> Readiness-Gated CAD Router
+    -> CAD Source Generation -> Guided Export Pipeline -> Slicer Review
+    Readiness Promotion -> ...). Static HTML/CSS only - no JavaScript, no
+    external assets. Purely presentational: it never recomputes or
+    overrides `visual_readiness_state`, `health_signals`, or
     `suggested_actions`, it only displays fields
     `factory.project_inspection.summarize_project()` already computed. The
     Project Readiness dashboard *summarizes* the cards below it - Phase 33
@@ -807,7 +913,12 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     Pipeline card (Phase 35) is the same: this board never exports,
     validates, renders, or invokes a subprocess - it only shows what
     `factory.export_pipeline.summarize_export_pipeline()` already computed
-    from the plan and (if one exists) `generated/export_receipt.json`.
+    from the plan and (if one exists) `generated/export_receipt.json`. The
+    Slicer Review Readiness card (Phase 36) is the same again: this board
+    never assesses readiness, records an approval, or creates a review
+    package - it only shows what
+    `factory.slicer_readiness.summarize_slicer_readiness()` already computed
+    read-only, and never opens a slicer or contacts a printer.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -825,6 +936,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + "</div>"
         '<div class="card-section"><h4>Post-Generation Pipeline</h4>'
         + _build_export_pipeline_section_html(project.get("export_pipeline_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Slicer Review Readiness</h4>'
+        + _build_slicer_readiness_section_html(project.get("slicer_readiness_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

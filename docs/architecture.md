@@ -156,6 +156,30 @@ still re-exports `project_inspection`'s public names
 `from factory.preview_board import ...` call sites - they are the literal
 same function/constant objects, not copies.
 
+**Phase 36 addendum:** `factory/slicer_readiness.py` sits as a *third*
+top-level consumer above this same layer, alongside `preview_board.py`
+and `review_gate.py` - it calls `review_gate.evaluate_review_gate()`
+directly (which itself already depends on `project_inspection.py`), so it
+cannot be imported back into `project_inspection.py` without recreating
+the exact cycle this diagram exists to avoid:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+```
+
+This is why `slicer_readiness_summary` (Phase 36) is merged into each
+board project's dict by `preview_board.gather_board_data()` itself,
+rather than living inside `project_inspection.summarize_project()` like
+every earlier phase's additive field - see `docs/slicer-readiness.md`
+"Architectural note" and `docs/review-gate.md`'s Phase 36 addendum for
+the full account.
+
 ## Why local-first
 
 Every check in this repo (geometry validation, dimension fit, preview

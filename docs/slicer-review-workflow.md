@@ -48,6 +48,21 @@ a human (or a future phase's tooling under human direction) — no `factory`
 command generates or auto-approves it. `auto_print_allowed` in that schema
 is hard-coded `false` and is not meant to ever change.
 
+**Phase 36 update:** `factory slicer-readiness <project> --create-package
+--confirm-package` (see `docs/slicer-readiness.md`) is now the first
+`factory` command that generates `slicer_review/slicer_review_manifest.json`
+conforming to this exact schema - only once every technical signal is
+satisfied and a separate `--approve` step has already been explicitly
+recorded, never automatically. It still never *auto-approves* anything:
+`human_approval.approved` in the generated file reflects whatever
+`--approve` already recorded (`false` until a human explicitly runs it),
+and `auto_print_allowed` remains hard-coded `false` exactly as always.
+The generated package references existing STL/validation/render files by
+relative path rather than copying them; a human still does every step
+below (opening the parts in a real slicer, reviewing the checklist,
+recording their own final decision) - this command only prepares the
+package, it never performs the review itself.
+
 ## Human review checklist, before any approval
 
 Step 5 above ("a human reviews, in the slicer") is the last local

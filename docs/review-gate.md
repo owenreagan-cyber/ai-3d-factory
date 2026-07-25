@@ -254,9 +254,32 @@ technical necessity) so each phase stays small and reviewable. Run
 phase could add a compact `review_gate` field to board cards cheaply,
 since both already sit on the same shared layer.
 
+## Phase 36: consumed directly by `factory.slicer_readiness`
+
+`factory.slicer_readiness.assess_slicer_readiness()` (Phase 36, see
+`docs/slicer-readiness.md`) calls `evaluate_review_gate()` from this
+module directly, unchanged - this gate's own pass/warn/fail logic and
+JSON output shape are exactly as documented above; Phase 36 never
+rewrites or reinterprets them (a `"warn"` result stays non-blocking there
+too, per this doc's own policy). This created a similar circular-import
+question to the one this doc already discusses above (`review_gate` <->
+`preview_board` at Phase 12/13): `review_gate.py` imports
+`project_inspection.py`, and `factory.slicer_readiness` needed to add a
+`slicer_readiness_summary` field to the Preview Board - if that field had
+been computed inside `project_inspection.py` itself (matching every prior
+phase's pattern), the resulting import chain
+(`project_inspection -> slicer_readiness -> review_gate ->
+project_inspection`) would have been a genuine cycle. Phase 36 resolved
+this the same way Phase 13 did here: by keeping the new logic in its own
+module, sitting above `project_inspection.py` in the dependency graph
+rather than inside it. See `docs/slicer-readiness.md`'s "Architectural
+note" for the full account.
+
 See also `docs/preview-board.md` (the board this reuses),
 `docs/render-coverage.md`, `docs/architecture.md`,
 `docs/design-quality-standard.md` (the human review quality checklist
-above), `docs/visual-preview-package.md`, and `docs/roadmap.md` Phase 12
-(this command) / Phase 13 (the shared-layer refactor) / Phase 23 (the
-human review quality checklist).
+above), `docs/visual-preview-package.md`, `docs/slicer-readiness.md`
+(Phase 36, the first consumer of this gate's result beyond `preview-board`
+itself), and `docs/roadmap.md` Phase 12 (this command) / Phase 13 (the
+shared-layer refactor) / Phase 23 (the human review quality checklist) /
+Phase 36 (Slicer Review Readiness Promotion).

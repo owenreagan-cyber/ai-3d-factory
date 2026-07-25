@@ -1793,6 +1793,158 @@ explicit, out-of-scope policy decision, not a technical gap); any AI/LLM-
 backed decision-making; Blender/Meshy/slicer/printer execution - all
 explicitly out of scope for this phase.
 
+## Phase 36 — Slicer Review Readiness Promotion and Review Package (complete)
+
+The formal bridge between Phase 35's completed export/validate/render
+pipeline and human slicer review:
+
+```
+Guided Export Pipeline -> STL Validation and Preview -> Artifact
+Finalization -> Slicer Review Readiness -> Human Approval -> Manual
+Slicer Review -> (never automatic printing)
+```
+
+**This is a thin assessment/promotion layer over already-computed
+state - it never re-implements mesh validation, render-freshness
+checking, review-gate logic, slicer detection, artifact fingerprinting,
+manifest-completeness checks, or manufacturing checks.** It reads
+`factory.project_inspection.summarize_project()` (already reusing Phase
+8-35's own logic), `factory.review_gate.evaluate_review_gate()` (the
+existing pass/warn/fail gate, never rewritten), and
+`factory.slicer.local_slicer_probe.probe_slicers()` (existing read-only
+slicer discovery) - and combines them into one deterministic readiness
+assessment, score, and (only with explicit confirmation) a local review
+package conforming to the pre-existing `schemas/slicer_review.schema.json`.
+
+**Read-only unless explicitly creating an approved package or recording
+approval.** `assess_slicer_readiness()` never writes anything. Only
+`record_approval()` and `create_review_package()` write, and only when
+explicitly called - the CLI gates both behind explicit flags (`--approve`
+and `--create-package --confirm-package` respectively).
+
+**Technical readiness and human approval are separate states, never
+conflated.** A project can be `ready_for_review_package`-eligible on
+every technical signal and still have no approval recorded - approval is
+always a separate, explicit, human-recorded action, invalidated
+automatically the moment a relevant artifact's fingerprint changes.
+
+**New module:** `factory.slicer_readiness`:
+
+- `assess_slicer_readiness(project_dir)` - the core, read-only assessment.
+  Computes 11 machine-readable `readiness_status` values in a fixed
+  priority order (first match wins; see `docs/slicer-readiness.md`
+  "Decision states"): `unsupported_project_state`, `blocked` (Review Gate
+  fail, a validation failure, or multipart-incomplete manifest),
+  `not_ready` (missing STL), `stale_artifacts`, `needs_validation`,
+  `needs_preview`, `needs_manifest_completion`, `needs_information`
+  (Design Orchestrator "Not Ready" - a much rarer, lower bar than its
+  common "Needs Information" resting state, which is folded into
+  `warnings` only, never a blocker), `needs_human_approval`,
+  `ready_for_review_package`, `review_package_created`.
+- A documented, weighted **readiness score** (STL 25% / validation 25% /
+  preview 15% / manifest 15% / manufacturing 10% / receipts 5% / review
+  gate 5%, summing to 1.0) - purely informational. `readiness_status` is
+  computed entirely independently of the score, so a high score can never
+  bypass a hard blocker (e.g. a failed validation still reports `blocked`
+  regardless of how well everything else scores).
+- **Review Gate's own documented semantics are honored exactly**: a
+  `"warn"` result is folded into `warnings` only, never treated as a
+  blocker - re-interpreting it as blocking would contradict
+  `docs/review-gate.md`'s own stated policy.
+- A separate **human-approval lifecycle**: `record_approval(project_dir,
+  note=..., approved_by=...)` - raises `ApprovalNotAllowedError` unless
+  `readiness_status` is already `needs_human_approval` or better. Snapshots
+  `sha256:`-fingerprints of every relevant artifact (source CAD, current
+  STL, validation reports, renders, `part_manifest.json`,
+  `build_plan.json`) at approval time; `assess_slicer_readiness()`
+  automatically reports `approval_status: "invalidated"` the moment any
+  fingerprint no longer matches, never silently trusting a stale approval.
+- **Review package creation**: `create_review_package(project_dir,
+  output_dir=..., overwrite=...)` - raises `PackageNotAllowedError` unless
+  technically ready *and* approved, `PackageCollisionError` if a package
+  already exists and `overwrite=False`. Writes
+  `slicer_review/slicer_review_manifest.json` (validated against the
+  pre-existing `schemas/slicer_review.schema.json` - not a new, invented
+  shape) plus a human-readable `slicer_review/README.md` checklist.
+  **References existing STL/validation/render files by relative path -
+  never copies them**, mirroring `factory.preview_package`'s own
+  established convention. `auto_print_allowed` is always `false`.
+- `build_review_checklist(...)` - a tailored (never invented) human review
+  checklist: identity, geometry, orientation, material, printer,
+  print-strategy, and risk items, plus extra multi-material/AMS-mapping
+  items only when the project's own manifest data says it's multi-part.
+- Sibling **execution receipt**: `generated/slicer_readiness_receipt.json`
+  - a third sibling of Phase 34's generation receipt and Phase 35's export
+  receipt, holding only approval and package state (never the technical
+  assessment itself, which is always recomputed fresh on every call).
+- `summarize_slicer_readiness(project_dir)` - a compact summary for the
+  Preview Board (status, score, approval/package status, blocker/warning
+  counts, next action).
+
+**New CLI:** `factory slicer-readiness <project_dir> [--json]
+[--create-package] [--confirm-package] [--output-dir ...] [--approve]
+[--approval-note ...] [--refresh] [--include-warnings] [--force-package]`
+- read-only by default; `--approve` and `--create-package
+--confirm-package` are the only write paths, each gated behind its own
+explicit flag. `--json` output is the entire stdout on every path,
+including errors - no plain text is ever printed before or after the JSON
+payload. Human-readable output ends with an explicit "No slicer was
+opened." / "No file was uploaded." / "No print was started." trailer.
+
+**Architectural discovery reported before implementing around it:** the
+task's suggested placement for the board's new field was an additive
+`slicer_readiness_summary` field on
+`factory.project_inspection.summarize_project()`, matching every prior
+phase's pattern. This is not possible here: `factory.slicer_readiness`
+must call `factory.review_gate.evaluate_review_gate()` directly (per the
+task's own requirement to reuse Review Gate rather than rewrite it), and
+`review_gate.py` already imports `summarize_project()` - adding the field
+inside `project_inspection.py` would create a genuine circular import
+(`project_inspection -> slicer_readiness -> review_gate ->
+project_inspection`), confirmed empirically while building this phase.
+Resolution: `summarize_slicer_readiness()` lives in `factory.slicer_readiness`
+instead, and `factory.preview_board.gather_board_data()` calls it per
+project and merges the result in at the aggregation point - the same
+visible per-project field, from a layer above `project_inspection.py`
+rather than below it. See `docs/slicer-readiness.md` "Architectural note".
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `slicer_readiness_summary` into each project's dict (see the
+  architectural note above for why it isn't on `summarize_project()`
+  itself).
+- **`factory.preview_board.build_board_html()`** gained a compact "Slicer
+  Review Readiness" card section, placed right after "Post-Generation
+  Pipeline" - status/score/approval/package status, blocker and warning
+  counts, and the next suggested action. Every existing detail card is
+  unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-35 field's shape;
+`factory.review_gate.evaluate_review_gate()`'s own logic and JSON output
+shape (still never includes `slicer_readiness_summary`);
+`factory.export_pipeline`'s receipts and CLI; the board's existing summary
+table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+uploads, queues, or submits a print job - `auto_print_allowed` is always
+`false` and the CLI always prints an explicit no-automatic-print trailer.
+Never re-implements mesh validation, render-freshness checking,
+review-gate logic, slicer detection, or manufacturing checks - each is
+read directly from its existing module.
+
+**Not yet started (at the end of Phase 36):** copying (rather than only
+referencing) artifacts into a portable review package - deliberately
+deferred, since the task's own guidance preferred references over
+unnecessary duplication unless a portable package is a deliberate future
+goal; an append-only approval/package history across every past run (the
+receipt reflects only the current approval/package state); any AI/LLM-
+backed decision-making; Blender/Meshy/slicer/printer execution - all
+explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

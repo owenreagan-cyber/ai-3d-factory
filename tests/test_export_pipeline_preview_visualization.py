@@ -202,7 +202,7 @@ def test_html_post_generation_pipeline_shows_next_step_when_incomplete(isolated_
     board = gather_board_data(isolated_projects_dir)
     html = build_board_html(board)
     start = html.find("<h4>Post-Generation Pipeline</h4>")
-    end = html.find("<h4>Project Intake</h4>", start)
+    end = html.find("<h4>Slicer Review Readiness</h4>", start)
     section = html[start:end]
     assert "Next step" in section
     assert "Review" not in section  # no "Pending human approval" until complete
@@ -213,7 +213,7 @@ def test_html_post_generation_pipeline_shows_review_pending_when_complete(isolat
     board = gather_board_data(isolated_projects_dir)
     html = build_board_html(board)
     start = html.find("<h4>Post-Generation Pipeline</h4>")
-    end = html.find("<h4>Project Intake</h4>", start)
+    end = html.find("<h4>Slicer Review Readiness</h4>", start)
     section = html[start:end]
     assert "Pending human approval" in section
     assert "Current" in section  # CAD source + STL both current

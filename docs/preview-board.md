@@ -637,6 +637,59 @@ and still follows it. See `docs/export-pipeline.md` for the full
 decision-state priority order, execution-receipt schema, and artifact
 registry.
 
+## Slicer Review Readiness section (Phase 36)
+
+Each project's card also carries `slicer_readiness_summary` -
+`factory.slicer_readiness.summarize_slicer_readiness()`'s compact view:
+
+```jsonc
+{
+  "status": "needs_human_approval",
+  "score": 88,
+  "ready_for_package": false,
+  "human_approval_required": true,
+  "approval_status": "not_approved",
+  "stl_status": "current",
+  "validation_status": "passed_with_warnings",
+  "preview_status": "current",
+  "manifest_status": "incomplete",
+  "package_status": "not_created",
+  "blocker_count": 0,
+  "warning_count": 3,
+  "next_action": "Review the assessment, then run `factory slicer-readiness <project> --approve` once satisfied."
+}
+```
+
+**Unlike every other Phase 26-35 additive summary, this one is not
+computed inside `factory.project_inspection.summarize_project()`.**
+`factory.slicer_readiness` must call
+`factory.review_gate.evaluate_review_gate()` directly, and `review_gate.py`
+already imports `summarize_project()` - adding the field inside
+`project_inspection.py` would create a genuine circular import
+(confirmed empirically while building this phase; see
+`docs/slicer-readiness.md` "Architectural note" for the full account).
+Instead, `factory.preview_board.gather_board_data()` itself calls
+`summarize_slicer_readiness(project_dir)` per project and merges the
+result into that project's dict at the aggregation point - the same
+visible per-project field, computed from a layer above
+`project_inspection.py` rather than from within it.
+
+Always evaluated read-only (never assesses in a way that writes, records
+approval, creates a package, or invokes a subprocess/slicer). Always a
+dict, never `None`, purely additive and purely advisory: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s/`factory
+export-from-cad`'s JSON output still never includes it.
+
+The board's **HTML** gained a compact "Slicer Review Readiness" card
+section, placed right after "Post-Generation Pipeline": status (badged),
+score, human-approval status (badged), review-package status (badged),
+blocker count, warning count, and the next suggested action. Static
+HTML/CSS only - no JavaScript, no external assets. Every existing detail
+card is unchanged and still follows it. See `docs/slicer-readiness.md`
+for the full decision-state priority order, scoring formula, approval
+lifecycle, and review package contents.
+
 ## Board JSON shape
 
 ```jsonc
@@ -784,6 +837,21 @@ registry.
         "next_step": "Add CAD source (factory generate-openscad / generate-cadquery)",
         "blockers": ["no CAD source found under cad/ - run factory generate-openscad or factory generate-cadquery first"],
         "receipt_path": null
+      },
+      "slicer_readiness_summary": {
+        "status": "blocked",
+        "score": 0,
+        "ready_for_package": false,
+        "human_approval_required": true,
+        "approval_status": "not_approved",
+        "stl_status": "missing",
+        "validation_status": "not_run",
+        "preview_status": "missing",
+        "manifest_status": "incomplete",
+        "package_status": "not_created",
+        "blocker_count": 1,
+        "warning_count": 0,
+        "next_action": "Resolve the blocking reason(s) above before proceeding."
       }
     }
   ],

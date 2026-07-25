@@ -46,10 +46,13 @@ WRITE_CAPABLE_COMMANDS = (
     "choose-option",
     "generate-openscad",
     "generate-cadquery",
+    "generate-from-readiness",
     "validate",
     "render",
+    "export-from-cad",
     "preview-project",
     "preview-board",
+    "slicer-readiness",
 )
 
 # Documented for clarity only (not read by the scan itself - anything not

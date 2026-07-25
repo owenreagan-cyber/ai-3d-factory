@@ -55,6 +55,14 @@ from factory.export_pipeline import (
     evaluate_export_pipeline_for_path,
     run_export_pipeline,
 )
+from factory.slicer_readiness import (
+    ApprovalNotAllowedError,
+    PackageCollisionError,
+    PackageNotAllowedError,
+    create_review_package,
+    evaluate_slicer_readiness_for_path,
+    record_approval,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -141,6 +149,8 @@ AVAILABLE_COMMANDS = (
     "generate-from-readiness <project_dir_or_text_or_markdown_file> [--confirm-generate] [--json]",
     "export-from-cad <project_dir> [--confirm-export] [--json] [--source ...] [--output-dir ...] "
     "[--overwrite-stl] [--validate] [--render] [--all] [--resume]",
+    "slicer-readiness <project_dir> [--json] [--create-package] [--confirm-package] [--output-dir ...] "
+    "[--approve] [--approval-note ...] [--refresh] [--include-warnings] [--force-package]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1171,6 +1181,149 @@ def export_from_cad_cmd(
         "existing local validator/renderer - it never invoked Blender, never called Meshy, never sliced, "
         "and never contacted any printer/network. No automatic printing."
     )
+
+    if errors:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="slicer-readiness")
+def slicer_readiness_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    create_package: bool = typer.Option(False, "--create-package", help="Create a local slicer review package (requires --confirm-package)"),
+    confirm_package: bool = typer.Option(False, "--confirm-package", help="Explicit confirmation required alongside --create-package"),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Project-relative output directory for the review package (default: slicer_review/)"),
+    approve: bool = typer.Option(False, "--approve", help="Explicitly record human approval for slicer review"),
+    approval_note: Optional[str] = typer.Option(None, "--approval-note", help="Optional free-text note to record with --approve"),
+    refresh: bool = typer.Option(False, "--refresh", help="Accepted for explicitness; the assessment is always freshly computed regardless"),
+    include_warnings: bool = typer.Option(False, "--include-warnings", help="Print every warning message in full (default: a count only)"),
+    force_package: bool = typer.Option(False, "--force-package", help="Allow --create-package to overwrite an existing review package"),
+) -> None:
+    """Slicer Review Readiness Promotion (Phase 36) - the bridge between a completed Phase 35
+    export/validate/render pipeline and human slicer review. Read-only by default: always computes
+    a full readiness assessment (technical readiness, score, blockers, warnings) but never writes
+    anything, never records approval, never creates a package, and never invokes a slicer. Reuses
+    factory.review_gate (unchanged), factory.export_pipeline's receipt, and factory.slicer's local
+    slicer discovery - never re-implements any of them. --approve explicitly records human approval
+    (only once every technical signal is satisfied); approval is automatically invalidated the moment
+    a relevant artifact's fingerprint changes. --create-package --confirm-package writes
+    slicer_review/slicer_review_manifest.json (conforming to schemas/slicer_review.schema.json) plus
+    a human-readable checklist README - only once approved and technically ready, and only overwriting
+    an existing package with --force-package. Never slices, uploads, queues, or prints anything -
+    auto_print_allowed is always false. See docs/slicer-readiness.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    if create_package and not confirm_package:
+        message = "--create-package requires --confirm-package"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    errors: list[str] = []
+    approval_result: dict | None = None
+    package_result: dict | None = None
+
+    if approve:
+        try:
+            approval_result = record_approval(project_dir, note=approval_note)
+        except ApprovalNotAllowedError as exc:
+            errors.append(str(exc))
+
+    if create_package and confirm_package and not errors:
+        try:
+            package_result = create_review_package(project_dir, output_dir=output_dir, overwrite=force_package)
+        except (PackageNotAllowedError, PackageCollisionError) as exc:
+            errors.append(str(exc))
+
+    assessment = evaluate_slicer_readiness_for_path(project_dir)
+
+    if as_json:
+        payload = dict(assessment)
+        payload["approval_result"] = approval_result
+        payload["package_result"] = {"package_path": package_result["package_path"]} if package_result else None
+        payload["errors"] = errors
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        if errors:
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]Slicer Review Readiness[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(assessment["project_name"])
+    console.print()
+    console.print("[bold]Technical readiness:[/bold]")
+    console.print(assessment["readiness_status"])
+    console.print()
+    console.print("[bold]Readiness score:[/bold]")
+    console.print(f"{assessment['readiness_score']}%")
+    console.print()
+    console.print("[bold]STL files:[/bold]")
+    console.print(f"{assessment['current_stl_count']} current / {assessment['stl_count']} required")
+    console.print()
+    console.print("[bold]Validation:[/bold]")
+    console.print(f"{assessment['validation_pass_count']} passed")
+    console.print(f"{assessment['validation_warning_count']} passed with warnings")
+    console.print(f"{assessment['validation_failure_count']} failed")
+    console.print()
+    console.print("[bold]Previews:[/bold]")
+    console.print(f"{assessment['current_preview_count']} current")
+    console.print()
+    console.print("[bold]Manifest:[/bold]")
+    console.print("Complete" if assessment["manifest_complete"] else "Incomplete")
+    console.print()
+    console.print("[bold]Export receipts:[/bold]")
+    console.print("Current" if assessment["export_receipt_status"] == "present" else "Missing")
+    console.print()
+    console.print("[bold]Local slicer:[/bold]")
+    found = [s["name"] for s in assessment["detected_slicers"] if s["found"]]
+    console.print(f"{found[0]} detected" if found else "None detected")
+    console.print()
+    console.print("[bold]Human approval:[/bold]")
+    console.print("Recorded" if assessment["approval_recorded"] else "Required")
+    console.print()
+    console.print("[bold]Review package:[/bold]")
+    console.print(assessment["package_status"].replace("_", " ").title())
+    console.print()
+
+    if assessment["blockers"]:
+        console.print("[bold]Blocking reasons:[/bold]")
+        for reason in assessment["blockers"]:
+            console.print(f"- {reason}")
+        console.print()
+
+    if assessment["warnings"]:
+        if include_warnings:
+            console.print("[bold]Warnings:[/bold]")
+            for warning in assessment["warnings"]:
+                console.print(f"- {warning}")
+        else:
+            console.print(f"[bold]Warnings:[/bold] {len(assessment['warnings'])} (pass --include-warnings to list them)")
+        console.print()
+
+    if assessment["next_actions"]:
+        console.print("[bold]Next actions:[/bold]")
+        for action in assessment["next_actions"]:
+            console.print(f"- {action}")
+        console.print()
+
+    if approval_result is not None:
+        console.print("[green]approved[/green] - human approval recorded.")
+    if package_result is not None:
+        console.print(f"[green]package created[/green]: {package_result['package_path']}")
+    for error in errors:
+        console.print(f"[red]error[/red]: {error}")
+
+    console.print("\nNo slicer was opened.")
+    console.print("No file was uploaded.")
+    console.print("No print was started.")
 
     if errors:
         raise typer.Exit(code=1)

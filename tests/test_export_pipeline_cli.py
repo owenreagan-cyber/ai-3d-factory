@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from typer.testing import CliRunner
 from factory import export_pipeline, project_store
 from factory.cad import cadquery_backend
 from factory.cli import app
+from factory.examples_library import EXAMPLES_DIR
 from factory.openscad.generate import generate_openscad
 
 runner = CliRunner()
@@ -393,8 +395,10 @@ def test_preview_board_cli_unaffected_by_export_from_cad_command(isolated_projec
     assert result.exit_code == 0, result.stdout
 
 
-def test_generate_from_readiness_cli_unaffected_by_export_from_cad_command():
-    result = runner.invoke(app, ["generate-from-readiness", "examples/storage-bin-lid", "--json"])
+def test_generate_from_readiness_cli_unaffected_by_export_from_cad_command(tmp_path):
+    example_copy = tmp_path / "storage-bin-lid"
+    shutil.copytree(EXAMPLES_DIR / "storage-bin-lid", example_copy)
+    result = runner.invoke(app, ["generate-from-readiness", str(example_copy), "--json"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
     assert "recommended_engine" in payload
