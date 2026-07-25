@@ -230,6 +230,29 @@ existing `factory.router.recommend_tool()` keyword router as a text-based
 fallback, rather than duplicating parsing or inventing a second keyword
 table.
 
+`factory generate-from-readiness <project_dir_or_text_or_markdown_file>
+[--confirm-generate] [--json]` is the Readiness-Gated CAD Generation Router
+(`factory.generation_gate`, see `docs/generation-gate.md`) - the pipeline's
+next step: Project Readiness -> Design Orchestrator -> **Readiness-Gated
+CAD Router** -> CAD Engine -> .... **An adapter/gate around this repo's
+*existing* local CAD generation (OpenSCAD, CadQuery), not a second CAD
+backend.** Dry run by default: always computes and shows a full generation
+plan (recommended engine, template, what's still missing) but writes
+nothing. Only with `--confirm-generate`, and only if every readiness gate
+independently passes (a supported, locally-available engine; readiness
+state one of the four `"Ready For ..."` states; score at or above a
+conservative threshold; no critical information missing), does it call the
+existing `generate_openscad()`/`generate_cadquery()` - never Blender,
+never Meshy, never FreeCAD, never an install, never a network/printer
+contact. After a successful confirmed generation, it also writes an
+execution receipt (`<project_dir>/generated/generation_receipt.json` -
+project, engine, template, readiness score/state, files generated,
+artifact sizes, and a normalized artifact-tracking breakdown reusing this
+repo's existing manifest/validation infrastructure rather than
+duplicating it); dry runs never produce one. Fully deterministic: reuses
+the Design Orchestrator's already-computed readiness summary outright,
+never re-scores anything.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

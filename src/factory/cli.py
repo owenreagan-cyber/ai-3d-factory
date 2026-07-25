@@ -48,6 +48,7 @@ from factory.openscad.generate import GeneratedFileExistsError, ProjectNotInitia
 from factory.openscad.templates import ALLOWED_TEMPLATES
 from factory.planner import plan_from_brief_path
 from factory.design_orchestrator import evaluate_readiness_for_path
+from factory.generation_gate import evaluate_generation_gate_for_path, run_generation, write_generation_receipt
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -131,6 +132,7 @@ AVAILABLE_COMMANDS = (
     "intake analyze <project_dir_or_text_or_markdown_file> [--json]",
     "intake suggest-brief <project_dir_or_text_or_markdown_or_intake_json> [--json] [--write] [--force] [--update]",
     "readiness <project_dir_or_projects_root_or_text_or_markdown_file> [--json]",
+    "generate-from-readiness <project_dir_or_text_or_markdown_file> [--confirm-generate] [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -857,6 +859,128 @@ def readiness_cmd(
         "\nThis is a deterministic, local-only recommendation - no AI, no LLM, no network, and no engine "
         "was invoked. See docs/design-orchestrator.md."
     )
+
+
+@app.command(name="generate-from-readiness")
+def generate_from_readiness_cmd(
+    path: Path = typer.Argument(
+        ...,
+        help="Path to a project directory (see factory init-project) or a plain-text/Markdown idea file",
+    ),
+    confirm_generate: bool = typer.Option(
+        False,
+        "--confirm-generate",
+        help="Actually generate local CAD artifacts if the readiness gate allows it; without this flag, only a dry-run plan is shown and nothing is written",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Readiness-Gated CAD Generation Router (Phase 34) - the first gated bridge between
+    Design Orchestrator readiness (Phase 33) and this repo's *existing* local CAD generation
+    backends (OpenSCAD, CadQuery). Dry run by default: always computes and shows a full
+    generation plan (recommended engine, template, what's still missing) but writes nothing.
+    Pass --confirm-generate to actually generate - only happens if the gate allows it:
+    recognized supported engine (OpenSCAD, or CadQuery if installed), readiness state not
+    Blocked, readiness score at or above the gate's conservative threshold, and no critical
+    information missing. Never generates for Blender, Meshy, FreeCAD, or any other
+    unsupported/future engine; never installs anything; never contacts a network. On a
+    successful confirmed generation, also writes an execution receipt to
+    <project_dir>/generated/generation_receipt.json (dry runs never produce one - see
+    docs/generation-gate.md "Execution receipts"). This is an adapter around existing
+    generation, not a second CAD backend. See docs/generation-gate.md."""
+    gate = evaluate_generation_gate_for_path(path, confirm_generate=confirm_generate)
+
+    generation_result: dict | None = None
+    generation_error: str | None = None
+    receipt_path: Path | None = None
+    if confirm_generate and gate["decision"] == "Allowed":
+        if not path.is_dir():
+            generation_error = "cannot generate CAD artifacts into a non-directory path"
+        else:
+            try:
+                generation_result = run_generation(path, gate)
+            except (
+                GeneratedFileExistsError,
+                ProjectNotInitializedError,
+                cadquery_backend.GeneratedFileExistsError,
+                cadquery_backend.ProjectNotInitializedError,
+                cadquery_backend.CadQueryNotAvailableError,
+            ) as exc:
+                generation_error = str(exc)
+            else:
+                # Execution receipts (Phase 34): only ever written after a real,
+                # confirmed, successful generation - never for a dry run. No
+                # automatic console confirmation is printed for this write; the
+                # path is only surfaced via --json (see docs/generation-gate.md).
+                receipt_path = write_generation_receipt(path, gate, generation_result)
+
+    if as_json:
+        payload = dict(gate)
+        payload["project"] = str(path)
+        if generation_result is not None:
+            payload["generation_result"] = generation_result
+        if generation_error is not None:
+            payload["generation_error"] = generation_error
+        if receipt_path is not None:
+            payload["receipt_path"] = str(receipt_path)
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False))
+        if generation_error is not None:
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]Generation Plan[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(path.name if path.is_dir() else str(path))
+    console.print()
+    console.print("[bold]Readiness:[/bold]")
+    console.print(f"{gate['readiness_score']}%")
+    console.print()
+    console.print("[bold]Status:[/bold]")
+    console.print(gate["readiness_state"])
+    console.print()
+    console.print("[bold]Recommended Engine:[/bold]")
+    console.print(gate["recommended_engine"])
+    console.print()
+    console.print("[bold]Decision:[/bold]")
+    console.print(gate["decision"])
+    console.print()
+    console.print("[bold]Would Generate:[/bold]")
+    if gate["plan"]:
+        console.print(f"{gate['plan']['engine']} CAD artifacts ({gate['plan']['human_summary']})")
+    else:
+        console.print("Nothing - no local template available for this engine/category")
+    console.print()
+
+    if gate["required_before_generation"]:
+        console.print("[bold]Required Before Generation:[/bold]")
+        for item in gate["required_before_generation"]:
+            console.print(f"- {item}")
+        console.print()
+
+    if generation_result is not None:
+        console.print(f"[green]generated[/green] {len(generation_result['written_files'])} file(s):")
+        for written in generation_result["written_files"]:
+            console.print(f"  {written}")
+        if generation_result["warnings"]:
+            console.print("[yellow]warnings[/yellow]:")
+            for warning in generation_result["warnings"]:
+                console.print(f"  {warning}")
+    elif generation_error is not None:
+        console.print(f"[red]error[/red]: {generation_error}")
+        console.print("No files written.")
+    elif confirm_generate and gate["decision"] != "Allowed":
+        console.print(f"[yellow]not generated[/yellow]: decision is {gate['decision']!r}, not 'Allowed'.")
+        console.print("No files written.")
+    else:
+        console.print("No files written.")
+
+    console.print(
+        "\nThis only inspected existing project files and, if --confirm-generate was passed and the "
+        "gate allowed it, ran this repo's existing local OpenSCAD/CadQuery generator - it never invoked "
+        "Blender, never called Meshy, never installed anything, and never contacted any printer/network."
+    )
+
+    if generation_error is not None:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="review-gate")

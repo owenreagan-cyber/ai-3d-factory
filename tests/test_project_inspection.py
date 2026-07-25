@@ -163,7 +163,8 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "render_files", "visual_readiness_state", "warnings", "suggested_actions",
         "health_signals", "design_intent_summary", "design_intent_detail",
         "reference_board_summary", "intake_summary", "draft_brief_summary",
-        "brief_update_summary", "design_orchestrator_summary",
+        "brief_update_summary", "design_orchestrator_summary", "generation_gate_summary",
+        "generation_execution_summary",
     }
     assert set(project.keys()) == expected_keys
 
@@ -584,6 +585,113 @@ def test_design_orchestrator_summary_never_affects_visual_readiness_or_health(pr
 def test_review_gate_json_excludes_design_orchestrator_summary(project_root):
     gate = evaluate_review_gate(project_root)
     assert "design_orchestrator_summary" not in gate
+
+
+# ---- Phase 34: generation_gate_summary field (Readiness-Gated CAD Generation Router) ----
+
+
+def test_generation_gate_summary_present_and_shaped(project_root):
+    summary = summarize_project(project_root)
+    gate = summary["generation_gate_summary"]
+    assert set(gate.keys()) == {"decision", "recommended_engine", "ready", "reason"}
+    from factory.generation_gate import DECISIONS
+
+    assert gate["decision"] in DECISIONS
+
+
+def test_generation_gate_summary_derived_from_other_summaries(project_root):
+    from factory.generation_gate import summarize_generation_gate
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy classroom sign made of PLA on a Bambu printer, 120mm wide."
+    project_store.save_json(brief_path, brief)
+
+    summary = summarize_project(project_root)
+    expected = summarize_generation_gate(summary["intake_summary"], summary["design_orchestrator_summary"])
+    assert summary["generation_gate_summary"] == expected
+
+
+def test_generation_gate_summary_is_always_a_dry_run_never_generates(project_root):
+    # summarize_project() is read-only - it must never call run_generation()
+    # or write any CAD source, regardless of how "ready" the project looks.
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy classroom sign made of PLA on a Bambu printer, 120mm wide."
+    brief["design_intent"] = {
+        "quality_standard": "Etsy-worthy",
+        "manufacturability_constraints": {"max_size_mm": [120, 100, 30]},
+    }
+    project_store.save_json(brief_path, brief)
+
+    before = sorted(p.name for p in (project_root / "cad").iterdir())
+    summarize_project(project_root)
+    after = sorted(p.name for p in (project_root / "cad").iterdir())
+    assert before == after == []
+
+
+def test_generation_gate_summary_never_affects_visual_readiness_or_health(project_root):
+    without_it = summarize_project(project_root)
+
+    brief_path = project_root / "brief.json"
+    brief = project_store.load_json(brief_path)
+    brief["description"] = "A premium etsy-worthy gift for the classroom, made with PLA."
+    project_store.save_json(brief_path, brief)
+    with_it = summarize_project(project_root)
+
+    assert with_it["visual_readiness_state"] == without_it["visual_readiness_state"]
+    assert with_it["health_signals"] == without_it["health_signals"]
+    assert with_it["suggested_actions"] == without_it["suggested_actions"]
+
+
+def test_review_gate_json_excludes_generation_gate_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "generation_gate_summary" not in gate
+
+
+# ---- Phase 34: generation_execution_summary field (execution receipts) ----
+
+
+def test_generation_execution_summary_present_and_shaped_with_no_receipt(project_root):
+    summary = summarize_project(project_root)
+    execution = summary["generation_execution_summary"]
+    assert set(execution.keys()) == {"receipt_available", "last_execution", "last_execution_engine"}
+    assert execution["receipt_available"] is False
+    assert execution["last_execution"] is None
+    assert execution["last_execution_engine"] is None
+
+
+def test_generation_execution_summary_reflects_an_existing_receipt(project_root):
+    from factory.generation_gate import write_generation_receipt
+
+    gate_result = {
+        "decision": "Allowed",
+        "recommended_engine": "OpenSCAD",
+        "readiness_state": "Ready For Mechanical CAD",
+        "readiness_score": 90,
+        "plan": {"engine": "OpenSCAD", "template": "sign", "params": {"text": "Demo"}},
+        "required_before_generation": [],
+        "confirm_generate": True,
+    }
+    (project_root / "cad" / "sign.scad").write_text("// demo\n", encoding="utf-8")
+    generation_result = {"written_files": [str(project_root / "cad" / "sign.scad")], "warnings": []}
+    write_generation_receipt(project_root, gate_result, generation_result)
+
+    summary = summarize_project(project_root)
+    execution = summary["generation_execution_summary"]
+    assert execution["receipt_available"] is True
+    assert execution["last_execution"] is not None
+    assert execution["last_execution_engine"] == "OpenSCAD"
+
+
+def test_generation_execution_summary_is_read_only_never_writes_a_receipt(project_root):
+    summarize_project(project_root)
+    assert not (project_root / "generated").exists()
+
+
+def test_review_gate_json_excludes_generation_execution_summary(project_root):
+    gate = evaluate_review_gate(project_root)
+    assert "generation_execution_summary" not in gate
 
 
 # ---- backward compatibility: review-gate JSON shape ----

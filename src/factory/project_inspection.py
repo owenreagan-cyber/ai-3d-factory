@@ -99,6 +99,28 @@ never generates CAD, never invokes any engine, and
 `design_orchestrator_summary` is never read by
 `classify_visual_readiness()`, `build_health_signals()`, or
 `build_suggested_actions()`. See `docs/design-orchestrator.md`.
+
+Phase 34 added an eighth additive field, `generation_gate_summary` - a
+compact `{decision, recommended_engine, ready, reason}` view of
+`factory.generation_gate.evaluate_generation_gate()`, always evaluated as
+a dry run (`confirm_generate=False` - this module is read-only and must
+never trigger actual CAD generation). Always a dict, never `None`. Purely
+additive, purely advisory: `generation_gate_summary` is never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`. See `docs/generation-gate.md`.
+
+Phase 34 also added a ninth additive field, `generation_execution_summary`
+- a compact `{receipt_available, last_execution, last_execution_engine}`
+view of `factory.generation_gate.summarize_generation_execution()`: has a
+confirmed generation ever actually run for this project, and when. Reads
+at most one file (`generated/generation_receipt.json`) if it exists;
+never writes, never triggers generation. Deliberately a separate field
+from `generation_gate_summary` (which summarizes the current dry-run
+*decision*) rather than added keys on it, so that field's shape stays
+exactly as every current Generation Gate test already pins it. Always a
+dict, never `None`. Purely additive, purely advisory: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`. See `docs/generation-gate.md`.
 """
 
 from __future__ import annotations
@@ -109,6 +131,7 @@ from typing import Any
 from factory import preview_package, project_store
 from factory.brief_generator import summarize_brief_update, summarize_draft_brief
 from factory.design_orchestrator import evaluate_project_readiness
+from factory.generation_gate import summarize_generation_execution, summarize_generation_gate
 from factory.design_intent_check import describe_design_intent_for_board, summarize_design_intent
 from factory.project_intake import analyze_project as analyze_project_intake
 from factory.reference_board import summarize_reference_board
@@ -720,6 +743,22 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         reference_board_summary,
     )
 
+    # Phase 34: always a dry-run evaluation (confirm_generate=False) - this
+    # module is read-only and must never trigger actual generation. Reuses
+    # intake_summary/design_orchestrator_summary above, never re-parses or
+    # re-scores anything.
+    generation_gate_summary = summarize_generation_gate(intake_summary, design_orchestrator_summary)
+
+    # Phase 34: a second, separate additive field for this project's
+    # *execution history* (has a confirmed generation ever actually run,
+    # and when) - read-only, reads at most one file
+    # (generated/generation_receipt.json) if it exists. Deliberately a
+    # separate field from generation_gate_summary above rather than added
+    # keys on it, so that field's shape stays exactly
+    # {"decision", "recommended_engine", "ready", "reason"}, as already
+    # pinned by every current Generation Gate test.
+    generation_execution_summary = summarize_generation_execution(project_dir)
+
     health_signals = build_health_signals(
         visual_readiness_state=visual_readiness_state,
         brief_status=brief_status,
@@ -759,4 +798,6 @@ def summarize_project(project_dir: Path, *, projects_root: Path | None = None) -
         "draft_brief_summary": draft_brief_summary,
         "brief_update_summary": brief_update_summary,
         "design_orchestrator_summary": design_orchestrator_summary,
+        "generation_gate_summary": generation_gate_summary,
+        "generation_execution_summary": generation_execution_summary,
     }

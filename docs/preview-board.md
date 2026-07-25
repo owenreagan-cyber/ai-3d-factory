@@ -533,6 +533,56 @@ only - no JavaScript, no external assets. See `docs/design-orchestrator.md`
 for the full scoring model, readiness-state decision tree, and engine
 recommendation rules.
 
+## Generation Gate section (Phase 34)
+
+Each project's card also carries two additive fields from
+`factory.generation_gate` (see `docs/generation-gate.md`):
+
+```jsonc
+{
+  "generation_gate_summary": {
+    "decision": "Needs Confirmation",
+    "recommended_engine": "OpenSCAD",
+    "ready": true,
+    "reason": "human confirmation required (--confirm-generate)"
+  },
+  "generation_execution_summary": {
+    "receipt_available": false,
+    "last_execution": null,
+    "last_execution_engine": null
+  }
+}
+```
+
+`generation_gate_summary` is always evaluated as a **dry run**
+(`confirm_generate=False` - project inspection and the preview board are
+read-only and must never trigger actual generation), reusing
+`intake_summary`/`design_orchestrator_summary` outright rather than
+re-scoring anything. `generation_execution_summary` reflects whether a
+confirmed generation has ever actually run for this project (Phase 34
+execution receipts) - it reads at most one file
+(`<project_dir>/generated/generation_receipt.json`) if it exists, and is
+**deliberately a separate field** from `generation_gate_summary` rather
+than added keys on it, so that field's shape stays exactly
+`{"decision", "recommended_engine", "ready", "reason"}`. Both are always a
+dict, never `None`, purely additive and purely advisory: neither is read
+by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s JSON output still
+never includes either. **No CAD is ever generated and no engine is ever
+invoked by computing either field** - the only write path (`factory
+generate-from-readiness --confirm-generate`) is a separate, explicit,
+human-run CLI command the preview board never invokes.
+
+The board's **HTML** gained a compact "Generation Gate" card section,
+placed right after "Project Readiness" (both are "meta" cards summarizing
+what's possible next): the gate decision, recommended engine, a Ready
+Yes/No badge, the top reason why (if not ready), whether an execution
+receipt is available, and when the last confirmed execution happened
+(`"Never"` if none). Static HTML/CSS only - no JavaScript, no external
+assets. Every existing detail card is unchanged and still follows it. See
+`docs/generation-gate.md` for the full decision-state priority order,
+execution-receipt schema, and artifact-tracking breakdown.
+
 ## Board JSON shape
 
 ```jsonc
@@ -650,6 +700,17 @@ recommendation rules.
           "Design intent incomplete", "Manufacturing review required",
           "Human approval required"
         ]
+      },
+      "generation_gate_summary": {
+        "decision": "Unsupported Engine",
+        "recommended_engine": "Unknown",
+        "ready": false,
+        "reason": "Unknown has no local generation backend wired to this gate"
+      },
+      "generation_execution_summary": {
+        "receipt_available": false,
+        "last_execution": null,
+        "last_execution_engine": null
       }
     }
   ],

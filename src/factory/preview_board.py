@@ -108,6 +108,23 @@ acts on themselves. Every existing detail card (Project Intake, Draft
 Brief, Brief Update, Design Intent, Reference Board, Manufacturing
 Overview, Artifacts, Health Signals, Review Readiness) is unchanged and
 still follows the dashboard. See `docs/design-orchestrator.md`.
+
+Phase 34 added a compact "Generation Gate" section, placed right after
+"Project Readiness" (both are "meta" cards summarizing what's possible
+next) - built from `summarize_project()`'s new `generation_gate_summary`
+field (`factory.generation_gate`, a dry-run-only adapter/gate around this
+repo's *existing* local CAD generation - the OpenSCAD and CadQuery
+backends - that reuses `design_orchestrator`'s readiness evaluation
+without duplicating any scoring or engine-recommendation logic): the gate
+decision (Allowed, Needs Confirmation, Blocked, Unsupported Engine, or Dry
+Run Only), the recommended engine, a Ready Yes/No badge, and (if not
+ready) the top reason why. Same guarantees as every other card section:
+purely presentational, no JavaScript, no external assets - and this board
+never generates CAD or invokes any engine; the only write path (`factory
+generate-from-readiness --confirm-generate`) is a separate, explicit,
+human-run CLI command the preview board never invokes. Every existing
+detail card is unchanged and still follows the dashboard. See
+`docs/generation-gate.md`.
 """
 
 from __future__ import annotations
@@ -338,6 +355,60 @@ def _build_project_readiness_section_html(summary: dict[str, Any] | None) -> str
         rows += _di_row("Remaining", '<span class="none">None</span>')
 
     return f'<div class="project-readiness">{rows}</div>'
+
+
+_GENERATION_GATE_DECISION_BADGE_CLASSES = {
+    "Allowed": "badge-review-ready",
+    "Needs Confirmation": "health-warning",
+    "Blocked": "health-blocked",
+    "Unsupported Engine": "badge-missing",
+    "Dry Run Only": "health-warning",
+}
+
+
+def _build_generation_gate_section_html(
+    summary: dict[str, Any] | None, execution_summary: dict[str, Any] | None = None
+) -> str:
+    """Render one project's `generation_gate_summary` (Phase 34) into a
+    compact static 'Generation Gate' card section - decision, recommended
+    engine, a Ready Yes/No badge, the top reason why (if not ready), and
+    (Phase 34 execution receipts) whether a confirmed generation has ever
+    actually run and when. Placed right after "Project Readiness" (both
+    are "meta" cards summarizing what's possible next). Plain text only -
+    no JavaScript. This card never generates CAD or invokes any engine -
+    the only write path (`factory generate-from-readiness
+    --confirm-generate`) is a separate, explicit, human-run CLI command
+    the preview board never invokes; "Last execution"/"Receipt available"
+    are read straight from `generation_execution_summary`
+    (`factory.generation_gate.summarize_generation_execution()`), which
+    itself only ever reads a receipt file already written by a prior,
+    separate, human-run confirmed generation - never computed or inferred
+    here.
+    """
+    if not summary:
+        return '<div class="generation-gate"><p class="none">No generation gate analysis available for this project.</p></div>'
+
+    decision = summary.get("decision") or "Unknown"
+    badge_class = _GENERATION_GATE_DECISION_BADGE_CLASSES.get(decision, "badge-missing")
+    engine = summary.get("recommended_engine") or "Unknown"
+    ready_html = "Yes" if summary.get("ready") else "No"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Decision", f'<span class="badge {badge_class}">{_escape_html(decision)}</span>'),
+            ("Engine", _escape_html(engine)),
+            ("Ready", _escape_html(ready_html)),
+        )
+    )
+    rows += _di_row("Reason", _text_or_fallback(summary.get("reason"), "None"))
+
+    execution_summary = execution_summary or {}
+    receipt_available_html = "Yes" if execution_summary.get("receipt_available") else "No"
+    rows += _di_row("Receipt available", _escape_html(receipt_available_html))
+    rows += _di_row("Last execution", _text_or_fallback(execution_summary.get("last_execution"), "Never"))
+
+    return f'<div class="generation-gate">{rows}</div>'
 
 
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
@@ -631,19 +702,22 @@ def _build_review_readiness_html(project: dict[str, Any]) -> str:
 
 def _build_project_card_html(project: dict[str, Any]) -> str:
     """Render one project's overview card: Project Readiness dashboard
-    (Phase 33), Project Header, Project Intake (Phase 30), Draft Brief
-    (Phase 31), Brief Update (Phase 32), Design Intent (Phase 27),
-    Reference Board (Phase 28), Manufacturing Overview, Artifacts, Health
-    Signals, and Review Readiness - in that order, matching this repo's
-    pipeline (User Idea -> Project Intake -> Draft Brief -> Brief
-    Merge/Update -> Design Intent -> Reference Board -> Project Readiness ->
-    Design Orchestrator -> ...). Static HTML/CSS only - no JavaScript, no
-    external assets. Purely presentational: it never recomputes or
-    overrides `visual_readiness_state`, `health_signals`, or
-    `suggested_actions`, it only displays fields
-    `factory.project_inspection.summarize_project()` already computed. The
-    Project Readiness dashboard *summarizes* the cards below it - Phase 33
-    adds it without removing or replacing any existing detail card.
+    (Phase 33), Generation Gate (Phase 34), Project Header, Project Intake
+    (Phase 30), Draft Brief (Phase 31), Brief Update (Phase 32), Design
+    Intent (Phase 27), Reference Board (Phase 28), Manufacturing Overview,
+    Artifacts, Health Signals, and Review Readiness - in that order,
+    matching this repo's pipeline (User Idea -> Project Intake -> Draft
+    Brief -> Brief Merge/Update -> Design Intent -> Reference Board ->
+    Project Readiness -> Design Orchestrator -> Readiness-Gated CAD Router
+    -> ...). Static HTML/CSS only - no JavaScript, no external assets.
+    Purely presentational: it never recomputes or overrides
+    `visual_readiness_state`, `health_signals`, or `suggested_actions`, it
+    only displays fields `factory.project_inspection.summarize_project()`
+    already computed. The Project Readiness dashboard *summarizes* the
+    cards below it - Phase 33 adds it without removing or replacing any
+    existing detail card. The Generation Gate card (Phase 34) is purely
+    advisory too: this board never generates CAD, it only shows the dry-run
+    decision `factory.generation_gate` already computed.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -653,6 +727,11 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
         '<div class="card-section"><h4>Project Readiness</h4>'
         + _build_project_readiness_section_html(project.get("design_orchestrator_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Generation Gate</h4>'
+        + _build_generation_gate_section_html(
+            project.get("generation_gate_summary"), project.get("generation_execution_summary")
+        )
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))
@@ -896,7 +975,7 @@ def build_board_html(board: dict[str, Any]) -> str:
   .di-label {{ font-weight: 600; color: #444; }}
   .di-value {{ color: #1a1a1a; }}
   ul.di-warnings {{ margin: 0.25rem 0 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: #7a5c00; }}
-  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none, .project-readiness p.none {{ margin: 0; }}
+  .design-intent p.none, .reference-board p.none, .project-intake p.none, .draft-brief p.none, .brief-update p.none, .project-readiness p.none, .generation-gate p.none {{ margin: 0; }}
   .artifact-badges .badge {{ margin-right: 0.35rem; }}
   .badge-present {{ background: #d4edda; color: #1e5b2e; }}
   .badge-missing {{ background: #eee; color: #666; }}

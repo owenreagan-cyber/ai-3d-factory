@@ -1538,6 +1538,131 @@ any AI/LLM-backed decision-making; CAD generation of any kind;
 Meshy/Blender/slicer execution - all explicitly out of scope for this
 phase.
 
+## Phase 34 — Readiness-Gated CAD Generation Router (complete)
+
+The first gated bridge between Design Orchestrator readiness (Phase 33)
+and this repo's *existing* local CAD generation backends:
+
+```
+Project Readiness -> Design Orchestrator -> Readiness-Gated CAD Router ->
+CAD Engine -> Preview -> Review -> Slicer Review -> (never automatic printing)
+```
+
+**An adapter/gate around existing local generation, not a second CAD
+backend.** It never generates geometry itself - it only decides *whether*
+`factory.openscad.generate.generate_openscad()` or
+`factory.cad.cadquery_backend.generate_cadquery()` (both already
+implemented, in earlier phases) are allowed to run, and if so, with which
+template/parameters. Only engines with a real, already-implemented local
+backend can ever be generated - today that's OpenSCAD and CadQuery; any
+other recommended engine (Blender, `Meshy (Concept Only)`, FreeCAD, Hybrid
+Workflow, Manual Design, Unknown) always resolves to `"Unsupported
+Engine"`. **Dry run by default** - every entry point defaults to
+`confirm_generate=False`, always computing and returning a full
+generation plan without ever calling a generation backend, unless
+`confirm_generate=True` is explicitly passed *and* every readiness gate
+independently passes.
+
+**New module:** `factory.generation_gate`:
+
+- `evaluate_generation_gate(...)` - the core, pure gate decision, in a
+  fixed priority order (see `docs/generation-gate.md` "Decision states"
+  for the full reasoning): a `Blocked` readiness state always wins;
+  an unsupported/unavailable engine always resolves to `"Unsupported
+  Engine"`; a readiness state that isn't one of the four `"Ready For ..."`
+  states, a score below the gate's own conservative threshold (60%,
+  matching the Design Orchestrator's own boundary), a critical advisory
+  (`Dimensions missing`/`Material unspecified`/`Printer unspecified`), or
+  no confident local template all resolve to `"Dry Run Only"` (even
+  `--confirm-generate` cannot force generation past this); otherwise
+  `"Needs Confirmation"` or `"Allowed"` depending on `confirm_generate`.
+- `plan_generation(...)` - deterministic local template selection: `"sign"`
+  for OpenSCAD, `"mechanical-plate"` for CadQuery, `None` (no guess) for
+  anything else.
+- `run_generation(...)` - the one, explicit write path. Only ever called
+  when the gate says `"Allowed"`; calls the existing
+  `generate_openscad()`/`generate_cadquery()` directly rather than
+  re-implementing CAD generation. Writes CAD *source* only
+  (`cad/*.scad`/`cad/*.py`) - STL export remains a separate, manual,
+  human-run step, unchanged from every earlier phase.
+- `build_execution_receipt(...)` / `write_generation_receipt(...)` -
+  **execution receipts**: after a successful confirmed generation (never
+  for a dry run), writes `<project_dir>/generated/generation_receipt.json`
+  - project, engine, backend, template, readiness score/state, execution
+  decision, files generated, artifact sizes, a normalized artifact-
+  tracking breakdown, validation status, warnings, errors, success, and
+  timestamp. One receipt reflects the most recent confirmed run, not a
+  history. Writing it never triggers an automatic console confirmation.
+- `build_artifact_tracking(...)` - **artifact tracking**: normalizes CAD
+  source, STL, manifest, validation, preview, and review state for a
+  confirmed run, reusing existing manifest/validator infrastructure
+  wherever possible (reads `part_manifest.json` entries `run_generation()`
+  itself already upserted; reads - never re-runs - any existing
+  `validation/*.json` report or `renders/*.png` file) rather than
+  duplicating mesh/multipart/dimension validation or manufacturing
+  inspection.
+- `read_last_execution_receipt(...)` / `summarize_generation_execution(...)`
+  - read-only lookups over a project's most recent receipt, if any.
+- `evaluate_generation_gate_for_path(path, confirm_generate=...)` - the
+  convenience entry point `factory generate-from-readiness` uses,
+  computing the same `intake_summary`/`design_orchestrator_summary` every
+  other Phase 30-33 path-based entry point does.
+
+**New CLI:** `factory generate-from-readiness <path> [--confirm-generate]
+[--json]` - dry run by default; only writes with `--confirm-generate`, and
+only if the gate allows it. A write conflict from the underlying generator
+(most commonly re-running confirmed generation on a project that already
+has that template's CAD source) is caught and reported as a clear,
+non-crashing `generation_error` (exit code 1) rather than an unhandled
+traceback - no receipt is written on that path. `--json` includes
+`receipt_path` only when a receipt was actually written; the
+human-readable mode never prints a special receipt confirmation line.
+
+Two consumers, both additive:
+
+- **`factory.project_inspection.summarize_project()`** gained an eighth
+  additive field, `generation_gate_summary` (compact `{decision,
+  recommended_engine, ready, reason}`, always a dry run), and a ninth,
+  `generation_execution_summary` (compact `{receipt_available,
+  last_execution, last_execution_engine}` - deliberately a separate field
+  rather than added keys on `generation_gate_summary`, so that field's
+  shape stays exactly as every Generation Gate test already pins it).
+  Every earlier field is completely unchanged.
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Generation Gate" card section, placed right after "Project Readiness"
+  - decision, recommended engine, a Ready Yes/No badge, the top reason why
+  (if not ready), and (from `generation_execution_summary`) whether a
+  receipt is available and when the last confirmed execution happened
+  (`"Never"` if none). Every existing detail card is unchanged and still
+  follows it.
+
+**Explicitly unchanged:** every Phase 26-33 field's shape;
+`summarize_generation_gate()`'s own return shape
+(`{"decision", "recommended_engine", "ready", "reason"}`); the board's
+existing summary table and every existing card section;
+`factory.review_gate.evaluate_review_gate()`'s JSON output shape (still
+never includes `generation_gate_summary` or `generation_execution_summary`).
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never launches
+Blender, never calls Meshy, never generates FreeCAD source, never installs
+anything (not `cadquery`, not OpenSCAD). Never exports an STL, never
+slices, never prints. Never sets `human_approved`/`print_ready`. Never
+re-scores readiness - every score/state/engine value is read from the
+Design Orchestrator's already-computed summary, never recomputed here.
+Never duplicates mesh validation, multipart validation, dimension
+validation, or manufacturing inspection - existing reports are read from,
+never re-implemented.
+
+**Not yet started (at the end of Phase 34):** per-category template
+selection within an engine (OpenSCAD always generates `"sign"`, CadQuery
+always generates `"mechanical-plate"`, regardless of finer-grained
+category); multi-part generation plans in one confirmed run; an
+append-only execution-receipt history (one receipt reflects only the most
+recent confirmed run); any AI/LLM-backed decision-making; Blender/Meshy/
+slicer execution - all explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide
