@@ -690,6 +690,56 @@ card is unchanged and still follows it. See `docs/slicer-readiness.md`
 for the full decision-state priority order, scoring formula, approval
 lifecycle, and review package contents.
 
+## Manual Review Workspace section (Phase 37)
+
+Each project's card also carries `manual_review_summary` -
+`factory.manual_review_workspace.summarize_manual_review_workspace()`'s
+compact view:
+
+```jsonc
+{
+  "workspace_status": "needs_approval",
+  "printer_display_name": "Bambu Lab H2D",
+  "material_multi": false,
+  "material_unresolved": false,
+  "review_confidence": "Medium",
+  "remaining_risk": "Moderate",
+  "package_available": false,
+  "warning_count": 1,
+  "next_action": "Record human approval - see `factory slicer-readiness <project> --approve`."
+}
+```
+
+**Like `slicer_readiness_summary`, this field is not computed inside
+`factory.project_inspection.summarize_project()`.**
+`factory.manual_review_workspace` calls
+`factory.slicer_readiness.assess_slicer_readiness()`, which itself calls
+`factory.review_gate.evaluate_review_gate()`, which already imports
+`summarize_project()` - adding the field inside `project_inspection.py`
+would recreate the exact circular import Phase 36 already discovered and
+worked around. `factory.preview_board.gather_board_data()` calls
+`summarize_manual_review_workspace(project_dir)` per project and merges
+the result into that project's dict at the same aggregation point as
+`slicer_readiness_summary` - see `docs/manual-review-workspace.md`
+"Architectural note" for the full account.
+
+Always evaluated read-only (never assesses in a way that writes, inspects
+a printer profile that installs anything, or creates a workspace).
+Always a dict, never `None`, purely additive and purely advisory: never
+read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s/`factory
+slicer-readiness`'s JSON output still never includes it.
+
+The board's **HTML** gained a compact "Manual Review Workspace" card
+section, placed right after "Slicer Review Readiness": workspace status
+(badged), printer, material, review confidence (badged), remaining risk
+(badged), review-package availability (badged), the next suggested
+action, and a standing "Human review required" reminder. Static HTML/CSS
+only - no JavaScript, no external assets. Every existing detail card is
+unchanged and still follows it. See `docs/manual-review-workspace.md` for
+the full workspace-status priority order, printer/material profile
+inspection, structured review checklist, and confidence/risk scoring.
+
 ## Board JSON shape
 
 ```jsonc
@@ -852,6 +902,17 @@ lifecycle, and review package contents.
         "blocker_count": 1,
         "warning_count": 0,
         "next_action": "Resolve the blocking reason(s) above before proceeding."
+      },
+      "manual_review_summary": {
+        "workspace_status": "not_ready",
+        "printer_display_name": "Unknown",
+        "material_multi": false,
+        "material_unresolved": true,
+        "review_confidence": "Low",
+        "remaining_risk": "High",
+        "package_available": false,
+        "warning_count": 1,
+        "next_action": "Resolve technical readiness first - see `factory slicer-readiness <project>`."
       }
     }
   ],

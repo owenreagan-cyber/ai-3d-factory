@@ -1945,6 +1945,143 @@ receipt reflects only the current approval/package state); any AI/LLM-
 backed decision-making; Blender/Meshy/slicer/printer execution - all
 explicitly out of scope for this phase.
 
+## Phase 37 — Slicer Profile Inspection & Manual Review Workspace (complete)
+
+The Factory's first true pre-slicer review workspace - organizes
+everything a human needs before opening Bambu Studio, OrcaSlicer, or
+another slicer:
+
+```
+Guided Export Pipeline -> STL Validation and Preview ->
+Slicer Review Readiness -> Human Approval -> Review Package ->
+Manual Review Workspace -> Human Slicer Review ->
+(never automatic printing)
+```
+
+Phase 36 determines that a project is technically ready; Phase 37
+organizes everything a human needs on top of that - it does not slice,
+does not generate G-code, and does not print.
+
+**This is a thin organizing layer over already-computed state - it never
+re-implements mesh validation, the artifact registry, the preview
+package, Review Gate logic, slicer discovery, or receipt tracking.** It
+reuses `factory.slicer_readiness.assess_slicer_readiness()` directly for
+every technical/approval/package signal, and
+`factory.manufacturing.knowledge` for local printer/material reference
+data. It adds two genuinely new things: printer/material profile
+inspection (always reporting `"Unknown"` rather than inventing a value
+that isn't actually known) and a structured, multi-category human review
+checklist plus a deterministic `review_confidence`/`remaining_risk` pair.
+
+**New module:** `factory.manual_review_workspace`:
+
+- `assess_manual_review_workspace(project_dir)` - the core, read-only
+  assessment. `workspace_status` is a fixed 5-state ladder
+  (`not_ready`/`needs_approval`/`ready_to_create`/`stale_workspace`/
+  `workspace_created`) mirroring `factory.slicer_readiness`'s own state
+  machine style, computed from the underlying Phase 36
+  `readiness_status`/`approval_status` (never re-derived) plus the
+  workspace file's own fingerprint-based staleness check.
+- `_printer_profile(build_plan)` - reuses
+  `factory.manufacturing.knowledge.get_printer()`/`printer_capabilities()`.
+  Reports display name, nozzle size, build volume, and AMS availability
+  from the local printer knowledge base; **layer height is always
+  `"Unknown"`** since this repo's printer knowledge base never records it
+  (a per-print slicer-profile choice, not a printer hardware attribute) -
+  reported honestly rather than guessed.
+- `_material_summary(manifest_json)` - per-part material/color state from
+  `part_manifest.json`, cross-referenced against
+  `factory.manufacturing.knowledge.load_materials()` via an **exact**
+  (case-insensitive) match only - never fuzzy-matched, never invented for
+  an unmatched value.
+- `build_structured_review_checklist(...)` - a structured, multi-category
+  checklist (Geometry, Scale, Orientation, Supports, Walls, Top/Bottom,
+  Infill, Material, Color, AMS, Multipart Assembly, Moving Parts,
+  Tolerances, Clearances, Fragile Features, Build Volume, Estimated Risks,
+  Human Approval) - richer than Phase 36's flat list, with AMS/Multipart
+  Assembly/Build Volume categories included only when the project's own
+  printer/manifest data actually supports them.
+- `_review_confidence(...)`/`_remaining_risk(...)` - purely deterministic,
+  derived from the already-computed Phase 36 assessment plus
+  printer/material resolution; never a re-score of readiness itself.
+- `create_manual_review_workspace(...)` - the one write path. Writes
+  `manual_review/review_manifest.json` plus a human-readable
+  `manual_review/README.md` (checklist + warnings + a Human sign-off
+  section) - only once the underlying Phase 36 assessment is both
+  technically ready and approved (the same gate `create_review_package()`
+  uses - a workspace is never more permissive than the package it
+  organizes). **References existing STL/validation/render/package files
+  by relative path - never copies them.** Does not strictly require a
+  Phase 36 review package to already exist (references one if present, a
+  deliberate scope decision - see `docs/manual-review-workspace.md`
+  "Limitations").
+- Sibling **execution receipt**: `generated/manual_review_workspace_receipt.json`
+  - a fourth sibling of Phase 34/35/36's own receipts, holding only
+  workspace creation state; its fingerprint set includes the Phase 36
+  review package file itself, so recreating the package also invalidates
+  a previously created workspace.
+- `summarize_manual_review_workspace(project_dir)` - a compact summary for
+  the Preview Board.
+
+**New CLI:** `factory review-workspace <project_dir> [--json]
+[--create-workspace] [--confirm-workspace] [--output-dir ...]
+[--force-workspace]` - read-only by default; `--create-workspace
+--confirm-workspace` is the only write path (both required together).
+Human-readable output ends with an explicit "No slicer was opened." /
+"No G-code was generated." / "No print was started." trailer.
+
+**Bug found and fixed during this phase:** the initial `workspace_status`
+ladder gated `needs_approval` vs. `not_ready` on `readiness_status in
+("ready_for_review_package", "review_package_created")` alone - missing
+that `needs_human_approval` represents the *same* underlying
+"everything technical is satisfied" condition, just before approval is
+recorded (Phase 36's own ladder ties `readiness_status` and
+`approval_status` together: unapproved always resolves to exactly
+`needs_human_approval`). This made every unapproved-but-otherwise-ready
+project incorrectly report `not_ready` instead of `needs_approval`.
+Caught during this phase's own manual end-to-end lifecycle verification
+and fixed by broadening the gate to `_TECHNICALLY_READY_STATES`
+(`needs_human_approval` plus both approved-adjacent states). See
+`docs/manual-review-workspace.md` "Workspace status".
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `manual_review_summary` into each project's dict (same architectural
+  reasoning as Phase 36's `slicer_readiness_summary` - see
+  `docs/manual-review-workspace.md` "Architectural note").
+- **`factory.preview_board.build_board_html()`** gained a compact "Manual
+  Review Workspace" card section, placed right after "Slicer Review
+  Readiness" - workspace status, printer, material, review confidence,
+  remaining risk, and package availability. Every existing detail card is
+  unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-36 field's shape;
+`factory.slicer_readiness`'s own assessment/approval/package logic and
+CLI; `factory.review_gate.evaluate_review_gate()`'s own logic and JSON
+output shape (still never includes `manual_review_summary`); the board's
+existing summary table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+generates G-code, queues a print job, or submits a print - the CLI always
+prints an explicit no-automatic-print trailer. Never re-implements mesh
+validation, the artifact registry, the preview package, Review Gate
+logic, slicer detection, or receipt tracking - each is read directly from
+its existing module.
+
+**Not yet started (at the end of Phase 37):** copying (rather than only
+referencing) artifacts into the workspace - deliberately deferred, same
+reasoning as Phase 36's own package; requiring a Phase 36 review package
+to exist before workspace creation (a deliberate scope decision, not a
+technical gap); fuzzy/approximate material matching against the local
+knowledge base (exact match only, by design); an append-only workspace
+history across every past run; any AI/LLM-backed decision-making;
+Blender/Meshy/slicer/printer execution - all explicitly out of scope for
+this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

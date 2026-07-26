@@ -132,6 +132,16 @@ def _relative_path(path: Path, project_dir: Path) -> str:
         return path.as_posix()
 
 
+# Public aliases (Phase 37): factory.manual_review_workspace sits directly
+# above this module (the same "top-level consumer" relationship
+# preview_board.py and review_gate.py already have) and reuses these
+# exact fingerprint/path/manifest helpers rather than re-deriving them -
+# see that module's own docstring. Kept as plain aliases (not a rename) so
+# every existing internal call site and test in this module is untouched.
+file_fingerprint = _file_fingerprint
+relative_path = _relative_path
+
+
 def _is_unresolved_material_value(value: Any) -> bool:
     if not isinstance(value, str) or not value.strip():
         return True
@@ -247,6 +257,10 @@ def _manifest_assessment(project_dir: Path) -> dict[str, Any]:
         "printer_display_name": target_printer.get("display_name"),
         "selected_manufacturing_option": build_plan.get("selected_manufacturing_option"),
     }
+
+
+# Public alias (Phase 37) - see the note by `file_fingerprint`/`relative_path` above.
+manifest_assessment = _manifest_assessment
 
 
 def _receipts_assessment(project_dir: Path, export_receipt: dict[str, Any] | None) -> dict[str, Any]:

@@ -63,6 +63,12 @@ from factory.slicer_readiness import (
     evaluate_slicer_readiness_for_path,
     record_approval,
 )
+from factory.manual_review_workspace import (
+    WorkspaceCollisionError,
+    WorkspaceNotAllowedError,
+    create_manual_review_workspace,
+    evaluate_manual_review_workspace_for_path,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -151,6 +157,8 @@ AVAILABLE_COMMANDS = (
     "[--overwrite-stl] [--validate] [--render] [--all] [--resume]",
     "slicer-readiness <project_dir> [--json] [--create-package] [--confirm-package] [--output-dir ...] "
     "[--approve] [--approval-note ...] [--refresh] [--include-warnings] [--force-package]",
+    "review-workspace <project_dir> [--json] [--create-workspace] [--confirm-workspace] [--output-dir ...] "
+    "[--force-workspace]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1323,6 +1331,140 @@ def slicer_readiness_cmd(
 
     console.print("\nNo slicer was opened.")
     console.print("No file was uploaded.")
+    console.print("No print was started.")
+
+    if errors:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="review-workspace")
+def review_workspace_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    create_workspace: bool = typer.Option(False, "--create-workspace", help="Create a local manual review workspace (requires --confirm-workspace)"),
+    confirm_workspace: bool = typer.Option(False, "--confirm-workspace", help="Explicit confirmation required alongside --create-workspace"),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Project-relative output directory for the workspace (default: manual_review/)"),
+    force_workspace: bool = typer.Option(False, "--force-workspace", help="Allow --create-workspace to overwrite an existing workspace"),
+) -> None:
+    """Manual Review Workspace (Phase 37) - organizes everything a human needs before opening
+    Bambu Studio, OrcaSlicer, or another slicer. Read-only by default: always computes a full
+    workspace assessment (printer/material profile, STL/validation/preview/receipt summaries, a
+    structured multi-category review checklist, review_confidence/remaining_risk) but never writes
+    anything and never invokes a slicer. Reuses factory.slicer_readiness.assess_slicer_readiness()
+    (Phase 36, unchanged) for every technical/approval/package signal, and
+    factory.manufacturing.knowledge for local printer/material reference data - never re-implements
+    either. --create-workspace --confirm-workspace writes manual_review/review_manifest.json plus a
+    human-readable checklist README - only once the underlying Phase 36 assessment is both
+    technically ready and approved, and only overwriting an existing workspace with
+    --force-workspace. This command does not slice, does not generate G-code, and does not print.
+    See docs/manual-review-workspace.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    if create_workspace and not confirm_workspace:
+        message = "--create-workspace requires --confirm-workspace"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    errors: list[str] = []
+    workspace_result: dict | None = None
+
+    if create_workspace and confirm_workspace:
+        try:
+            workspace_result = create_manual_review_workspace(project_dir, output_dir=output_dir, overwrite=force_workspace)
+        except (WorkspaceNotAllowedError, WorkspaceCollisionError) as exc:
+            errors.append(str(exc))
+
+    workspace = evaluate_manual_review_workspace_for_path(project_dir)
+
+    if as_json:
+        payload = dict(workspace)
+        payload["workspace_result"] = {"workspace_path": workspace_result["workspace_path"]} if workspace_result else None
+        payload["errors"] = errors
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        if errors:
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]Manual Review Workspace[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(workspace["project"])
+    console.print()
+    console.print("[bold]Workspace status:[/bold]")
+    console.print(workspace["workspace_status"])
+    console.print()
+    console.print("[bold]Technical readiness:[/bold]")
+    console.print(workspace["technical_readiness"])
+    console.print()
+    console.print("[bold]Printer:[/bold]")
+    console.print(workspace["printer_summary"]["display_name"])
+    console.print(f"  nozzle (mm): {workspace['printer_summary']['nozzle_mm']}")
+    console.print(f"  layer height (mm): {workspace['printer_summary']['layer_height_mm']}")
+    console.print(f"  AMS available: {workspace['printer_summary']['ams_available']}")
+    console.print()
+    console.print("[bold]Material:[/bold]")
+    for part in workspace["material_summary"]["parts"]:
+        console.print(f"  {part['part_name']}: material={part['material']}, color={part['color']}")
+    if not workspace["material_summary"]["parts"]:
+        console.print("  (no parts in part_manifest.json)")
+    console.print()
+    console.print("[bold]Current STL files:[/bold]")
+    console.print(f"{workspace['stl_summary']['current']} current / {workspace['stl_summary']['expected']} required")
+    console.print()
+    console.print("[bold]Validation summary:[/bold]")
+    console.print(f"{workspace['validation_summary']['passed']} passed")
+    console.print(f"{workspace['validation_summary']['passed_with_warnings']} passed with warnings")
+    console.print(f"{workspace['validation_summary']['failed']} failed")
+    console.print()
+    console.print("[bold]Preview summary:[/bold]")
+    console.print(f"{workspace['preview_summary']['current']} current")
+    console.print()
+    console.print("[bold]Receipts:[/bold]")
+    console.print(f"  generation receipt: {workspace['receipt_summary']['generation_receipt_status']}")
+    console.print(f"  export receipt: {workspace['receipt_summary']['export_receipt_status']}")
+    console.print(f"  review package: {workspace['receipt_summary']['review_package_status']}")
+    console.print()
+    console.print("[bold]Review confidence:[/bold]")
+    console.print(workspace["review_confidence"])
+    console.print()
+    console.print("[bold]Remaining risk:[/bold]")
+    console.print(workspace["remaining_risk"])
+    console.print()
+
+    console.print("[bold]Review checklist:[/bold]")
+    for category in workspace["review_checklist"]:
+        console.print(f"  {category['category']}:")
+        for item in category["items"]:
+            console.print(f"    - {item}")
+    console.print()
+
+    if workspace["warnings"]:
+        console.print(f"[bold]Outstanding warnings:[/bold] {len(workspace['warnings'])}")
+        for warning in workspace["warnings"]:
+            console.print(f"- {warning}")
+        console.print()
+
+    if workspace["recommended_actions"]:
+        console.print("[bold]Recommended next actions:[/bold]")
+        for action in workspace["recommended_actions"]:
+            console.print(f"- {action}")
+        console.print()
+
+    if workspace_result is not None:
+        console.print(f"[green]workspace created[/green]: {workspace_result['workspace_path']}")
+    for error in errors:
+        console.print(f"[red]error[/red]: {error}")
+
+    console.print("\nNo slicer was opened.")
+    console.print("No G-code was generated.")
     console.print("No print was started.")
 
     if errors:

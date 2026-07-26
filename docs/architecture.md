@@ -180,6 +180,27 @@ every earlier phase's additive field - see `docs/slicer-readiness.md`
 "Architectural note" and `docs/review-gate.md`'s Phase 36 addendum for
 the full account.
 
+**Phase 37 addendum:** `factory/manual_review_workspace.py` sits one
+layer further up still - it calls `slicer_readiness.assess_slicer_readiness()`
+directly, so the same cycle-avoidance applies transitively:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+                                  |
+                     factory/manual_review_workspace.py
+```
+
+`manual_review_summary` (Phase 37) is merged into each board project's
+dict the same way, at the same `preview_board.gather_board_data()`
+aggregation point - see `docs/manual-review-workspace.md` "Architectural
+note".
+
 ## Why local-first
 
 Every check in this repo (geometry validation, dimension fit, preview

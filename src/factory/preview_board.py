@@ -143,6 +143,7 @@ from factory.project_inspection import (
     summarize_project,
 )
 from factory.slicer_readiness import summarize_slicer_readiness
+from factory.manual_review_workspace import summarize_manual_review_workspace
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -177,20 +178,23 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     """Read every project under `projects_root` and compute the board index.
 
     Read-only: never writes, generates, renders, exports, or contacts
-    anything. Merges `slicer_readiness_summary` (Phase 36) into each
-    project's dict here, at the aggregation point, rather than inside
+    anything. Merges `slicer_readiness_summary` (Phase 36) and
+    `manual_review_summary` (Phase 37) into each project's dict here, at
+    the aggregation point, rather than inside
     `factory.project_inspection.summarize_project()` itself - see
-    `factory.slicer_readiness.summarize_slicer_readiness()`'s
-    "Architectural note" for why: `factory.slicer_readiness` consumes
-    `factory.review_gate`, which already imports `project_inspection`, so
-    adding the field inside `project_inspection.py` would be a circular
-    import. This function is where the two layers meet instead.
+    `factory.slicer_readiness.summarize_slicer_readiness()`'s and
+    `factory.manual_review_workspace.summarize_manual_review_workspace()`'s
+    "Architectural note" for why: both consume `factory.review_gate`
+    (directly or transitively), which already imports `project_inspection`,
+    so adding either field inside `project_inspection.py` would be a
+    circular import. This function is where those layers meet instead.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
     projects = [summarize_project(p, projects_root=projects_root) for p in project_dirs]
     for project, project_dir in zip(projects, project_dirs):
         project["slicer_readiness_summary"] = summarize_slicer_readiness(project_dir)
+        project["manual_review_summary"] = summarize_manual_review_workspace(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -600,6 +604,94 @@ def _build_slicer_readiness_section_html(summary: dict[str, Any] | None) -> str:
     return f'<div class="slicer-readiness">{rows}</div>'
 
 
+_WORKSPACE_STATUS_LABELS = {
+    "not_ready": "Not ready",
+    "needs_approval": "Needs approval",
+    "ready_to_create": "Ready to create",
+    "stale_workspace": "Stale",
+    "workspace_created": "Ready",
+}
+
+_WORKSPACE_STATUS_BADGE_CLASSES = {
+    "not_ready": "health-blocked",
+    "needs_approval": "health-warning",
+    "ready_to_create": "health-warning",
+    "stale_workspace": "health-warning",
+    "workspace_created": "badge-review-ready",
+}
+
+_CONFIDENCE_BADGE_CLASSES = {
+    "High": "badge-review-ready",
+    "Medium": "health-warning",
+    "Low": "health-blocked",
+    "Unknown": "badge-missing",
+}
+
+_RISK_BADGE_CLASSES = {
+    "Low": "badge-review-ready",
+    "Moderate": "health-warning",
+    "High": "health-blocked",
+    "Unknown": "badge-missing",
+}
+
+
+def _build_manual_review_workspace_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `manual_review_summary` (Phase 37) into a
+    compact static 'Manual Review Workspace' card section - workspace
+    status, printer, material, review confidence, remaining risk, and
+    review-package availability. Placed right after "Slicer Review
+    Readiness" (all five - Project Readiness, Generation Gate,
+    Post-Generation Pipeline, Slicer Review Readiness, Manual Review
+    Workspace - are "meta" cards summarizing what's possible next). Plain
+    text only - no JavaScript. This card never assesses or creates a
+    workspace itself - it only displays what
+    `factory.manual_review_workspace.summarize_manual_review_workspace()`
+    already computed read-only from existing receipts/state; the only
+    write path (`factory review-workspace --create-workspace
+    --confirm-workspace`) is a separate, explicit, human-run CLI command
+    the preview board never invokes. It never opens a slicer, generates
+    G-code, or prints anything.
+    """
+    if not summary:
+        return '<div class="manual-review-workspace"><p class="none">No manual review workspace analysis available for this project.</p></div>'
+
+    status = summary.get("workspace_status") or "not_ready"
+    status_badge_class = _WORKSPACE_STATUS_BADGE_CLASSES.get(status, "badge-missing")
+    status_label = _WORKSPACE_STATUS_LABELS.get(status, status)
+
+    confidence = summary.get("review_confidence") or "Unknown"
+    confidence_badge_class = _CONFIDENCE_BADGE_CLASSES.get(confidence, "badge-missing")
+
+    risk = summary.get("remaining_risk") or "Unknown"
+    risk_badge_class = _RISK_BADGE_CLASSES.get(risk, "badge-missing")
+
+    package_available = bool(summary.get("package_available"))
+    package_badge_class = "badge-review-ready" if package_available else "badge-missing"
+    package_label = "Available" if package_available else "Not available"
+
+    printer_name = summary.get("printer_display_name") or "Unknown"
+    material_label = "Multi-material" if summary.get("material_multi") else "Single material"
+    if summary.get("material_unresolved"):
+        material_label += " (unresolved)"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Workspace", f'<span class="badge {status_badge_class}">{_escape_html(status_label)}</span>'),
+            ("Printer", _escape_html(printer_name)),
+            ("Material", _escape_html(material_label)),
+            ("Review confidence", f'<span class="badge {confidence_badge_class}">{_escape_html(confidence)}</span>'),
+            ("Remaining risk", f'<span class="badge {risk_badge_class}">{_escape_html(risk)}</span>'),
+            ("Package", f'<span class="badge {package_badge_class}">{_escape_html(package_label)}</span>'),
+        )
+    )
+
+    rows += _di_row("Next action", _text_or_fallback(summary.get("next_action"), "None"))
+    rows += '<div class="di-row"><span class="di-label">Human review required</span></div>'
+
+    return f'<div class="manual-review-workspace">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -918,7 +1010,13 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     never assesses readiness, records an approval, or creates a review
     package - it only shows what
     `factory.slicer_readiness.summarize_slicer_readiness()` already computed
-    read-only, and never opens a slicer or contacts a printer.
+    read-only, and never opens a slicer or contacts a printer. The Manual
+    Review Workspace card (Phase 37) is the same once more: this board
+    never inspects a printer profile, scores review confidence, or creates
+    a workspace - it only shows what
+    `factory.manual_review_workspace.summarize_manual_review_workspace()`
+    already computed read-only, and never opens a slicer, generates
+    G-code, or prints anything.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -939,6 +1037,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + "</div>"
         '<div class="card-section"><h4>Slicer Review Readiness</h4>'
         + _build_slicer_readiness_section_html(project.get("slicer_readiness_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Manual Review Workspace</h4>'
+        + _build_manual_review_workspace_section_html(project.get("manual_review_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

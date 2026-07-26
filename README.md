@@ -303,6 +303,27 @@ checklist README, **referencing existing STL/validation/render files by
 relative path, never copying them**. `auto_print_allowed` is always
 `false`; the CLI always ends with an explicit no-automatic-print trailer.
 
+`factory review-workspace <project_dir> [--json] [--create-workspace]
+[--confirm-workspace] [--output-dir ...] [--force-workspace]` is the
+Manual Review Workspace (`factory.manual_review_workspace`, see
+`docs/manual-review-workspace.md`) - the pipeline's next step: Slicer
+Review Readiness -> Human Approval -> Review Package -> **Manual Review
+Workspace** -> Human Slicer Review -> .... **This phase does not slice,
+does not generate G-code, and does not print** - it only organizes
+everything a human needs before opening a slicer, on top of Phase 36's
+already-computed readiness. Read-only by default: always computes a full
+workspace assessment (local printer/material profile inspection -
+reporting `"Unknown"` rather than inventing an unresolved value; a
+structured multi-category review checklist; a deterministic
+`review_confidence`/`remaining_risk` pair) but writes nothing and never
+invokes a slicer. Only `--create-workspace --confirm-workspace` (both
+required together, and only once the underlying Phase 36 assessment is
+both technically ready and approved) writes
+`manual_review/review_manifest.json` plus a human-readable checklist
+README with a Human sign-off section, **referencing existing STL/
+validation/render/review-package files by relative path, never copying
+them**. The CLI always ends with an explicit no-automatic-print trailer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.
