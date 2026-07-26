@@ -72,6 +72,12 @@ from factory.manual_review_workspace import (
 from factory.slicer_intelligence import evaluate_slicer_intelligence_for_path
 from factory.slicer_history import compare_slicer_analysis, read_analysis_history, save_analysis_snapshot
 from factory.project_timeline import get_project_timeline_for_path
+from factory.artifact_history import (
+    UnknownVersionError,
+    build_rollback_plan,
+    diff_artifact_versions,
+    get_artifact_history_for_path,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -164,6 +170,9 @@ AVAILABLE_COMMANDS = (
     "[--force-workspace]",
     "slicer-inspect <project_dir> [--json] [--history] [--compare] [--save-analysis]",
     "timeline <project_dir> [--json]",
+    "artifact-history <project_dir> [--json]",
+    "artifact-diff <project_dir> --from VERSION --to VERSION [--json]",
+    "artifact-rollback-plan <project_dir> --to VERSION [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1692,6 +1701,169 @@ def timeline_cmd(
 
     console.print("\nThis is a read-only view of existing receipts - it never writes, generates, exports,")
     console.print("validates, invokes a slicer, or contacts a printer/network.")
+
+
+@app.command(name="artifact-history")
+def artifact_history_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Artifact History (Phase 41) - a derived, read-only artifact version history built
+    directly on Phase 40's unified timeline. Entirely read-only - there is no write flag.
+    Version numbers are the 1-based ordinal of each artifact-relevant timeline event
+    (CAD/export/validation/preview/approval/package/workspace), in chronological order -
+    never a stored counter, never a second fingerprinting system. Artifact History is a VIEW
+    over existing receipts; if it ever disagrees with one, the receipt is correct. See
+    docs/artifact-history.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    history = get_artifact_history_for_path(project_dir)
+
+    if as_json:
+        print(json.dumps({"versions": history, "errors": [], "no_automatic_print": True}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]Artifact History[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(project_dir.name)
+    console.print()
+
+    if not history:
+        console.print("No artifact versions recorded yet for this project.")
+    for version in history:
+        console.print(f"[bold]Version {version['version_id']}[/bold]\n")
+        console.print(version["source_event_label"])
+        console.print()
+        for category, paths in version["artifacts"].items():
+            console.print(f"[bold]{category.replace('_', ' ').title()}:[/bold]")
+            for p in paths:
+                console.print(p)
+            console.print()
+        console.print(f"[bold]Validation:[/bold] {version['validation_state']}")
+        console.print(f"[bold]Preview:[/bold] {version['preview_state']}")
+        console.print(f"[bold]Review:[/bold] {version['review_state']}")
+        console.print()
+
+    console.print("This is a read-only view - it never writes, restores, copies, or deletes a file,")
+    console.print("and never invokes a slicer or contacts a printer/network.")
+
+
+@app.command(name="artifact-diff")
+def artifact_diff_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    from_version: int = typer.Option(..., "--from", help="The earlier version number to compare from"),
+    to_version: int = typer.Option(..., "--to", help="The later version number to compare to"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Artifact Diff (Phase 41) - compares two artifact versions (see `factory
+    artifact-history`). Entirely read-only - never recomputes a fingerprint, never re-runs
+    validation/rendering, never invokes a slicer. Reuses each version's already-derived
+    fingerprint set and Phase 39/40's own already-detected material/printer/risk/warning
+    changes rather than duplicating comparison logic. See docs/artifact-history.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    try:
+        diff = diff_artifact_versions(project_dir, from_version, to_version)
+    except UnknownVersionError as exc:
+        message = str(exc)
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    if as_json:
+        payload = dict(diff)
+        payload["errors"] = []
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]Artifact Difference[/bold]\n")
+    console.print("[bold]Changed:[/bold]")
+    for item in diff["changed"]:
+        console.print(f"⚠ {item}")
+    if not diff["changed"]:
+        console.print("None.")
+    console.print()
+    console.print("[bold]Unchanged:[/bold]")
+    for item in diff["unchanged"]:
+        console.print(f"✓ {item}")
+    console.print()
+    console.print("[bold]Impact:[/bold]")
+    console.print(diff["impact"])
+    console.print()
+    console.print("This is a read-only comparison - it never writes, restores, copies, or deletes a file,")
+    console.print("and never invokes a slicer or contacts a printer/network.")
+
+
+@app.command(name="artifact-rollback-plan")
+def artifact_rollback_plan_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    to_version: int = typer.Option(..., "--to", help="The version number a rollback plan would target"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Rollback Plan (Phase 41) - a REPORT ONLY of what a rollback to an earlier artifact
+    version would affect. It does NOT restore, copy, or delete any file, and does NOT modify
+    any manifest - there is no write path in this command at all. Actual file restoration
+    would be a future, separately-approved capability. See docs/artifact-history.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    try:
+        plan = build_rollback_plan(project_dir, to_version)
+    except UnknownVersionError as exc:
+        message = str(exc)
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    if as_json:
+        payload = dict(plan)
+        payload["errors"] = []
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]Rollback Plan[/bold]\n")
+    console.print("[bold]Current:[/bold]")
+    console.print(f"Version {plan['current_version']}")
+    console.print()
+    console.print("[bold]Target:[/bold]")
+    console.print(f"Version {plan['target_version']}")
+    console.print()
+    console.print("[bold]Would affect:[/bold]")
+    for item in plan["would_affect"]:
+        console.print(f"⚠ {item}")
+    if not plan["would_affect"]:
+        console.print("None.")
+    console.print()
+    console.print("[bold]Would not affect:[/bold]")
+    for item in plan["would_not_affect"]:
+        console.print(f"✓ {item}")
+    console.print()
+    console.print("[bold]Action:[/bold]")
+    console.print(plan["action"])
+    console.print()
+    console.print("No files were restored. No files were copied. No files were deleted.")
+    console.print("No manifest was modified. No slicer was opened. No print was started.")
 
 
 @app.command(name="review-gate")

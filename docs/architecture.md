@@ -284,10 +284,40 @@ same cycle-avoidance applies transitively once more:
 the same way, at the same `preview_board.gather_board_data()` aggregation
 point - see `docs/project-timeline.md`.
 
+**Phase 41 addendum:** `factory/artifact_history.py` sits at the very top
+of this same chain - it reads `factory.project_timeline.get_project_timeline()`
+(never a receipt directly), so the same cycle-avoidance applies
+transitively once more:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+                                  |
+                     factory/manual_review_workspace.py
+                                  |
+                     factory/slicer_intelligence.py
+                                  |
+                     factory/slicer_history.py
+                                  |
+                     factory/project_timeline.py
+                                  |
+                     factory/artifact_history.py
+```
+
+`artifact_history_summary` (Phase 41) is merged into each board
+project's dict the same way, at the same
+`preview_board.gather_board_data()` aggregation point - see
+`docs/artifact-history.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
-five times in a row (Phases 36 through 40) - **documented once here so
+six times in a row (Phases 36 through 41) - **documented once here so
 future phases apply it by design, rather than re-discovering it
 empirically each time.**
 
@@ -336,11 +366,12 @@ same: add the new summary field inside
 `factory.preview_board.gather_board_data()` instead, at the aggregation
 point, never inside `project_inspection.py`. This is why
 `slicer_readiness_summary`, `manual_review_summary`,
-`slicer_intelligence_summary`, `slicer_history_summary`, and
-`timeline_summary` all live on the board's per-project dict without ever
-touching `project_inspection.summarize_project()`'s own return shape.
+`slicer_intelligence_summary`, `slicer_history_summary`,
+`timeline_summary`, and `artifact_history_summary` all live on the
+board's per-project dict without ever touching
+`project_inspection.summarize_project()`'s own return shape.
 
-**Applies to every future phase**, not just the five above - any new
+**Applies to every future phase**, not just the six above - any new
 aggregation/dashboard/summary module (Phase 42's health dashboard
 included) must sit *above* `project_inspection.py` in this same graph,
 never be imported by it, and wire its own per-project field into

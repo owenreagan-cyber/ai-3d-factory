@@ -861,6 +861,52 @@ external assets. Every existing detail card is unchanged and still
 follows it. See `docs/project-timeline.md` for the full event model,
 adapter list, and "unavailable, never empty" handling.
 
+## Artifact History section (Phase 41)
+
+Each project's card also carries `artifact_history_summary` -
+`factory.artifact_history.summarize_artifact_history()`'s compact view:
+
+```jsonc
+{
+  "history_available": true,
+  "version_count": 5,
+  "latest_version": 5,
+  "changed_since_previous": ["Material changed"],
+  "current_artifact_state": {"validation": "Passed", "preview": "Rendered", "review": "Human approval recorded"}
+}
+```
+
+**Like every Phase 36-40 summary field, this is not computed inside
+`factory.project_inspection.summarize_project()`.**
+`factory.artifact_history` reads Phase 40's
+`factory.project_timeline.get_project_timeline()`, which transitively
+imports the same chain that already forced Phase 36-40's summary fields
+out of `project_inspection.py` - adding this field there would recreate
+the same circular import. `factory.preview_board.gather_board_data()`
+calls `summarize_artifact_history(project_dir)` per project and merges
+the result in at the same aggregation point - see the "Aggregation Layer
+Convention" in `docs/architecture.md` and `docs/artifact-history.md`
+"Architectural note".
+
+Always evaluated read-only - `factory.artifact_history` has no write
+path of its own at all, not even an additive one. Always a dict, never
+`None`, purely additive and purely advisory: never read by
+`classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and every existing command's JSON output
+still never includes it.
+
+The board's **HTML** gained a compact "Artifact History" card section,
+placed right after "Project Timeline" and before "Project Intake":
+version count, the latest version number, a short list of what changed
+since the previous version (or "None" - omitted entirely when there's no
+previous version to compare against yet), and a "Rollback: Plan
+available" row. A project with no artifact-relevant timeline events yet
+shows a single explanatory line rather than an empty section. Static
+HTML/CSS only - no JavaScript, no external assets. Every existing detail
+card is unchanged and still follows it. See `docs/artifact-history.md`
+for the full version-derivation model, diff behavior, and rollback
+planning.
+
 ## Board JSON shape
 
 ```jsonc

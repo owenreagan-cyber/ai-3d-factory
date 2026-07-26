@@ -2415,6 +2415,115 @@ stages (none exists anywhere in this repo yet); automatic history
 pruning; any AI/LLM-backed decision-making; Blender/Meshy/slicer/printer
 execution - all explicitly out of scope for this phase.
 
+## Phase 41 — Artifact History & Diff Planning (complete)
+
+A safe, read-only artifact version history and diff/rollback-planning
+system built directly on Phase 40's unified timeline - never a second
+event parser, never a second fingerprinting system, never a mutable
+counter file:
+
+```
+Receipts -> Phase 40 project_timeline.py -> Phase 41 artifact_history.py
+-> Diff Reports -> Rollback Plans (report only, never executed)
+```
+
+**This phase is about understanding change - not restoring files.** Per
+the roadmap-review approval that shaped this phase: no automatic
+rollback, no file restoration of any kind. This phase only answers "what
+changed, when, and what would a rollback affect" - actual restoration
+remains a future, separately-approved capability.
+
+**Artifact History is a VIEW over existing evidence - it never becomes
+authoritative.** If this module's rendering of a version or diff ever
+disagrees with the receipt/timeline event it came from, the
+receipt/timeline is correct; this module has a bug, never grounds to
+"correct" the underlying record.
+
+**Version numbers are derived, never stored** - the 1-based ordinal of
+each artifact-relevant timeline event (`cad`/`export`/`validation`/
+`preview`/`approval`/`package`/`workspace`), in chronological order.
+There is no `artifact_versions.json` counter file and no hidden mutable
+state.
+
+**New module: `factory.artifact_history`:**
+
+- `get_artifact_history()`/`get_artifact_snapshot()` - a cumulative,
+  per-version fingerprint view built entirely from Phase 40's timeline,
+  which was itself additively extended this phase with a per-event
+  `fingerprints` field (populated by each adapter from data it already
+  has in scope - no new file reads, no new hashing).
+- `diff_artifact_versions()` - category-level fingerprint comparison
+  between two versions, plus reuse (never re-derivation) of Phase 39/40's
+  own already-detected material/printer/risk/warning-change timeline
+  events by timestamp range, plus an "approval invalidated" check
+  mirroring `factory.slicer_readiness`'s own live invalidation rule
+  applied historically. Raises `UnknownVersionError` for a nonexistent
+  version rather than silently comparing against `None`.
+- `build_rollback_plan()` - reuses `diff_artifact_versions()` directly
+  (diffing a target version against the current latest); returns a
+  report only (`would_affect`/`would_not_affect`/an explicit "Manual
+  review required. No files changed." action) - never restores, copies,
+  or deletes a file, never modifies a manifest.
+- `summarize_artifact_history()` - a compact summary for the Preview
+  Board (version count, latest version, what changed since the previous
+  version, current validation/preview/review state).
+
+**New CLI:** `factory artifact-history <project_dir> [--json]`, `factory
+artifact-diff <project_dir> --from V --to V [--json]`, `factory
+artifact-rollback-plan <project_dir> --to V [--json]` - all three
+entirely read-only, no write flag anywhere.
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `artifact_history_summary` into each project's dict (same
+  architectural reasoning as every Phase 36-40 summary field - see the
+  "Aggregation Layer Convention" in `docs/architecture.md`).
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Artifact History" card, placed right after "Project Timeline" and
+  before "Project Intake" - version count, latest version, recent
+  changes (or "None"), and a "Rollback: Plan available" row. Every
+  existing detail card is unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-40 field's shape; every existing
+receipt's own write path and file format (this phase reads all of them,
+writes none of them - it introduces no new persistence at all, not even
+an additive one); `factory.review_gate.evaluate_review_gate()`'s own
+logic and JSON output shape (still never includes
+`artifact_history_summary`); the board's existing summary table and
+every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+generates G-code, or prints. Never restores, copies, or deletes a file,
+and never modifies a manifest - there is no write path anywhere in this
+module, including the "rollback plan" command. Never re-scores
+readiness, risk, or approval - every fact is read verbatim from the
+timeline events that already computed it.
+
+**A discovered limitation, not a bug:** a timeline category with only
+ever one occurrence in its underlying receipt
+(`cad`/`export`/`validation`/`preview`/`approval`/`package`/`workspace`
+are all single overwrite-in-place records, not per-occurrence lists)
+cannot represent a "before vs. after" *content* change once it has
+already occurred once - re-triggering the same action (e.g. a second
+`record_approval()` call) overwrites that category's existing timeline
+event rather than appending a new one, so a `version_id` captured before
+the change resolves, at diff time, to that category's *current* state,
+not the state at the moment it was captured. Comparing a genuinely
+earlier state against a later one requires anchoring the earlier
+reference to a category provably never re-triggered in between (e.g.
+`cad`'s generation-receipt event) or to a new category reached for the
+first time. See "Limitations" in `docs/artifact-history.md`.
+
+**Not yet started (at the end of Phase 41):** the Project Health
+Dashboard (the next phase); actual file restoration (explicitly out of
+scope for this phase - a future, separately-approved capability); a
+timestamp source for intake/design-intent/reference-board stages; any
+AI/LLM-backed decision-making; Blender/Meshy/slicer/printer execution -
+all explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

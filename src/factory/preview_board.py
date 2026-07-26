@@ -147,6 +147,7 @@ from factory.manual_review_workspace import summarize_manual_review_workspace
 from factory.slicer_intelligence import summarize_slicer_intelligence
 from factory.slicer_history import summarize_slicer_history
 from factory.project_timeline import summarize_project_timeline
+from factory.artifact_history import summarize_artifact_history
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -183,20 +184,21 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     Read-only: never writes, generates, renders, exports, or contacts
     anything. Merges `slicer_readiness_summary` (Phase 36),
     `manual_review_summary` (Phase 37), `slicer_intelligence_summary`
-    (Phase 38), `slicer_history_summary` (Phase 39), and
-    `timeline_summary` (Phase 40) into each project's dict here, at the
-    aggregation point, rather than inside
+    (Phase 38), `slicer_history_summary` (Phase 39), `timeline_summary`
+    (Phase 40), and `artifact_history_summary` (Phase 41) into each
+    project's dict here, at the aggregation point, rather than inside
     `factory.project_inspection.summarize_project()` itself - see the
     standing "Aggregation Layer Convention" in `docs/architecture.md` (and
-    each module's own "Architectural note") for why: all five either
+    each module's own "Architectural note") for why: all six either
     directly or transitively consume `factory.review_gate`, which already
     imports `project_inspection`, so adding any of them inside
     `project_inspection.py` would be a circular import. This function is
     where those layers meet instead. `summarize_slicer_history()`/
-    `summarize_project_timeline()` only ever read existing receipts/
-    history if they already exist - neither ever writes one; history is
-    only ever created by an explicit `factory slicer-inspect
-    --save-analysis` call, never by board generation.
+    `summarize_project_timeline()`/`summarize_artifact_history()` only
+    ever read existing receipts/history/timeline if they already exist -
+    none of them ever writes one; history is only ever created by an
+    explicit `factory slicer-inspect --save-analysis` call, never by board
+    generation, and artifact history has no write path at all.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
@@ -207,6 +209,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["slicer_intelligence_summary"] = summarize_slicer_intelligence(project_dir)
         project["slicer_history_summary"] = summarize_slicer_history(project_dir)
         project["timeline_summary"] = summarize_project_timeline(project_dir)
+        project["artifact_history_summary"] = summarize_artifact_history(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -850,6 +853,43 @@ def _build_project_timeline_section_html(summary: dict[str, Any] | None) -> str:
     return f'<div class="project-timeline">{rows}</div>'
 
 
+def _build_artifact_history_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `artifact_history_summary` (Phase 41) into a
+    compact static 'Artifact History' card section - version count,
+    latest version number, a short list of what changed since the
+    previous version, and whether a rollback plan is available. Placed
+    right after "Project Timeline" (all eight - Project Readiness,
+    Generation Gate, Post-Generation Pipeline, Slicer Review Readiness,
+    Manual Review Workspace, Slicer Intelligence, Project Timeline,
+    Artifact History - are "meta" cards summarizing what's possible
+    next). Plain text only - no JavaScript. This card never derives a
+    version or computes a diff itself - it only displays what
+    `factory.artifact_history.summarize_artifact_history()` already
+    computed read-only from the existing timeline; it never writes
+    anything (this phase has no write path at all), never restores,
+    copies, or deletes a file, and never invokes a subprocess or
+    contacts a printer/slicer/network. Deliberately terse: the full
+    version list, diff, and rollback plan are `factory
+    artifact-history`/`artifact-diff`/`artifact-rollback-plan`'s job, not
+    this card's.
+    """
+    if not summary or not summary.get("history_available"):
+        return '<div class="artifact-history"><p class="none">No artifact versions recorded yet for this project.</p></div>'
+
+    rows = _di_row("Versions", _escape_html(str(summary.get("version_count") or 0)))
+    rows += _di_row("Latest", _escape_html(f"v{summary.get('latest_version')}"))
+
+    changed = summary.get("changed_since_previous")
+    if changed:
+        rows += _di_row("Recent Changes", _escape_html(", ".join(changed)))
+    elif changed is not None:
+        rows += _di_row("Recent Changes", '<span class="none">None</span>')
+
+    rows += _di_row("Rollback", '<span class="badge badge-review-ready">Plan available</span>')
+
+    return f'<div class="artifact-history">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -1191,7 +1231,15 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     `factory.project_timeline.summarize_project_timeline()` already
     computed read-only from existing receipts/status_history. The full
     chronological event list lives in `factory timeline <project>`, not
-    on this board.
+    on this board. The Artifact History card (Phase 41) is the same once
+    more: this board never derives a version or computes a diff itself -
+    it only shows what
+    `factory.artifact_history.summarize_artifact_history()` already
+    computed read-only from the existing timeline. The full version
+    list, diff, and rollback plan live in `factory
+    artifact-history`/`artifact-diff`/`artifact-rollback-plan`, not on
+    this board - and none of those write, restore, copy, or delete a
+    file either.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -1223,6 +1271,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + "</div>"
         '<div class="card-section"><h4>Project Timeline</h4>'
         + _build_project_timeline_section_html(project.get("timeline_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Artifact History</h4>'
+        + _build_artifact_history_section_html(project.get("artifact_history_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

@@ -156,7 +156,15 @@ def _date_from_timestamp(timestamp: str | None) -> str | None:
 
 
 def _make_event(
-    *, timestamp: str | None, category: str, status: str, severity: str, label: str, source: str, detail: str | None = None
+    *,
+    timestamp: str | None,
+    category: str,
+    status: str,
+    severity: str,
+    label: str,
+    source: str,
+    detail: str | None = None,
+    fingerprints: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     return {
         "event_id": _event_id(source, timestamp, label),
@@ -168,6 +176,15 @@ def _make_event(
         "label": label,
         "source": source,
         "detail": detail,
+        # Phase 41 addendum: whatever artifact fingerprint data the
+        # underlying receipt already recorded alongside this event -
+        # never a new hash, never re-derived, always a direct passthrough
+        # of a field that already existed in that receipt. Empty for
+        # sources that never carried fingerprint data in the first place
+        # (status_history, generation_receipt) - `factory.artifact_history`
+        # (Phase 41) carries these forward across versions rather than
+        # re-scanning receipts independently. See docs/artifact-history.md.
+        "fingerprints": dict(fingerprints) if fingerprints else {},
     }
 
 
@@ -252,10 +269,16 @@ def _events_from_export_receipt(project_dir: Path) -> list[dict[str, Any]]:
 
         if export:
             severity = "ready" if export.get("success") else "warning"
+            export_fingerprints = {}
+            if record.get("source_file") and export.get("source_fingerprint"):
+                export_fingerprints[record["source_file"]] = export["source_fingerprint"]
+            if output_stl and export.get("output_fingerprint"):
+                export_fingerprints[output_stl] = export["output_fingerprint"]
             events.append(
                 _make_event(
                     timestamp=timestamp, category="export", status="completed", severity=severity,
                     label=f"STL exported: {output_stl}", source="export_receipt",
+                    fingerprints=export_fingerprints,
                 )
             )
 
@@ -297,6 +320,7 @@ def _events_from_slicer_readiness_receipt(project_dir: Path) -> list[dict[str, A
             _make_event(
                 timestamp=approval.get("approved_at"), category="approval", status="recorded", severity="ready",
                 label="Human approval recorded", source="slicer_readiness_receipt", detail=approval.get("note"),
+                fingerprints=receipt.get("artifact_fingerprints"),
             )
         )
 
@@ -306,6 +330,7 @@ def _events_from_slicer_readiness_receipt(project_dir: Path) -> list[dict[str, A
             _make_event(
                 timestamp=package.get("created_at"), category="package", status="recorded", severity="ready",
                 label="Review package created", source="slicer_readiness_receipt",
+                fingerprints=package.get("artifact_fingerprints"),
             )
         )
     return events
@@ -322,6 +347,7 @@ def _events_from_workspace_receipt(project_dir: Path) -> list[dict[str, Any]]:
         _make_event(
             timestamp=workspace.get("created_at"), category="workspace", status="recorded", severity="ready",
             label="Manual review workspace created", source="manual_review_workspace_receipt",
+            fingerprints=workspace.get("artifact_fingerprints"),
         )
     ]
 
@@ -336,6 +362,7 @@ def _events_from_slicer_history(project_dir: Path) -> list[dict[str, Any]]:
                 timestamp=snapshot.get("timestamp"), category="slicer_analysis", status="recorded",
                 severity=_RISK_LEVEL_SEVERITY.get(risk_level, "info"),
                 label=f"Slicer analysis saved (risk: {risk_level})", source="slicer_analysis_history",
+                fingerprints=snapshot.get("artifact_fingerprints"),
             )
         )
 

@@ -75,6 +75,17 @@ without one remains fully valid. When present, it's what a human review
 (see `docs/review-gate.md`'s "Human review quality checklist") should
 compare the finished part against.
 
+## Reused by Phase 41's artifact history
+
+`factory.artifact_history` (Phase 41, `docs/artifact-history.md`)
+classifies a fingerprinted relative path into an artifact category using
+exactly the directory/filename conventions above - `cad/` → `cad`,
+`stl/` → `stl`, `validation/` → `validation`, `renders/` → `preview`,
+`part_manifest.json` → `manifest`, `build_plan.json` → `build_plan`,
+`slicer_review/`/`manual_review/` → `review_package` - never a second
+classification scheme. It introduces no new folder or file of its own;
+it is entirely read-only.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

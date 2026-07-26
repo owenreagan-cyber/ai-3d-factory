@@ -384,6 +384,22 @@ once (rather than re-discovering each phase) why summary/dashboard
 fields like this one live in `factory.preview_board.gather_board_data()`
 instead of `factory.project_inspection.summarize_project()`.
 
+`factory artifact-history <project_dir> [--json]`, `factory artifact-diff
+<project_dir> --from V --to V [--json]`, and `factory artifact-rollback-plan
+<project_dir> --to V [--json]` are Artifact History & Diff Planning
+(`factory.artifact_history`, see `docs/artifact-history.md`) - a derived,
+read-only artifact version history built directly on the timeline above.
+**Version numbers are derived, never stored** - the 1-based ordinal of
+each artifact-relevant timeline event, in chronological order; there is
+no counter file. Diffing reuses (never re-derives) the timeline's own
+already-detected material/printer/risk/warning-change events. **This
+phase is about understanding change, not restoring files** - rollback
+planning is a **report only**: it never restores, copies, or deletes a
+file, and never modifies a manifest; actual file restoration remains a
+future, separately-approved capability. All three commands are entirely
+read-only with no write flag anywhere, and every command ends with an
+explicit no-automatic-print trailer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.
