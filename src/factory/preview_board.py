@@ -146,6 +146,7 @@ from factory.slicer_readiness import summarize_slicer_readiness
 from factory.manual_review_workspace import summarize_manual_review_workspace
 from factory.slicer_intelligence import summarize_slicer_intelligence
 from factory.slicer_history import summarize_slicer_history
+from factory.project_timeline import summarize_project_timeline
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -182,22 +183,20 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     Read-only: never writes, generates, renders, exports, or contacts
     anything. Merges `slicer_readiness_summary` (Phase 36),
     `manual_review_summary` (Phase 37), `slicer_intelligence_summary`
-    (Phase 38), and `slicer_history_summary` (Phase 39) into each
-    project's dict here, at the aggregation point, rather than inside
-    `factory.project_inspection.summarize_project()` itself - see
-    `factory.slicer_readiness.summarize_slicer_readiness()`'s,
-    `factory.manual_review_workspace.summarize_manual_review_workspace()`'s,
-    `factory.slicer_intelligence.summarize_slicer_intelligence()`'s, and
-    `factory.slicer_history.summarize_slicer_history()`'s "Architectural
-    note" for why: all four consume `factory.review_gate` (directly or
-    transitively), which already imports `project_inspection`, so adding
-    any of them inside `project_inspection.py` would be a circular
-    import. This function is where those layers meet instead.
-    `summarize_slicer_history()` only ever reads
-    `generated/slicer_analysis_history.json` if it already exists - it
-    never writes one; history is only ever created by an explicit
-    `factory slicer-inspect --save-analysis` call, never by board
-    generation.
+    (Phase 38), `slicer_history_summary` (Phase 39), and
+    `timeline_summary` (Phase 40) into each project's dict here, at the
+    aggregation point, rather than inside
+    `factory.project_inspection.summarize_project()` itself - see the
+    standing "Aggregation Layer Convention" in `docs/architecture.md` (and
+    each module's own "Architectural note") for why: all five either
+    directly or transitively consume `factory.review_gate`, which already
+    imports `project_inspection`, so adding any of them inside
+    `project_inspection.py` would be a circular import. This function is
+    where those layers meet instead. `summarize_slicer_history()`/
+    `summarize_project_timeline()` only ever read existing receipts/
+    history if they already exist - neither ever writes one; history is
+    only ever created by an explicit `factory slicer-inspect
+    --save-analysis` call, never by board generation.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
@@ -207,6 +206,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["manual_review_summary"] = summarize_manual_review_workspace(project_dir)
         project["slicer_intelligence_summary"] = summarize_slicer_intelligence(project_dir)
         project["slicer_history_summary"] = summarize_slicer_history(project_dir)
+        project["timeline_summary"] = summarize_project_timeline(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -809,6 +809,47 @@ def _build_slicer_intelligence_section_html(
     return f'<div class="slicer-intelligence">{rows}</div>'
 
 
+def _build_project_timeline_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `timeline_summary` (Phase 40) into a compact
+    static 'Project Timeline' card section - total event count, how many
+    have a real recorded date vs. are date-unavailable (predate
+    `status_history` tracking), and the latest dated event. Placed right
+    after "Slicer Intelligence" (all seven - Project Readiness, Generation
+    Gate, Post-Generation Pipeline, Slicer Review Readiness, Manual Review
+    Workspace, Slicer Intelligence, Project Timeline - are "meta" cards
+    summarizing what's possible next). Plain text only - no JavaScript.
+    This card never computes an event itself - it only displays what
+    `factory.project_timeline.summarize_project_timeline()` already
+    computed read-only from existing receipts/history; it never writes
+    anything, never invokes a subprocess, never contacts a printer/slicer/
+    network. Deliberately terse: the full chronological event list is
+    `factory timeline <project>`'s job, not this card's - a project with
+    no events yet renders a single explanatory line rather than an empty
+    section.
+    """
+    if not summary:
+        return '<div class="project-timeline"><p class="none">No timeline data available for this project.</p></div>'
+
+    event_count = summary.get("event_count") or 0
+    if event_count == 0:
+        return '<div class="project-timeline"><p class="none">No timeline events recorded yet for this project.</p></div>'
+
+    unavailable_count = summary.get("unavailable_event_count") or 0
+    latest = summary.get("latest_event")
+
+    rows = _di_row("Events", _escape_html(str(event_count)))
+    if latest:
+        latest_label = f"{latest.get('label')} ({latest.get('date')})"
+        rows += _di_row("Latest", _escape_html(latest_label))
+    if unavailable_count:
+        rows += _di_row(
+            "Tracking",
+            _escape_html(f"Partial - {unavailable_count} early stage(s) predate history tracking"),
+        )
+
+    return f'<div class="project-timeline">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -1144,7 +1185,13 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     `factory.slicer_history.summarize_slicer_history()` - this board never
     saves a history snapshot or runs a live comparison itself; those
     remain separate, explicit, human-run CLI actions
-    (`factory slicer-inspect --save-analysis`/`--compare`).
+    (`factory slicer-inspect --save-analysis`/`--compare`). The Project
+    Timeline card (Phase 40) is the same once more: this board never
+    derives an event itself - it only shows what
+    `factory.project_timeline.summarize_project_timeline()` already
+    computed read-only from existing receipts/status_history. The full
+    chronological event list lives in `factory timeline <project>`, not
+    on this board.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -1173,6 +1220,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + _build_slicer_intelligence_section_html(
             project.get("slicer_intelligence_summary"), project.get("slicer_history_summary")
         )
+        + "</div>"
+        '<div class="card-section"><h4>Project Timeline</h4>'
+        + _build_project_timeline_section_html(project.get("timeline_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

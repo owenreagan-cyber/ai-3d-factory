@@ -255,6 +255,97 @@ sits alongside `factory/manufacturing/knowledge.py` as a simple, low-level
 module `factory/slicer_intelligence.py` consumes directly, with no
 circular-import risk.
 
+**Phase 40 addendum:** `factory/project_timeline.py` sits at the very top
+of this same chain - it reads receipts written by
+`factory.slicer_readiness`/`factory.manual_review_workspace`/
+`factory.slicer_history` (via each module's own lightweight, read-only
+receipt-reader function, e.g. `read_slicer_readiness_receipt()`), so the
+same cycle-avoidance applies transitively once more:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+                                  |
+                     factory/manual_review_workspace.py
+                                  |
+                     factory/slicer_intelligence.py
+                                  |
+                     factory/slicer_history.py
+                                  |
+                     factory/project_timeline.py
+```
+
+`timeline_summary` (Phase 40) is merged into each board project's dict
+the same way, at the same `preview_board.gather_board_data()` aggregation
+point - see `docs/project-timeline.md`.
+
+## Aggregation Layer Convention
+
+This is the standing, permanent rule the diagram above has demonstrated
+five times in a row (Phases 36 through 40) - **documented once here so
+future phases apply it by design, rather than re-discovering it
+empirically each time.**
+
+**Core modules may be consumed by summary/dashboard layers. Feature
+modules must not import upward into aggregation layers.**
+
+Preferred direction:
+
+```
+Core Systems
+      |
+      v
+Summary Functions
+      |
+      v
+Preview/Dashboard Aggregation
+```
+
+Data flows strictly one way: a core system (`project_inspection.py`,
+`review_gate.py`, or any module built on them, such as
+`slicer_readiness.py`) is read by a summary function
+(`summarize_slicer_readiness()`, `summarize_project_timeline()`, etc.),
+which is in turn read by an aggregation layer
+(`preview_board.gather_board_data()`). Nothing downstream of
+`project_inspection.py` ever gets imported back into it.
+
+**Avoid, always:**
+
+```
+project_inspection
+      |
+      v
+feature module
+      |
+      v
+project_inspection
+```
+
+The moment any feature/summary module needs to add a per-project field to
+the Preview Board, and that module (directly or transitively) depends on
+`review_gate.py` or `project_inspection.py` itself, it **cannot** also be
+imported *into* `project_inspection.summarize_project()` - doing so
+creates a genuine circular import (confirmed empirically the first time
+this came up, in Phase 36, and every time since). The fix is always the
+same: add the new summary field inside
+`factory.preview_board.gather_board_data()` instead, at the aggregation
+point, never inside `project_inspection.py`. This is why
+`slicer_readiness_summary`, `manual_review_summary`,
+`slicer_intelligence_summary`, `slicer_history_summary`, and
+`timeline_summary` all live on the board's per-project dict without ever
+touching `project_inspection.summarize_project()`'s own return shape.
+
+**Applies to every future phase**, not just the five above - any new
+aggregation/dashboard/summary module (Phase 42's health dashboard
+included) must sit *above* `project_inspection.py` in this same graph,
+never be imported by it, and wire its own per-project field into
+`preview_board.gather_board_data()` the same way.
+
 ## Why local-first
 
 Every check in this repo (geometry validation, dimension fit, preview

@@ -2306,6 +2306,115 @@ the two most recent saved snapshots without manually reading the JSON
 file; any AI/LLM-backed decision-making; Blender/Meshy/slicer/printer
 execution - all explicitly out of scope for this phase.
 
+## Phase 40 — Unified Project Timeline & Event Model (complete)
+
+The Factory's project memory - a read-only, chronological event log
+derived entirely from systems that already exist:
+
+```
+generation_receipt.json -> export_receipt.json ->
+slicer_readiness_receipt.json -> manual_review_workspace_receipt.json ->
+slicer_analysis_history.json -> brief.json's status_history ->
+Unified Project Timeline
+```
+
+**Revised before implementation, per an explicit roadmap-review pass**
+covering Phases 40-47: Phase 40 and the original Phase 41 ("Artifact
+Versioning & Rollback") were merged at the conceptual level - Phase 40
+now defines the canonical event model both this phase and the future
+artifact-history/diff-planning work will share, rather than building two
+independent, potentially-disagreeing history systems. Phase 47
+("Manufacturing Intelligence") was also moved earlier in the roadmap
+(now scheduled directly after the Project Health Dashboard, ahead of the
+organic-modeling architecture phases), since it depends only on the
+already-mature `factory.manufacturing.*` stack, not on anything
+Blender/Meshy-related.
+
+**This is not a new receipt system.** It stores nothing new for derived
+events - every event is computed fresh, on every call, by reading
+whatever receipts already exist. It never writes a receipt of its own
+for anything a receipt already records, and it can never disagree with
+the systems it reads. The only new persistence in this entire phase is
+an additive extension to a file this repo already owns:
+`brief.json["status_history"]`, appended to by
+`factory.project_store.advance_status()` - append-only, never
+retroactive. A project whose `brief.json` predates this field (or that
+skipped a stage) simply has no entry for that stage; **that stage is
+reported as `"unavailable"`, never silently omitted** - a permanent,
+explicit design decision from the roadmap review, distinguishing "we
+don't know when" from "this never happened."
+
+**New module: `factory.project_timeline`:**
+
+- A fixed `TimelineEvent` shape with `status` (what kind of fact: a stage
+  completed, a value changed, an action was explicitly recorded, or a
+  stage's timestamp is unavailable) and `severity` (how much attention it
+  deserves) as **two independent axes** - `severity` reuses
+  `factory.project_inspection.HEALTH_SEVERITIES` (`info`/`warning`/
+  `blocked`/`ready`) verbatim rather than inventing a second scale.
+- Six read-only adapters, one per existing source: `status_history`
+  (brief/manufacturing-plan/CAD stages, `"unavailable"`-aware),
+  `generation_receipt.json` (preferred over the status_history-derived
+  CAD event when present - richer engine/template detail),
+  `export_receipt.json` (export/validation/preview events per file),
+  `slicer_readiness_receipt.json` (approval/package events),
+  `manual_review_workspace_receipt.json` (workspace event), and
+  `slicer_analysis_history.json` (a snapshot event per save, plus
+  material/printer/risk/warning-changed events between *consecutive*
+  saved snapshots - reusing `factory.slicer_history`'s own
+  `detect_changes()`, a new public alias for that module's existing
+  `_detect_changes()`, mirroring Phase 37's alias convention exactly).
+- Deterministic `event_id`s (a hash of source+timestamp+label) so the
+  same underlying fact always produces the same id across repeated
+  calls - laying the groundwork for a future artifact-history/diff phase
+  to compare event identity across calls without re-deriving hashing.
+- `summarize_project_timeline()` - a compact summary for the Preview
+  Board (event count, dated vs. unavailable counts, latest dated event).
+
+**New CLI:** `factory timeline <project_dir> [--json]` - entirely
+read-only; **no `--history` flag** (removed during the roadmap review as
+redundant - the whole command is inherently historical). Human-readable
+output groups events by day, with a "Date unavailable" section (shown
+first) for stages that have been reached but have no recorded timestamp.
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `timeline_summary` into each project's dict (same architectural
+  reasoning as every Phase 36-39 summary field - see the new,
+  permanently-documented "Aggregation Layer Convention" in
+  `docs/architecture.md`, added this phase specifically so future phases
+  apply this pattern by design rather than re-discovering it empirically
+  each time).
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Project Timeline" card, placed right after "Slicer Intelligence" -
+  event count, the latest dated event, and a tracking-completeness note
+  whenever any stage's timestamp is unavailable. Every existing detail
+  card is unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-39 field's shape; every existing
+receipt's own write path and file format (this phase reads all of them,
+writes none of them); `factory.review_gate.evaluate_review_gate()`'s own
+logic and JSON output shape (still never includes `timeline_summary`);
+the board's existing summary table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+generates G-code, or prints. Never re-scores readiness, risk, or
+approval - every fact is read verbatim from the system that already
+computed it. Never re-implements receipt writing, mesh validation,
+printer/material knowledge, or change detection - each is read directly
+from its existing module.
+
+**Not yet started (at the end of Phase 40):** artifact versioning and
+rollback planning (the next phase, building directly on this phase's
+event model rather than a separate one - per the roadmap-review merge
+decision); a timestamp source for intake/design-intent/reference-board
+stages (none exists anywhere in this repo yet); automatic history
+pruning; any AI/LLM-backed decision-making; Blender/Meshy/slicer/printer
+execution - all explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

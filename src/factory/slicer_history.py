@@ -199,6 +199,16 @@ def _detect_changes(previous: dict[str, Any], current_snapshot: dict[str, Any]) 
     return changes
 
 
+# Public alias (Phase 40): factory.project_timeline sits directly above
+# this module (the same "top-level consumer" relationship
+# manual_review_workspace.py/slicer_intelligence.py already have with
+# slicer_readiness.py) and reuses this exact change-detection logic
+# between consecutive saved snapshots rather than re-deriving it - see
+# that module's own docstring. Kept as a plain alias (not a rename) so
+# every existing internal call site and test in this module is untouched.
+detect_changes = _detect_changes
+
+
 def compare_slicer_analysis(project_dir: Path, *, current: dict[str, Any] | None = None) -> dict[str, Any]:
     """Compare a fresh, live Slicer Review Intelligence analysis against
     the most recently *saved* snapshot (never two historical snapshots

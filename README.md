@@ -363,6 +363,27 @@ never written automatically by any other command or by `factory
 preview-board`). The CLI always ends with an explicit no-automatic-print
 trailer.
 
+`factory timeline <project_dir> [--json]` is the Unified Project Timeline
+& Event Model (`factory.project_timeline`, see
+`docs/project-timeline.md`) - the Factory's project memory. **This is not
+a new receipt system** - it's a read-only, chronological event log
+derived entirely from receipts that already exist (generation/export/
+slicer-readiness/manual-review-workspace receipts and the Phase 39
+slicer analysis history), grouped by day. **Entirely read-only - no
+write flag, no `--history` flag** (the whole command is inherently
+historical). The only new persistence anywhere in this phase is an
+additive extension to a file this repo already owns:
+`brief.json["status_history"]`, appended to by
+`factory.project_store.advance_status()` - append-only, never
+retroactive. A project stage that's clearly been reached but has no
+recorded timestamp (any project predating this phase, or one that
+skipped a stage) is shown explicitly as **date-unavailable, never
+silently omitted**. This phase also formalized the "Aggregation Layer
+Convention" as a standing rule in `docs/architecture.md`, documenting
+once (rather than re-discovering each phase) why summary/dashboard
+fields like this one live in `factory.preview_board.gather_board_data()`
+instead of `factory.project_inspection.summarize_project()`.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

@@ -818,6 +818,49 @@ remain separate, explicit, human-run CLI actions
 (`factory slicer-inspect --save-analysis`/`--compare`). See
 `docs/slicer-analysis-history.md`.
 
+## Project Timeline section (Phase 40)
+
+Each project's card also carries `timeline_summary` -
+`factory.project_timeline.summarize_project_timeline()`'s compact view:
+
+```jsonc
+{
+  "event_count": 9,
+  "dated_event_count": 4,
+  "unavailable_event_count": 5,
+  "latest_event": {"label": "Preview rendered", "date": "2026-07-26", "category": "preview"}
+}
+```
+
+**Like every Phase 36-39 summary field, this is not computed inside
+`factory.project_inspection.summarize_project()`.**
+`factory.project_timeline` reads receipts written by
+`factory.slicer_readiness`/`factory.manual_review_workspace`, which
+transitively import `factory.review_gate`, which already imports
+`summarize_project()` - adding the field inside `project_inspection.py`
+would recreate the same circular import. `factory.preview_board.gather_board_data()`
+calls `summarize_project_timeline(project_dir)` per project and merges
+the result in at the same aggregation point - see the "Aggregation Layer
+Convention" in `docs/architecture.md` and `docs/project-timeline.md`
+"Architectural note".
+
+Always evaluated read-only (never derives an event in a way that
+writes anything - `factory.project_timeline` has no write path of its
+own at all). Always a dict, never `None`, purely additive and purely
+advisory: never read by `classify_visual_readiness()`,
+`build_health_signals()`, or `build_suggested_actions()`, and every
+existing command's JSON output still never includes it.
+
+The board's **HTML** gained a compact "Project Timeline" card section,
+placed right after "Slicer Intelligence": total event count, the latest
+dated event (if any), and a "Tracking: Partial - N early stage(s)
+predate history tracking" note whenever any stage's timestamp is
+unavailable. A project with zero events shows a single explanatory line
+rather than an empty section. Static HTML/CSS only - no JavaScript, no
+external assets. Every existing detail card is unchanged and still
+follows it. See `docs/project-timeline.md` for the full event model,
+adapter list, and "unavailable, never empty" handling.
+
 ## Board JSON shape
 
 ```jsonc
@@ -1007,6 +1050,12 @@ remain separate, explicit, human-run CLI actions
         "previous_analysis": null,
         "changes_detected": null,
         "risk_change": null
+      },
+      "timeline_summary": {
+        "event_count": 1,
+        "dated_event_count": 1,
+        "unavailable_event_count": 0,
+        "latest_event": {"label": "Brief created", "date": "2026-07-26", "category": "brief"}
       }
     }
   ],

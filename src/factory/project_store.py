@@ -102,12 +102,24 @@ def advance_status(brief: dict, new_status: str) -> bool:
     Returns True if the status changed. Never advances to print_ready or
     human_approved - those require an explicit human action, not a
     `factory` command.
+
+    Phase 40: also appends `{"status": new_status, "at": utc_now_iso()}`
+    to `brief["status_history"]` (creating the list if absent) whenever
+    the status actually changes - append-only, never retroactive. An
+    existing project whose `brief.json` predates this field simply has no
+    `status_history` (or a shorter one) - nothing here ever backfills or
+    rewrites history for transitions that already happened before this
+    phase shipped; only genuinely new transitions from this point forward
+    are recorded. `factory.project_timeline` treats a missing entry for
+    an already-reached stage as "unavailable", never as "this never
+    happened" - see docs/project-timeline.md.
     """
     if new_status in ("print_ready", "human_approved"):
         raise ValueError(f"{new_status!r} may not be set by advance_status(); it requires explicit human action.")
     current = brief.get("status", "idea")
     if status_index(new_status) > status_index(current):
         brief["status"] = new_status
+        brief.setdefault("status_history", []).append({"status": new_status, "at": utc_now_iso()})
         return True
     return False
 
@@ -123,6 +135,10 @@ def default_brief(project_name: str) -> dict:
             "TODO: list real-world measurement constraints, if any.",
         ],
         "required_human_approval": True,
+        # Phase 40: seeds the same status_history convention advance_status()
+        # appends to going forward - a brand-new project's very first status
+        # is not "retroactive", it's the first genuine entry.
+        "status_history": [{"status": "brief_created", "at": utc_now_iso()}],
     }
 
 

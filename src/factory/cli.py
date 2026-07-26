@@ -71,6 +71,7 @@ from factory.manual_review_workspace import (
 )
 from factory.slicer_intelligence import evaluate_slicer_intelligence_for_path
 from factory.slicer_history import compare_slicer_analysis, read_analysis_history, save_analysis_snapshot
+from factory.project_timeline import get_project_timeline_for_path
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -162,6 +163,7 @@ AVAILABLE_COMMANDS = (
     "review-workspace <project_dir> [--json] [--create-workspace] [--confirm-workspace] [--output-dir ...] "
     "[--force-workspace]",
     "slicer-inspect <project_dir> [--json] [--history] [--compare] [--save-analysis]",
+    "timeline <project_dir> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1622,6 +1624,74 @@ def slicer_inspect_cmd(
     console.print("No slicer was opened.")
     console.print("No G-code was generated.")
     console.print("No print was started.")
+
+
+def _timeline_icon(event: dict) -> str:
+    if event["status"] == "unavailable":
+        return "?"
+    return "⚠" if event["severity"] in ("warning", "blocked") else "✓"
+
+
+def _timeline_day_heading(date_str: str) -> str:
+    from datetime import datetime
+
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%B %-d")
+    except ValueError:
+        return date_str
+
+
+@app.command(name="timeline")
+def timeline_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Unified Project Timeline (Phase 40) - the Factory's project memory: a read-only,
+    chronological event log derived entirely from systems that already exist
+    (generation/export/slicer-readiness/manual-review-workspace receipts and the Phase 39
+    slicer analysis history) - never a new receipt or history format of its own. Entirely
+    read-only - there is no write flag. Never re-derives readiness, approval, or risk; it only
+    normalizes timestamps and facts those systems already computed into one chronological view.
+    A stage a project has clearly reached but has no recorded timestamp for (any project created
+    before this phase shipped) is shown explicitly as date-unavailable, never silently omitted.
+    See docs/project-timeline.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    events = get_project_timeline_for_path(project_dir)
+
+    if as_json:
+        print(json.dumps({"events": events, "errors": [], "no_automatic_print": True}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]Project Timeline[/bold]\n")
+
+    undated = [e for e in events if e["date"] is None]
+    if undated:
+        console.print("[bold]Date unavailable[/bold]\n")
+        for e in undated:
+            console.print(f"{_timeline_icon(e)} {e['label']}")
+        console.print()
+
+    last_date = None
+    for e in events:
+        if e["date"] is None:
+            continue
+        if e["date"] != last_date:
+            console.print(f"[bold]{_timeline_day_heading(e['date'])}[/bold]\n")
+            last_date = e["date"]
+        console.print(f"{_timeline_icon(e)} {e['label']}")
+
+    if not events:
+        console.print("No timeline events recorded yet for this project.")
+
+    console.print("\nThis is a read-only view of existing receipts - it never writes, generates, exports,")
+    console.print("validates, invokes a slicer, or contacts a printer/network.")
 
 
 @app.command(name="review-gate")

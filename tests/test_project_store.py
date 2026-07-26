@@ -92,3 +92,59 @@ def test_advance_status_still_blocks_print_ready_and_human_approved():
         project_store.advance_status(brief, "human_approved")
     # Neither attempt should have mutated the status.
     assert brief["status"] == "manufacturing_option_selected"
+
+
+# ---- Phase 40: status_history (append-only, never retroactive) ----
+
+
+def test_default_brief_seeds_status_history():
+    brief = project_store.default_brief("Demo")
+    assert brief["status_history"] == [{"status": "brief_created", "at": brief["status_history"][0]["at"]}]
+    assert brief["status_history"][0]["status"] == "brief_created"
+
+
+def test_advance_status_appends_to_status_history():
+    brief = {"status": "plan_drafted"}
+    project_store.advance_status(brief, "manufacturing_option_selected")
+    assert len(brief["status_history"]) == 1
+    assert brief["status_history"][0]["status"] == "manufacturing_option_selected"
+    assert "at" in brief["status_history"][0]
+
+
+def test_advance_status_appends_multiple_entries_in_order():
+    brief = {"status": "idea"}
+    project_store.advance_status(brief, "brief_created")
+    project_store.advance_status(brief, "plan_drafted")
+    project_store.advance_status(brief, "cad_generated")
+    assert [e["status"] for e in brief["status_history"]] == ["brief_created", "plan_drafted", "cad_generated"]
+
+
+def test_advance_status_does_not_append_on_no_op():
+    brief = {"status": "cad_generated", "status_history": [{"status": "cad_generated", "at": "2026-01-01T00:00:00+00:00"}]}
+    changed = project_store.advance_status(brief, "plan_drafted")  # backward - no-op
+    assert changed is False
+    assert len(brief["status_history"]) == 1
+
+
+def test_advance_status_never_retroactively_backfills_existing_history():
+    # A brief with no status_history at all (simulating a pre-Phase-40
+    # project) gets one created lazily on its *next* transition - the
+    # transitions that already happened before this field existed are
+    # never invented or backfilled.
+    brief = {"status": "plan_drafted"}
+    assert "status_history" not in brief
+    project_store.advance_status(brief, "manufacturing_option_selected")
+    assert len(brief["status_history"]) == 1  # only the new transition, nothing for "plan_drafted" itself
+
+
+def test_advance_status_blocked_transition_never_appends():
+    brief = {"status": "manufacturing_option_selected"}
+    with pytest.raises(ValueError):
+        project_store.advance_status(brief, "print_ready")
+    assert "status_history" not in brief
+
+
+def test_init_project_brief_has_status_history(isolated_projects_dir):
+    root = project_store.init_project("Demo Project")
+    brief = project_store.load_json(root / "brief.json")
+    assert brief["status_history"][0]["status"] == "brief_created"
