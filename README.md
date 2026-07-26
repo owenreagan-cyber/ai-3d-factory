@@ -324,17 +324,18 @@ README with a Human sign-off section, **referencing existing STL/
 validation/render/review-package files by relative path, never copying
 them**. The CLI always ends with an explicit no-automatic-print trailer.
 
-`factory slicer-inspect <project_dir> [--json]` is Slicer Review
-Intelligence & Print Risk Analysis (`factory.slicer_intelligence`, see
-`docs/slicer-intelligence.md`) - the pipeline's next step: Manual Review
-Workspace -> **Slicer Review Intelligence** -> Human Slicer Review ->
-.... **This does not slice, does not generate G-code, does not control a
-printer, and does not replace human slicer judgment** - it identifies
-potential slicer-review concerns before a human opens a slicer, on top of
-Phase 37's already-computed workspace state. **Entirely read-only - there
-is no write flag at all.** Reuses
-`factory.manual_review_workspace.assess_manual_review_workspace()` for
-every printer/material/technical-readiness signal, and each current
+`factory slicer-inspect <project_dir> [--json] [--history] [--compare]
+[--save-analysis]` is Slicer Review Intelligence & Print Risk Analysis
+(`factory.slicer_intelligence`, see `docs/slicer-intelligence.md`) - the
+pipeline's next step: Manual Review Workspace -> **Slicer Review
+Intelligence** -> Slicer-Aware Review Profiles -> Analysis History ->
+Human Slicer Review -> .... **This does not slice, does not generate
+G-code, does not control a printer, and does not replace human slicer
+judgment** - it identifies potential slicer-review concerns before a
+human opens a slicer, on top of Phase 37's already-computed workspace
+state. **Default (and `--history`/`--compare`) is entirely read-only.**
+Reuses `factory.manual_review_workspace.assess_manual_review_workspace()`
+for every printer/material/technical-readiness signal, and each current
 STL's already-written validation report (bounding box, volume,
 watertight) for build-volume-fit (a genuinely new per-axis
 remaining-margin calculation atop the existing
@@ -344,7 +345,22 @@ Alignment - only categories supported by already-measured data, always
 phrased "Possible Risk," never "Will Fail"). A deterministic
 `risk_level`/`confidence` pair is purely informational - it never
 overrides `factory.slicer_readiness`/`factory.review_gate`'s own hard
-blockers. The CLI always ends with an explicit no-automatic-print
+blockers.
+
+Phase 39 added slicer-aware review guidance (`factory.slicer_profiles`,
+see `docs/slicer-profiles.md`) - a `slicer_profile`/`slicer_specific_checks`
+addition to the same analysis (Bambu Studio/OrcaSlicer/PrusaSlicer/Unknown,
+reusing `factory.slicer.local_slicer_probe.probe_slicers()`, never
+inventing an installed profile) - and a lightweight, local, append-only
+analysis history (`factory.slicer_history`, see
+`docs/slicer-analysis-history.md`). **History is observational only** -
+it never affects readiness, approval, slicing, or printing. `--history`
+lists every saved snapshot; `--compare` shows what changed between a
+fresh live analysis and the most recently saved one (STL/CAD/printer/
+material/validation/risk/slicer-environment/warnings changes); only
+`--save-analysis` writes anything (`generated/slicer_analysis_history.json`,
+never written automatically by any other command or by `factory
+preview-board`). The CLI always ends with an explicit no-automatic-print
 trailer.
 
 This CLI is the local engine, not the final intended user experience - see

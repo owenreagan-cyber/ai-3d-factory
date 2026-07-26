@@ -753,7 +753,8 @@ view:
   "review_item_count": 3,
   "top_priority": "Confirm final filament.",
   "confidence": "High",
-  "warning_count": 1
+  "warning_count": 1,
+  "slicer_profile_name": "Bambu Studio"
 }
 ```
 
@@ -770,22 +771,52 @@ result in at the same aggregation point - see
 `docs/slicer-intelligence.md` "Architectural note" for the full account.
 
 Always evaluated read-only (never analyzes in a way that writes, invokes
-a slicer, or generates G-code - this phase has no write path at all).
-Always a dict, never `None`, purely additive and purely advisory: never
-read by `classify_visual_readiness()`, `build_health_signals()`, or
-`build_suggested_actions()`, and `factory review-gate`'s/`factory
-slicer-readiness`'s/`factory review-workspace`'s JSON output still never
-includes it.
+a slicer, or generates G-code - `summarize_slicer_intelligence()` itself
+has no write path at all). Always a dict, never `None`, purely additive
+and purely advisory: never read by `classify_visual_readiness()`,
+`build_health_signals()`, or `build_suggested_actions()`, and `factory
+review-gate`'s/`factory slicer-readiness`'s/`factory review-workspace`'s
+JSON output still never includes it.
 
 The board's **HTML** gained a compact "Slicer Intelligence" card section,
-placed right after "Manual Review Workspace": risk level (badged), build
-volume fit (badged), review item count, the top review priority, and
-analysis confidence (badged), plus a standing "Human review required"
-reminder. Static HTML/CSS only - no JavaScript, no external assets. Every
-existing detail card is unchanged and still follows it. `risk_level` here
-is purely informational and never a blocker. See
-`docs/slicer-intelligence.md` for the full build-volume-fit calculation,
-geometry risk categories, and confidence/risk scoring.
+placed right after "Manual Review Workspace": detected slicer profile,
+risk level (badged), build volume fit (badged), review item count, the
+top review priority, and analysis confidence (badged), plus a standing
+"Human review required" reminder. Static HTML/CSS only - no JavaScript,
+no external assets. Every existing detail card is unchanged and still
+follows it. `risk_level` here is purely informational and never a
+blocker. See `docs/slicer-intelligence.md` for the full build-volume-fit
+calculation, geometry risk categories, and confidence/risk scoring, and
+`docs/slicer-profiles.md` for the slicer profile.
+
+### Analysis history addendum (Phase 39)
+
+The same card (not a new one) also carries a compact addendum from
+`factory.slicer_history.summarize_slicer_history()`, whenever at least one
+analysis snapshot has been explicitly saved
+(`factory slicer-inspect --save-analysis`):
+
+```jsonc
+{
+  "history_available": true,
+  "latest_analysis": {"timestamp": "2026-...Z", "risk_level": "Moderate", "confidence": "High"},
+  "previous_analysis": {"timestamp": "2026-...Z", "risk_level": "Low", "confidence": "High"},
+  "changes_detected": 2,
+  "risk_change": "Low -> Moderate"
+}
+```
+
+Adds two rows - "Last Analysis" (a relative age label: "Today"/
+"Yesterday"/"N days ago", purely a display convenience, never used for
+any decision) and "Changes" (the count between the two most recently
+*saved* snapshots) - plus a "Review Needed" badge whenever changes were
+detected or the risk level changed. **Deliberately omitted entirely**
+(not shown as "Never"/"0") for a project with no saved snapshot yet, or
+with only one - per this phase's "keep the board quiet" requirement. The
+board never saves a snapshot or runs a live comparison itself; those
+remain separate, explicit, human-run CLI actions
+(`factory slicer-inspect --save-analysis`/`--compare`). See
+`docs/slicer-analysis-history.md`.
 
 ## Board JSON shape
 
@@ -967,7 +998,15 @@ geometry risk categories, and confidence/risk scoring.
         "review_item_count": 4,
         "top_priority": "Material unconfirmed for: base, text.",
         "confidence": "Unknown",
-        "warning_count": 3
+        "warning_count": 3,
+        "slicer_profile_name": "Unknown"
+      },
+      "slicer_history_summary": {
+        "history_available": false,
+        "latest_analysis": null,
+        "previous_analysis": null,
+        "changes_detected": null,
+        "risk_change": null
       }
     }
   ],

@@ -20,6 +20,11 @@ SLICER_CANDIDATES = (
         "app_paths": ("/Applications/OrcaSlicer.app",),
         "path_binary": "orcaslicer",
     },
+    {
+        "name": "PrusaSlicer",
+        "app_paths": ("/Applications/PrusaSlicer.app", "/Applications/Original Prusa Drivers/PrusaSlicer.app"),
+        "path_binary": "prusa-slicer",
+    },
 )
 
 

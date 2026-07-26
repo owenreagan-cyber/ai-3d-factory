@@ -2201,6 +2201,111 @@ phase has no write path); any AI/LLM-backed decision-making;
 Blender/Meshy/slicer/printer execution - all explicitly out of scope for
 this phase.
 
+## Phase 39 — Slicer-Aware Review Profiles & Analysis History (complete)
+
+Expands the Slicer Review Intelligence system with slicer-aware review
+profiles, persisted analysis snapshots, and change tracking between
+analysis runs - improving human review quality without slicing,
+generating G-code, modifying slicer profiles, communicating with
+printers, or automatically choosing print settings.
+
+```
+Slicer Readiness -> Manual Review Workspace -> Slicer Review Intelligence
+-> Slicer-Aware Review Profiles -> Analysis History -> Human Slicer Review
+-> (never automatic printing)
+```
+
+**New module: `factory.slicer_profiles`** (Part 1/2) - customizes review
+guidance based on the detected local slicer environment. Reuses
+`factory.slicer.local_slicer_probe.probe_slicers()` for detection -
+**extended in place** with a `PrusaSlicer` candidate (macOS `.app` +
+`prusa-slicer` PATH binary, mirroring the existing Bambu Studio/OrcaSlicer
+entries) rather than a second slicer registry.
+`get_slicer_review_profile()` builds a `SlicerReviewProfile` (slicer
+name, profile status, known capabilities, review categories, printer/
+material/multi-material questions, warnings, limitations, confidence) -
+falling back to a generic, slicer-agnostic checklist whenever no
+supported slicer is detected locally, **never inventing an installed
+profile**. `factory.slicer_intelligence.evaluate_slicer_intelligence()`
+(Phase 38) gained two additive fields from this - `slicer_profile` and
+`slicer_specific_checks` - extending (never replacing) its existing
+geometry/manufacturing checklist.
+
+**New module: `factory.slicer_history`** (Part 3/4) - a lightweight,
+local, append-only history of explicitly-saved analysis snapshots,
+answering "what changed since the last review?" **History is
+observational** - it never affects readiness, approval, slicing, or
+printing. **Persistence is explicit only**:
+`save_analysis_snapshot()` is the only function that writes anything
+anywhere in this phase, and it is only ever called by `factory
+slicer-inspect --save-analysis` - never automatically during
+`preview-board` generation, plain `slicer-inspect` calls, `--history`/
+`--compare`, or any readiness/approval check (verified directly: neither
+`gather_board_data()` nor a plain `slicer-inspect` invocation ever
+creates `generated/slicer_analysis_history.json`).
+
+- Each snapshot: timestamp, project, analysis_type, artifact
+  fingerprints (reusing `factory.slicer_readiness.file_fingerprint()`/
+  `relative_path()`'s existing `sha256:` convention - a new hashing
+  scheme was never needed), a readiness summary (reusing
+  `summarize_slicer_readiness()`), a compact slicer-intelligence summary,
+  printer/material/detected-slicer/profile state, risk level, confidence,
+  and warnings.
+- `compare_slicer_analysis()` compares a **fresh, live** analysis against
+  the **most recently saved** snapshot (never two historical snapshots
+  against each other) across 8 change categories: STL changed, CAD
+  changed, Printer changed, Material changed, Validation changed, Risk
+  changed, Slicer environment changed, Warnings changed.
+- `summarize_slicer_history()` is a separate, cheaper, purely
+  history-to-history comparison (the two most recently *saved* snapshots
+  only, never a live recompute) - used by the Preview Board/project
+  inspection additive field so board rendering never triggers a fresh
+  analysis just to show a change count.
+
+**New CLI flags on `factory slicer-inspect`:** `--history` (list every
+saved snapshot, read-only), `--compare` (live-vs-last-saved comparison,
+read-only), `--save-analysis` (the only write path - appends one
+snapshot). Default remains entirely read-only, unchanged from Phase 38.
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `slicer_history_summary` into each project's dict (same architectural
+  reasoning as Phase 36/37/38's own summary fields - see
+  `docs/slicer-analysis-history.md`). Read-only: only reads
+  `generated/slicer_analysis_history.json` if it already exists, never
+  writes one.
+- **`factory.preview_board.build_board_html()`** extended the *existing*
+  "Slicer Intelligence" card (not a new one, per this phase's own "do not
+  make the board noisy" requirement) with a detected slicer profile name
+  and a compact analysis-history addendum (a relative "Last Analysis" age
+  label, a "Changes: N detected" count, and a "Review Needed" badge) -
+  shown only once at least one snapshot has actually been saved.
+
+**Explicitly unchanged:** every Phase 26-38 field's shape;
+`factory.slicer_intelligence`'s existing geometry/manufacturing risk
+logic and build-volume-fit calculation; `factory.manual_review_workspace`/
+`factory.slicer_readiness`'s own assessment/approval/package/workspace
+logic and CLIs; `factory.review_gate.evaluate_review_gate()`'s own logic
+and JSON output shape (still never includes `slicer_history_summary`);
+the board's existing summary table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+generates G-code, edits a slicer profile, or auto-chooses print settings.
+Never re-implements slicer detection, printer/material knowledge, or
+checklist generation - each is read directly from its existing module.
+
+**Not yet started (at the end of Phase 39):** automatic history pruning/
+retention policy (the history file grows unbounded with every explicit
+save); fuzzy slicer-name or material-name matching (both remain exact-
+match only, inherited from Phase 37/39); a "diff view" across more than
+the two most recent saved snapshots without manually reading the JSON
+file; any AI/LLM-backed decision-making; Blender/Meshy/slicer/printer
+execution - all explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

@@ -54,6 +54,7 @@ WRITE_CAPABLE_COMMANDS = (
     "preview-board",
     "slicer-readiness",
     "review-workspace",
+    "slicer-inspect",
 )
 
 # Documented for clarity only (not read by the scan itself - anything not

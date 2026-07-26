@@ -70,6 +70,7 @@ from factory.manual_review_workspace import (
     evaluate_manual_review_workspace_for_path,
 )
 from factory.slicer_intelligence import evaluate_slicer_intelligence_for_path
+from factory.slicer_history import compare_slicer_analysis, read_analysis_history, save_analysis_snapshot
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -160,7 +161,7 @@ AVAILABLE_COMMANDS = (
     "[--approve] [--approval-note ...] [--refresh] [--include-warnings] [--force-package]",
     "review-workspace <project_dir> [--json] [--create-workspace] [--confirm-workspace] [--output-dir ...] "
     "[--force-workspace]",
-    "slicer-inspect <project_dir> [--json]",
+    "slicer-inspect <project_dir> [--json] [--history] [--compare] [--save-analysis]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1477,18 +1478,25 @@ def review_workspace_cmd(
 def slicer_inspect_cmd(
     project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
     as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    history: bool = typer.Option(False, "--history", help="Show every previously-saved analysis snapshot (read-only)"),
+    compare: bool = typer.Option(False, "--compare", help="Compare the current live analysis against the most recently saved snapshot (read-only)"),
+    save_analysis: bool = typer.Option(False, "--save-analysis", help="Explicitly save the current analysis as a new history snapshot"),
 ) -> None:
-    """Slicer Review Intelligence & Print Risk Analysis (Phase 38) - a deterministic, read-only
-    analysis layer that identifies potential slicer-review concerns before a human opens a
-    slicer. This does not slice, does not generate G-code, does not control a printer, and does
-    not replace human slicer judgment. Reuses factory.manual_review_workspace (Phase 37, itself
-    reusing Phase 36/factory.manufacturing.knowledge) for every printer/material/technical-
-    readiness signal, and each current STL's already-written validation report (mesh bounding
-    box/volume/watertightness) for build-volume-fit and geometry-risk analysis - never
-    re-implements mesh validation or dimension checks. Only reports risks supported by existing
-    measurable data - always phrased as a possible risk, never a claimed print failure. risk_level
-    is purely informational and never blocks anything; hard blockers remain controlled by
-    factory.slicer-readiness/factory.review-gate. See docs/slicer-intelligence.md."""
+    """Slicer Review Intelligence & Print Risk Analysis (Phase 38/39) - a deterministic analysis
+    layer that identifies potential slicer-review concerns before a human opens a slicer. This
+    does not slice, does not generate G-code, does not control a printer, and does not replace
+    human slicer judgment. Reuses factory.manual_review_workspace (Phase 37) for every
+    printer/material/technical-readiness signal, each current STL's already-written validation
+    report for build-volume-fit and geometry-risk analysis, and factory.slicer_profiles (Phase 39)
+    for slicer-aware review guidance - never re-implements mesh validation, dimension checks, or
+    slicer detection. Only reports risks supported by existing measurable data - always phrased as
+    a possible risk, never a claimed print failure. risk_level is purely informational and never
+    blocks anything; hard blockers remain controlled by factory.slicer-readiness/factory.review-gate.
+    Default remains entirely read-only. --history/--compare are also read-only. Only
+    --save-analysis writes anything - a single, explicit, append-only snapshot to
+    generated/slicer_analysis_history.json; never written automatically by this command, by
+    factory preview-board, or by any readiness/approval check. See docs/slicer-intelligence.md,
+    docs/slicer-profiles.md, docs/slicer-analysis-history.md."""
     if not project_dir.is_dir():
         message = f"not a directory: {project_dir}"
         if as_json:
@@ -1497,10 +1505,66 @@ def slicer_inspect_cmd(
             console.print(f"[red]error[/red]: {message}")
         raise typer.Exit(code=1)
 
+    if history:
+        snapshots = read_analysis_history(project_dir)
+        if as_json:
+            print(json.dumps({"snapshots": snapshots, "errors": [], "no_automatic_print": True}, indent=2, sort_keys=False, default=str))
+            return
+        console.print("[bold]Slicer Analysis History[/bold]\n")
+        if not snapshots:
+            console.print("No saved analysis snapshots yet - run `factory slicer-inspect --save-analysis` to start tracking history.")
+        else:
+            for i, snapshot in enumerate(snapshots, start=1):
+                console.print(f"{i}. {snapshot.get('timestamp')} - risk: {snapshot.get('risk_level')}, confidence: {snapshot.get('confidence')}")
+        console.print("\nNo slicer was opened.")
+        console.print("No G-code was generated.")
+        console.print("No print was started.")
+        return
+
+    if compare:
+        comparison = compare_slicer_analysis(project_dir)
+        if as_json:
+            payload = dict(comparison)
+            payload["errors"] = []
+            payload["no_automatic_print"] = True
+            print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+            return
+        console.print("[bold]Slicer Intelligence Comparison[/bold]\n")
+        if not comparison["history_available"]:
+            console.print(comparison["recommendation"])
+        else:
+            console.print("[bold]Previous:[/bold]")
+            console.print(f"Risk: {comparison['previous'].get('risk_level')}")
+            console.print()
+            console.print("[bold]Current:[/bold]")
+            console.print(f"Risk: {comparison['current'].get('risk_level')}")
+            console.print()
+            console.print("[bold]Changes:[/bold]")
+            if comparison["changes"]:
+                for change in comparison["changes"]:
+                    console.print(f"⚠ {change}")
+            else:
+                console.print("None detected.")
+            console.print()
+            console.print(f"[bold]Recommendation:[/bold]\n{comparison['recommendation']}")
+        console.print("\nNo slicer was opened.")
+        console.print("No G-code was generated.")
+        console.print("No print was started.")
+        return
+
     analysis = evaluate_slicer_intelligence_for_path(project_dir)
+
+    save_result: dict | None = None
+    if save_analysis:
+        save_result = save_analysis_snapshot(project_dir, analysis=analysis)
 
     if as_json:
         payload = dict(analysis)
+        payload["save_result"] = (
+            {"history_path": save_result["history_path"], "snapshot_count": save_result["snapshot_count"]}
+            if save_result
+            else None
+        )
         payload["errors"] = []
         print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
@@ -1517,6 +1581,13 @@ def slicer_inspect_cmd(
     margin = analysis["build_volume_analysis"]["remaining_margin_mm"]
     if margin:
         console.print(f"  remaining margin - x: {margin['x']}mm, y: {margin['y']}mm, z: {margin['z']}mm")
+    console.print()
+    console.print("[bold]Slicer Profile:[/bold]")
+    console.print(analysis["slicer_profile"]["slicer_name"])
+    if analysis["slicer_specific_checks"]:
+        console.print("Additional Review Items:")
+        for item in analysis["slicer_specific_checks"]:
+            console.print(f"  ☐ {item}")
     console.print()
     console.print("[bold]Risk:[/bold]")
     console.print(analysis["risk_level"])
@@ -1543,6 +1614,10 @@ def slicer_inspect_cmd(
 
     console.print(f"[bold]Confidence:[/bold] {analysis['confidence']}")
     console.print()
+
+    if save_result is not None:
+        console.print(f"[green]analysis snapshot saved[/green]: {save_result['history_path']} (snapshot {save_result['snapshot_count']})")
+        console.print()
 
     console.print("No slicer was opened.")
     console.print("No G-code was generated.")

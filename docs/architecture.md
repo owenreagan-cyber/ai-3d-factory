@@ -225,6 +225,36 @@ project's dict the same way, at the same
 `preview_board.gather_board_data()` aggregation point - see
 `docs/slicer-intelligence.md` "Architectural note".
 
+**Phase 39 addendum:** `factory/slicer_history.py` sits at the very top of
+this same chain - it calls
+`slicer_intelligence.evaluate_slicer_intelligence()` directly, so the same
+cycle-avoidance applies transitively once more:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+                                  |
+                     factory/manual_review_workspace.py
+                                  |
+                     factory/slicer_intelligence.py
+                                  |
+                     factory/slicer_history.py
+```
+
+`slicer_history_summary` (Phase 39) is merged into each board project's
+dict the same way, at the same `preview_board.gather_board_data()`
+aggregation point - see `docs/slicer-analysis-history.md`. Note that
+`factory/slicer_profiles.py` (Phase 39, Part 1/2) is *not* in this chain
+at all - it only depends on `factory.slicer.local_slicer_probe`, so it
+sits alongside `factory/manufacturing/knowledge.py` as a simple, low-level
+module `factory/slicer_intelligence.py` consumes directly, with no
+circular-import risk.
+
 ## Why local-first
 
 Every check in this repo (geometry validation, dimension fit, preview

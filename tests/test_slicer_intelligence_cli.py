@@ -1,12 +1,15 @@
-"""Phase 38 tests: the `factory slicer-inspect` CLI - a thin, entirely
-read-only wrapper around `factory.slicer_intelligence`. No AI, no LLM, no
-network, no slicer, no G-code generation, no printer communication. See
-docs/slicer-intelligence.md, docs/roadmap.md Phase 38.
+"""Phase 38/39 tests: the `factory slicer-inspect` CLI - read-only by
+default, plus Phase 39's --history/--compare (also read-only) and
+--save-analysis (the only write path). No AI, no LLM, no network, no
+slicer, no G-code generation, no printer communication. See
+docs/slicer-intelligence.md, docs/slicer-profiles.md,
+docs/slicer-analysis-history.md, docs/roadmap.md Phase 38/39.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -203,3 +206,134 @@ def test_slicer_inspect_never_makes_a_network_call(scad_project, monkeypatch):
     monkeypatch.setattr(socket, "socket", _boom)
     result = runner.invoke(app, ["slicer-inspect", str(scad_project)])
     assert result.exit_code == 0, result.stdout
+
+
+def test_slicer_inspect_shows_slicer_profile_and_specific_checks(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project)])
+    assert result.exit_code == 0, result.stdout
+    assert "Slicer Profile:" in result.stdout
+
+
+# ---- --history ----
+
+
+def test_history_empty_by_default(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--history"])
+    assert result.exit_code == 0, result.stdout
+    assert "No saved analysis snapshots yet" in result.stdout
+
+
+def test_history_never_writes_anything(scad_project):
+    before = sorted(str(p) for p in scad_project.rglob("*"))
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--history"])
+    after = sorted(str(p) for p in scad_project.rglob("*"))
+    assert before == after
+
+
+def test_history_json_is_clean(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--history", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["snapshots"] == []
+
+
+def test_history_shows_saved_snapshots(scad_project, monkeypatch):
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis"])
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--history"])
+    assert result.exit_code == 0, result.stdout
+    assert "risk:" in result.stdout.lower()
+
+
+# ---- --compare ----
+
+
+def test_compare_with_no_history(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--compare"])
+    assert result.exit_code == 0, result.stdout
+    assert "Slicer Intelligence Comparison" in result.stdout
+    assert "No previous analysis snapshot" in result.stdout
+
+
+def test_compare_never_writes_anything(scad_project):
+    before = sorted(str(p) for p in scad_project.rglob("*"))
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--compare"])
+    after = sorted(str(p) for p in scad_project.rglob("*"))
+    assert before == after
+
+
+def test_compare_json_is_clean(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--compare", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["history_available"] is False
+    assert payload["no_automatic_print"] is True
+
+
+def test_compare_shows_previous_current_changes_recommendation(scad_project, monkeypatch):
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis"])
+    _fully_ready(scad_project, monkeypatch)
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--compare"])
+    assert result.exit_code == 0, result.stdout
+    assert "Previous:" in result.stdout
+    assert "Current:" in result.stdout
+    assert "Changes:" in result.stdout
+    assert "Recommendation:" in result.stdout
+
+
+# ---- --save-analysis ----
+
+
+def test_save_analysis_creates_history_file(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis"])
+    assert result.exit_code == 0, result.stdout
+    assert "analysis snapshot saved" in result.stdout.lower()
+    assert (scad_project / "generated" / "slicer_analysis_history.json").is_file()
+
+
+def test_save_analysis_json_reports_save_result(scad_project):
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis", "--json"])
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["save_result"]["snapshot_count"] == 1
+
+
+def test_save_analysis_appends_on_repeated_calls(scad_project):
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis"])
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["save_result"]["snapshot_count"] == 2
+
+
+def test_save_analysis_never_invokes_a_subprocess(scad_project, monkeypatch):
+    def _boom(*a, **k):
+        raise AssertionError("--save-analysis must never invoke a subprocess")
+
+    monkeypatch.setattr(export_pipeline.subprocess, "run", _boom)
+    result = runner.invoke(app, ["slicer-inspect", str(scad_project), "--save-analysis"])
+    assert result.exit_code == 0, result.stdout
+
+
+def test_plain_run_never_creates_history(scad_project):
+    runner.invoke(app, ["slicer-inspect", str(scad_project)])
+    assert not (scad_project / "generated" / "slicer_analysis_history.json").exists()
+
+
+def test_json_run_never_creates_history(scad_project):
+    runner.invoke(app, ["slicer-inspect", str(scad_project), "--json"])
+    assert not (scad_project / "generated" / "slicer_analysis_history.json").exists()
+
+
+def test_save_analysis_never_modifies_committed_examples(tmp_path):
+    # slicer-inspect is write-capable via --save-analysis (see
+    # tests/test_examples_write_safety.py's WRITE_CAPABLE_COMMANDS) - copy
+    # the example into tmp_path first, exactly like every other
+    # write-capable command's tests do, rather than invoking directly
+    # against examples/.
+    example_dir = project_store.REPO_ROOT / "examples" / "storage-bin-lid"
+    before = sorted(str(p.relative_to(example_dir)) for p in example_dir.rglob("*"))
+    copy_dir = tmp_path / "storage-bin-lid"
+    shutil.copytree(example_dir, copy_dir)
+
+    runner.invoke(app, ["slicer-inspect", str(copy_dir), "--save-analysis"])
+
+    after = sorted(str(p.relative_to(example_dir)) for p in example_dir.rglob("*"))
+    assert before == after
+    assert (copy_dir / "generated" / "slicer_analysis_history.json").is_file()

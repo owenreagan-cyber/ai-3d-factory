@@ -351,9 +351,22 @@ lists rather than guessing).
   `factory.manual_review_workspace`'s own material lookup; a material
   string that doesn't exactly match a known one reports
   `unknown_material` rather than a best-guess nearest match.
-- **No history** - every call recomputes fresh from current files; there
-  is no persisted analysis to compare against over time (by design - this
-  phase has no write path at all).
+- **No history in this module itself** - every call to
+  `evaluate_slicer_intelligence()` recomputes fresh from current files;
+  there is no persisted analysis to compare against over time from within
+  this module (by design - this module has no write path at all). Phase
+  39's separate `factory.slicer_history` module adds an *explicit*,
+  opt-in persisted history on top - see `docs/slicer-analysis-history.md`.
+
+## Phase 39 addendum: slicer-aware review profiles
+
+`evaluate_slicer_intelligence()` gained two additive fields -
+`slicer_profile` and `slicer_specific_checks` - from
+`factory.slicer_profiles` (Phase 39): a detected-slicer-aware review
+profile (Bambu Studio/OrcaSlicer/PrusaSlicer/Unknown) and its flattened
+"Additional Review Items" checklist. Neither replaces anything documented
+above - they're purely additive, alongside the existing geometry/
+manufacturing checklist content. See `docs/slicer-profiles.md`.
 
 ## Non-goals
 
@@ -375,4 +388,6 @@ See also `docs/manual-review-workspace.md` (Phase 37),
 `docs/slicer-readiness.md` (Phase 36), `docs/export-pipeline.md`
 (Phase 35), `docs/manufacturing-knowledge-base.md`,
 `docs/review-gate.md`, `docs/preview-board.md`,
-`docs/slicer-review-workflow.md`, and `docs/roadmap.md` Phase 38.
+`docs/slicer-review-workflow.md`, `docs/slicer-profiles.md` (Phase 39),
+`docs/slicer-analysis-history.md` (Phase 39), and `docs/roadmap.md`
+Phase 38/39.

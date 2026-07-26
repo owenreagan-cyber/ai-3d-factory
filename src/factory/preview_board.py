@@ -145,6 +145,7 @@ from factory.project_inspection import (
 from factory.slicer_readiness import summarize_slicer_readiness
 from factory.manual_review_workspace import summarize_manual_review_workspace
 from factory.slicer_intelligence import summarize_slicer_intelligence
+from factory.slicer_history import summarize_slicer_history
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -180,16 +181,23 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
 
     Read-only: never writes, generates, renders, exports, or contacts
     anything. Merges `slicer_readiness_summary` (Phase 36),
-    `manual_review_summary` (Phase 37), and `slicer_intelligence_summary`
-    (Phase 38) into each project's dict here, at the aggregation point,
-    rather than inside `factory.project_inspection.summarize_project()`
-    itself - see `factory.slicer_readiness.summarize_slicer_readiness()`'s,
+    `manual_review_summary` (Phase 37), `slicer_intelligence_summary`
+    (Phase 38), and `slicer_history_summary` (Phase 39) into each
+    project's dict here, at the aggregation point, rather than inside
+    `factory.project_inspection.summarize_project()` itself - see
+    `factory.slicer_readiness.summarize_slicer_readiness()`'s,
     `factory.manual_review_workspace.summarize_manual_review_workspace()`'s,
-    and `factory.slicer_intelligence.summarize_slicer_intelligence()`'s
-    "Architectural note" for why: all three consume `factory.review_gate`
-    (directly or transitively), which already imports `project_inspection`,
-    so adding any of them inside `project_inspection.py` would be a
-    circular import. This function is where those layers meet instead.
+    `factory.slicer_intelligence.summarize_slicer_intelligence()`'s, and
+    `factory.slicer_history.summarize_slicer_history()`'s "Architectural
+    note" for why: all four consume `factory.review_gate` (directly or
+    transitively), which already imports `project_inspection`, so adding
+    any of them inside `project_inspection.py` would be a circular
+    import. This function is where those layers meet instead.
+    `summarize_slicer_history()` only ever reads
+    `generated/slicer_analysis_history.json` if it already exists - it
+    never writes one; history is only ever created by an explicit
+    `factory slicer-inspect --save-analysis` call, never by board
+    generation.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
@@ -198,6 +206,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["slicer_readiness_summary"] = summarize_slicer_readiness(project_dir)
         project["manual_review_summary"] = summarize_manual_review_workspace(project_dir)
         project["slicer_intelligence_summary"] = summarize_slicer_intelligence(project_dir)
+        project["slicer_history_summary"] = summarize_slicer_history(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -708,20 +717,52 @@ _BUILD_VOLUME_FIT_BADGE_CLASSES = {
 }
 
 
-def _build_slicer_intelligence_section_html(summary: dict[str, Any] | None) -> str:
+def _relative_analysis_age_label(timestamp_iso: str | None) -> str:
+    """Format a saved snapshot's timestamp as a short relative age label
+    ("Today"/"Yesterday"/"N days ago") for the Preview Board card - never
+    used for any decision, purely a display convenience."""
+    if not timestamp_iso:
+        return "Unknown"
+    try:
+        from datetime import datetime, timezone
+
+        ts = datetime.fromisoformat(timestamp_iso)
+        now = datetime.now(timezone.utc)
+        delta_days = (now.date() - ts.date()).days
+    except (TypeError, ValueError):
+        return "Unknown"
+    if delta_days == 0:
+        return "Today"
+    if delta_days == 1:
+        return "Yesterday"
+    if delta_days > 1:
+        return f"{delta_days} days ago"
+    return ts.date().isoformat()
+
+
+def _build_slicer_intelligence_section_html(
+    summary: dict[str, Any] | None, history_summary: dict[str, Any] | None = None
+) -> str:
     """Render one project's `slicer_intelligence_summary` (Phase 38) into a
     compact static 'Slicer Intelligence' card section - risk level, build
-    volume fit, review item count, top review priority, and analysis
-    confidence. Placed right after "Manual Review Workspace" (all six -
-    Project Readiness, Generation Gate, Post-Generation Pipeline, Slicer
-    Review Readiness, Manual Review Workspace, Slicer Intelligence - are
-    "meta" cards summarizing what's possible next). Plain text only - no
-    JavaScript. This card never analyzes anything itself - it only
-    displays what
-    `factory.slicer_intelligence.summarize_slicer_intelligence()` already
-    computed read-only from existing validation reports/receipts/state.
-    It never opens a slicer, generates G-code, or prints anything - and
-    `risk_level` here is purely informational, never a blocker.
+    volume fit, review item count, top review priority, analysis
+    confidence, and (Phase 39) the detected slicer profile plus a compact
+    analysis-history addendum (last saved analysis age, change count since
+    then). Placed right after "Manual Review Workspace" (all six - Project
+    Readiness, Generation Gate, Post-Generation Pipeline, Slicer Review
+    Readiness, Manual Review Workspace, Slicer Intelligence - are "meta"
+    cards summarizing what's possible next). Plain text only - no
+    JavaScript. This card never analyzes anything itself, never saves a
+    history snapshot, and never compares anything live - it only displays
+    what `factory.slicer_intelligence.summarize_slicer_intelligence()` and
+    `factory.slicer_history.summarize_slicer_history()` already computed
+    read-only from existing validation reports/receipts/history state. It
+    never opens a slicer, generates G-code, or prints anything -
+    `risk_level` here is purely informational, never a blocker. The
+    history addendum rows are omitted entirely for a project with no saved
+    snapshot yet, rather than showing a "Never"/"0" placeholder - kept
+    deliberately quiet per this phase's "do not make the board noisy"
+    requirement.
     """
     if not summary:
         return '<div class="slicer-intelligence"><p class="none">No slicer intelligence analysis available for this project.</p></div>'
@@ -736,9 +777,12 @@ def _build_slicer_intelligence_section_html(summary: dict[str, Any] | None) -> s
     confidence = summary.get("confidence") or "Unknown"
     confidence_badge_class = _CONFIDENCE_BADGE_CLASSES.get(confidence, "badge-missing")
 
+    profile_name = summary.get("slicer_profile_name") or "Unknown"
+
     rows = "".join(
         _di_row(label, value_html)
         for label, value_html in (
+            ("Profile", _escape_html(profile_name)),
             ("Risk", f'<span class="badge {risk_badge_class}">{_escape_html(risk)}</span>'),
             ("Build", f'<span class="badge {fit_badge_class}">{_escape_html(fit_label)}</span>'),
             ("Review items", _escape_html(str(summary.get("review_item_count") or 0))),
@@ -746,6 +790,20 @@ def _build_slicer_intelligence_section_html(summary: dict[str, Any] | None) -> s
             ("Confidence", f'<span class="badge {confidence_badge_class}">{_escape_html(confidence)}</span>'),
         )
     )
+
+    history_summary = history_summary or {}
+    if history_summary.get("history_available"):
+        latest = history_summary.get("latest_analysis") or {}
+        age_label = _relative_analysis_age_label(latest.get("timestamp"))
+        rows += _di_row("Last Analysis", _escape_html(age_label))
+
+        changes_detected = history_summary.get("changes_detected")
+        risk_change = history_summary.get("risk_change")
+        if changes_detected is not None:
+            rows += _di_row("Changes", _escape_html(f"{changes_detected} detected"))
+            if changes_detected > 0 or risk_change:
+                rows += '<div class="di-row"><span class="badge health-warning">Review Needed</span></div>'
+
     rows += '<div class="di-row"><span class="di-label">Human review required</span></div>'
 
     return f'<div class="slicer-intelligence">{rows}</div>'
@@ -1080,7 +1138,13 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     geometry risk itself - it only shows what
     `factory.slicer_intelligence.summarize_slicer_intelligence()` already
     computed read-only, and its `risk_level` is purely informational,
-    never a blocker.
+    never a blocker. Phase 39 extended this same card (not a new one) with
+    a compact analysis-history addendum (detected slicer profile, last
+    saved-analysis age, change count) sourced from
+    `factory.slicer_history.summarize_slicer_history()` - this board never
+    saves a history snapshot or runs a live comparison itself; those
+    remain separate, explicit, human-run CLI actions
+    (`factory slicer-inspect --save-analysis`/`--compare`).
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -1106,7 +1170,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + _build_manual_review_workspace_section_html(project.get("manual_review_summary"))
         + "</div>"
         '<div class="card-section"><h4>Slicer Intelligence</h4>'
-        + _build_slicer_intelligence_section_html(project.get("slicer_intelligence_summary"))
+        + _build_slicer_intelligence_section_html(
+            project.get("slicer_intelligence_summary"), project.get("slicer_history_summary")
+        )
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

@@ -45,6 +45,14 @@ review.
 progress and is never consulted by `factory.slicer_readiness` or
 `factory.review_gate` - those modules' own hard blockers are completely
 unaffected by anything computed here. See `docs/slicer-intelligence.md`.
+
+**Phase 39 addendum:** `evaluate_slicer_intelligence()` gained two
+additive fields - `slicer_profile` and `slicer_specific_checks` - built
+from `factory.slicer_profiles.get_slicer_review_profile()`/
+`build_slicer_specific_checks()` (Phase 39), never a second slicer
+detection or a duplicated checklist; every field documented above is
+otherwise unchanged. See `docs/slicer-profiles.md` and
+`docs/slicer-analysis-history.md`.
 """
 
 from __future__ import annotations
@@ -56,6 +64,7 @@ from factory import project_store
 from factory.export_pipeline import read_export_receipt
 from factory.manual_review_workspace import assess_manual_review_workspace
 from factory.manufacturing import knowledge
+from factory.slicer_profiles import build_slicer_specific_checks, get_slicer_review_profile
 from factory.validators.dimension_check import check_build_volume_fit
 
 ANALYSIS_STATES = ("no_geometry_data", "partial_geometry_data", "full_geometry_data")
@@ -534,6 +543,13 @@ def evaluate_slicer_intelligence(project_dir: Path) -> dict[str, Any]:
     risk_level = _risk_level(analysis_status, build_volume_analysis, geometry_risks, manufacturing_risks)
     review_priority = _review_priority(build_volume_analysis, geometry_risks, manufacturing_risks)
 
+    # Phase 39: slicer-aware review profile, reused (never re-derived) from
+    # factory.slicer_profiles - the same AMS/multi-material relevance test
+    # _multi_material_considerations() above already uses.
+    multi_material_relevant = bool(multi_material_considerations)
+    slicer_profile = get_slicer_review_profile(multi_material=multi_material_relevant)
+    slicer_specific_checks = build_slicer_specific_checks(slicer_profile)
+
     warnings = list(workspace["warnings"])
     advisories: list[str] = []
     if build_volume_analysis["printer_verified"] is False:
@@ -543,6 +559,7 @@ def evaluate_slicer_intelligence(project_dir: Path) -> dict[str, Any]:
         )
     if any(entry["status"] == "unknown_material" for entry in material_analysis):
         warnings.append("One or more materials are not recognized in the local materials knowledge base - confirm final filament.")
+    warnings.extend(slicer_profile["warnings"])
 
     return {
         "project": workspace["project"],
@@ -557,6 +574,8 @@ def evaluate_slicer_intelligence(project_dir: Path) -> dict[str, Any]:
         "support_considerations": support_considerations,
         "adhesion_considerations": adhesion_considerations,
         "multi_material_considerations": multi_material_considerations,
+        "slicer_profile": slicer_profile,
+        "slicer_specific_checks": slicer_specific_checks,
         "review_priority": review_priority,
         "risk_level": risk_level,
         "warnings": warnings,
@@ -602,4 +621,5 @@ def summarize_slicer_intelligence(project_dir: Path) -> dict[str, Any]:
         "top_priority": analysis["review_priority"][0] if analysis["review_priority"] else None,
         "confidence": analysis["confidence"],
         "warning_count": len(analysis["warnings"]),
+        "slicer_profile_name": analysis["slicer_profile"]["slicer_name"],
     }

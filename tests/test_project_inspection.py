@@ -166,6 +166,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "brief_update_summary", "design_orchestrator_summary", "generation_gate_summary",
         "generation_execution_summary", "export_pipeline_summary",
         "slicer_readiness_summary", "manual_review_summary", "slicer_intelligence_summary",
+        "slicer_history_summary",
     }
     assert set(project.keys()) == expected_keys
 

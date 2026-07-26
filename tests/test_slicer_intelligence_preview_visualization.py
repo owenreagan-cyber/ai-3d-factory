@@ -327,3 +327,103 @@ def test_review_workspace_cli_unaffected_by_slicer_intelligence(isolated_project
     result = runner.invoke(app, ["review-workspace", str(scad_project), "--json"])
     payload = json.loads(result.stdout)
     assert "slicer_intelligence_summary" not in payload
+
+
+# ---------------------------------------------------------------------------
+# Phase 39: slicer_history_summary integration and the extended card
+# ---------------------------------------------------------------------------
+
+
+def test_gather_board_data_includes_slicer_history_summary(isolated_projects_dir, scad_project):
+    board = gather_board_data(isolated_projects_dir)
+    project = board["projects"][0]
+    assert "slicer_history_summary" in project
+    assert project["slicer_history_summary"]["history_available"] is False
+
+
+def test_gather_board_data_never_writes_history(isolated_projects_dir, scad_project):
+    gather_board_data(isolated_projects_dir)
+    assert not (scad_project / "generated" / "slicer_analysis_history.json").exists()
+
+
+def test_html_slicer_intelligence_card_shows_profile_row(isolated_projects_dir, scad_project):
+    board = gather_board_data(isolated_projects_dir)
+    html = build_board_html(board)
+    start = html.find("<h4>Slicer Intelligence</h4>")
+    end = html.find("<h4>Project Intake</h4>", start)
+    section = html[start:end]
+    assert "Profile:" in section
+
+
+def test_html_slicer_intelligence_card_omits_history_rows_without_saved_snapshot(isolated_projects_dir, scad_project):
+    board = gather_board_data(isolated_projects_dir)
+    html = build_board_html(board)
+    start = html.find("<h4>Slicer Intelligence</h4>")
+    end = html.find("<h4>Project Intake</h4>", start)
+    section = html[start:end]
+    assert "Last Analysis" not in section
+    assert "Changes" not in section
+
+
+def test_html_slicer_intelligence_card_shows_last_analysis_after_one_saved_snapshot(isolated_projects_dir, scad_project):
+    from factory.slicer_history import save_analysis_snapshot
+
+    save_analysis_snapshot(scad_project)
+    board = gather_board_data(isolated_projects_dir)
+    html = build_board_html(board)
+    start = html.find("<h4>Slicer Intelligence</h4>")
+    end = html.find("<h4>Project Intake</h4>", start)
+    section = html[start:end]
+    assert "Last Analysis:" in section
+    assert "Today" in section
+    # Only one snapshot exists - no "Changes"/"Review Needed" yet.
+    assert "Changes:" not in section
+    assert "Review Needed" not in section
+
+
+def test_html_slicer_intelligence_card_shows_changes_and_review_needed_after_two_snapshots(
+    isolated_projects_dir, scad_project
+):
+    from factory import project_store as ps
+    from factory.slicer_history import save_analysis_snapshot
+
+    save_analysis_snapshot(scad_project)
+    build_plan = ps.load_json(scad_project / "build_plan.json")
+    build_plan["target_printer"] = {
+        "printer_id": "bambu_h2d",
+        "display_name": "Bambu Lab H2D",
+        "resolved": True,
+        "resolved_from": "test",
+        "capabilities": None,
+    }
+    ps.save_json(scad_project / "build_plan.json", build_plan)
+    save_analysis_snapshot(scad_project)
+
+    board = gather_board_data(isolated_projects_dir)
+    html = build_board_html(board)
+    start = html.find("<h4>Slicer Intelligence</h4>")
+    end = html.find("<h4>Project Intake</h4>", start)
+    section = html[start:end]
+    assert "Changes:" in section
+    assert "Review Needed" in section
+
+
+def test_html_slicer_intelligence_card_never_saves_or_compares(isolated_projects_dir, scad_project, monkeypatch):
+    def _boom(*a, **k):
+        raise AssertionError("board generation must never save an analysis snapshot")
+
+    monkeypatch.setattr("factory.preview_board.summarize_slicer_history", lambda project_dir: _boom())
+    with pytest.raises(AssertionError):
+        gather_board_data(isolated_projects_dir)
+    # Confirms summarize_slicer_history() is indeed what the board calls -
+    # not save_analysis_snapshot()/compare_slicer_analysis() (neither of
+    # which the board should ever touch at all).
+
+
+def test_preview_board_json_includes_additive_slicer_history_summary(isolated_projects_dir, scad_project):
+    result = runner.invoke(app, ["preview-board", str(isolated_projects_dir)])
+    assert result.exit_code == 0, result.stdout
+    board = json.loads((isolated_projects_dir / "preview_board" / "index.json").read_text())
+    project = board["projects"][0]
+    assert "slicer_history_summary" in project
+    assert project["slicer_history_summary"]["history_available"] is False

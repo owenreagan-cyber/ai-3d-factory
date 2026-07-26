@@ -386,4 +386,5 @@ See also `docs/slicer-readiness.md` (Phase 36), `docs/export-pipeline.md`
 `docs/manufacturing-knowledge-base.md`, `docs/review-gate.md`,
 `docs/preview-board.md`, `docs/slicer-review-workflow.md`,
 `docs/slicer-intelligence.md` (Phase 38, the next pipeline step),
+`docs/slicer-profiles.md` / `docs/slicer-analysis-history.md` (Phase 39),
 `docs/file-lifecycle.md`, and `docs/roadmap.md` Phase 37.

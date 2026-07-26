@@ -609,6 +609,54 @@ def test_slicer_probe_reused_not_reimplemented(scad_project):
 
 
 # ---------------------------------------------------------------------------
+# Phase 39: slicer_profile / slicer_specific_checks - additive fields
+# ---------------------------------------------------------------------------
+
+
+def test_slicer_profile_field_present_and_reused_not_reimplemented(scad_project, monkeypatch):
+    monkeypatch.setattr("factory.slicer_intelligence.get_slicer_review_profile", lambda **k: {
+        "slicer_name": "Bambu Studio", "profile_status": "detected", "known_capabilities": [],
+        "review_categories": [], "printer_questions": ["q1"], "material_questions": ["q2"],
+        "multi_material_questions": [], "warnings": [], "limitations": [], "confidence": "High",
+    })
+    analysis = evaluate_slicer_intelligence(scad_project)
+    assert analysis["slicer_profile"]["slicer_name"] == "Bambu Studio"
+    assert analysis["slicer_specific_checks"] == ["q1", "q2"]
+
+
+def test_slicer_specific_checks_include_multi_material_questions_when_relevant(scad_project, monkeypatch):
+    _fully_ready(scad_project, monkeypatch, printer_id="bambu_h2d")
+    analysis = evaluate_slicer_intelligence(scad_project)
+    assert analysis["multi_material_considerations"]
+    assert analysis["slicer_profile"]["multi_material_questions"]
+    assert set(analysis["slicer_profile"]["multi_material_questions"]) <= set(analysis["slicer_specific_checks"])
+
+
+def test_slicer_specific_checks_exclude_multi_material_questions_when_not_relevant(scad_project, monkeypatch):
+    non_ams_id = next(
+        (pid for pid, p in knowledge.load_printers().items() if not p.get("ams_supported")), None
+    )
+    if non_ams_id is None:
+        pytest.skip("no non-AMS printer available in the local knowledge base")
+    _fully_ready(scad_project, monkeypatch, printer_id=non_ams_id)
+    analysis = evaluate_slicer_intelligence(scad_project)
+    assert analysis["slicer_profile"]["multi_material_questions"] == []
+
+
+def test_slicer_profile_warnings_folded_into_analysis_warnings(scad_project, monkeypatch):
+    monkeypatch.setattr(
+        "factory.slicer_intelligence.get_slicer_review_profile",
+        lambda **k: {
+            "slicer_name": "Unknown", "profile_status": "not_detected", "known_capabilities": [],
+            "review_categories": [], "printer_questions": [], "material_questions": [],
+            "multi_material_questions": [], "warnings": ["a distinctive profile warning"], "limitations": [], "confidence": "Unknown",
+        },
+    )
+    analysis = evaluate_slicer_intelligence(scad_project)
+    assert "a distinctive profile warning" in analysis["warnings"]
+
+
+# ---------------------------------------------------------------------------
 # summarize_slicer_intelligence() - the compact Preview Board summary
 # ---------------------------------------------------------------------------
 
@@ -626,4 +674,5 @@ def test_summarize_shape(scad_project, monkeypatch):
     summary = summarize_slicer_intelligence(scad_project)
     assert set(summary.keys()) == {
         "risk_level", "build_volume_fit", "review_item_count", "top_priority", "confidence", "warning_count",
+        "slicer_profile_name",
     }
