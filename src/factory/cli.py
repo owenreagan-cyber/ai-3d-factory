@@ -69,6 +69,7 @@ from factory.manual_review_workspace import (
     create_manual_review_workspace,
     evaluate_manual_review_workspace_for_path,
 )
+from factory.slicer_intelligence import evaluate_slicer_intelligence_for_path
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -159,6 +160,7 @@ AVAILABLE_COMMANDS = (
     "[--approve] [--approval-note ...] [--refresh] [--include-warnings] [--force-package]",
     "review-workspace <project_dir> [--json] [--create-workspace] [--confirm-workspace] [--output-dir ...] "
     "[--force-workspace]",
+    "slicer-inspect <project_dir> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1469,6 +1471,82 @@ def review_workspace_cmd(
 
     if errors:
         raise typer.Exit(code=1)
+
+
+@app.command(name="slicer-inspect")
+def slicer_inspect_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Slicer Review Intelligence & Print Risk Analysis (Phase 38) - a deterministic, read-only
+    analysis layer that identifies potential slicer-review concerns before a human opens a
+    slicer. This does not slice, does not generate G-code, does not control a printer, and does
+    not replace human slicer judgment. Reuses factory.manual_review_workspace (Phase 37, itself
+    reusing Phase 36/factory.manufacturing.knowledge) for every printer/material/technical-
+    readiness signal, and each current STL's already-written validation report (mesh bounding
+    box/volume/watertightness) for build-volume-fit and geometry-risk analysis - never
+    re-implements mesh validation or dimension checks. Only reports risks supported by existing
+    measurable data - always phrased as a possible risk, never a claimed print failure. risk_level
+    is purely informational and never blocks anything; hard blockers remain controlled by
+    factory.slicer-readiness/factory.review-gate. See docs/slicer-intelligence.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    analysis = evaluate_slicer_intelligence_for_path(project_dir)
+
+    if as_json:
+        payload = dict(analysis)
+        payload["errors"] = []
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]Slicer Review Intelligence[/bold]\n")
+    console.print("[bold]Project:[/bold]")
+    console.print(analysis["project"])
+    console.print()
+    console.print("[bold]Printer:[/bold]")
+    console.print(analysis["printer"]["display_name"])
+    console.print()
+    console.print("[bold]Build Volume:[/bold]")
+    console.print(analysis["build_volume_analysis"]["fit_status"].replace("_", " ").title())
+    margin = analysis["build_volume_analysis"]["remaining_margin_mm"]
+    if margin:
+        console.print(f"  remaining margin - x: {margin['x']}mm, y: {margin['y']}mm, z: {margin['z']}mm")
+    console.print()
+    console.print("[bold]Risk:[/bold]")
+    console.print(analysis["risk_level"])
+    console.print()
+
+    if analysis["review_priority"]:
+        console.print("[bold]Review Priorities:[/bold]")
+        for i, item in enumerate(analysis["review_priority"], start=1):
+            console.print(f"{i}.")
+            console.print(item)
+        console.print()
+
+    if analysis["warnings"]:
+        console.print("[bold]Warnings:[/bold]")
+        for warning in analysis["warnings"]:
+            console.print(f"- {warning}")
+        console.print()
+
+    if analysis["advisories"]:
+        console.print("[bold]Advisories:[/bold]")
+        for advisory in analysis["advisories"]:
+            console.print(f"- {advisory}")
+        console.print()
+
+    console.print(f"[bold]Confidence:[/bold] {analysis['confidence']}")
+    console.print()
+
+    console.print("No slicer was opened.")
+    console.print("No G-code was generated.")
+    console.print("No print was started.")
 
 
 @app.command(name="review-gate")

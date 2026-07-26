@@ -740,6 +740,53 @@ unchanged and still follows it. See `docs/manual-review-workspace.md` for
 the full workspace-status priority order, printer/material profile
 inspection, structured review checklist, and confidence/risk scoring.
 
+## Slicer Intelligence section (Phase 38)
+
+Each project's card also carries `slicer_intelligence_summary` -
+`factory.slicer_intelligence.summarize_slicer_intelligence()`'s compact
+view:
+
+```jsonc
+{
+  "risk_level": "Moderate",
+  "build_volume_fit": "fits",
+  "review_item_count": 3,
+  "top_priority": "Confirm final filament.",
+  "confidence": "High",
+  "warning_count": 1
+}
+```
+
+**Like `slicer_readiness_summary`/`manual_review_summary`, this field is
+not computed inside `factory.project_inspection.summarize_project()`.**
+`factory.slicer_intelligence` calls
+`factory.manual_review_workspace.assess_manual_review_workspace()`, which
+transitively depends on `factory.review_gate.evaluate_review_gate()`,
+which already imports `summarize_project()` - adding the field inside
+`project_inspection.py` would recreate the same circular import Phase 36
+discovered. `factory.preview_board.gather_board_data()` calls
+`summarize_slicer_intelligence(project_dir)` per project and merges the
+result in at the same aggregation point - see
+`docs/slicer-intelligence.md` "Architectural note" for the full account.
+
+Always evaluated read-only (never analyzes in a way that writes, invokes
+a slicer, or generates G-code - this phase has no write path at all).
+Always a dict, never `None`, purely additive and purely advisory: never
+read by `classify_visual_readiness()`, `build_health_signals()`, or
+`build_suggested_actions()`, and `factory review-gate`'s/`factory
+slicer-readiness`'s/`factory review-workspace`'s JSON output still never
+includes it.
+
+The board's **HTML** gained a compact "Slicer Intelligence" card section,
+placed right after "Manual Review Workspace": risk level (badged), build
+volume fit (badged), review item count, the top review priority, and
+analysis confidence (badged), plus a standing "Human review required"
+reminder. Static HTML/CSS only - no JavaScript, no external assets. Every
+existing detail card is unchanged and still follows it. `risk_level` here
+is purely informational and never a blocker. See
+`docs/slicer-intelligence.md` for the full build-volume-fit calculation,
+geometry risk categories, and confidence/risk scoring.
+
 ## Board JSON shape
 
 ```jsonc
@@ -913,6 +960,14 @@ inspection, structured review checklist, and confidence/risk scoring.
         "package_available": false,
         "warning_count": 1,
         "next_action": "Resolve technical readiness first - see `factory slicer-readiness <project>`."
+      },
+      "slicer_intelligence_summary": {
+        "risk_level": "High",
+        "build_volume_fit": "unknown",
+        "review_item_count": 4,
+        "top_priority": "Material unconfirmed for: base, text.",
+        "confidence": "Unknown",
+        "warning_count": 3
       }
     }
   ],

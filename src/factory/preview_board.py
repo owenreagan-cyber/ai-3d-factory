@@ -144,6 +144,7 @@ from factory.project_inspection import (
 )
 from factory.slicer_readiness import summarize_slicer_readiness
 from factory.manual_review_workspace import summarize_manual_review_workspace
+from factory.slicer_intelligence import summarize_slicer_intelligence
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -178,15 +179,16 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     """Read every project under `projects_root` and compute the board index.
 
     Read-only: never writes, generates, renders, exports, or contacts
-    anything. Merges `slicer_readiness_summary` (Phase 36) and
-    `manual_review_summary` (Phase 37) into each project's dict here, at
-    the aggregation point, rather than inside
-    `factory.project_inspection.summarize_project()` itself - see
-    `factory.slicer_readiness.summarize_slicer_readiness()`'s and
-    `factory.manual_review_workspace.summarize_manual_review_workspace()`'s
-    "Architectural note" for why: both consume `factory.review_gate`
+    anything. Merges `slicer_readiness_summary` (Phase 36),
+    `manual_review_summary` (Phase 37), and `slicer_intelligence_summary`
+    (Phase 38) into each project's dict here, at the aggregation point,
+    rather than inside `factory.project_inspection.summarize_project()`
+    itself - see `factory.slicer_readiness.summarize_slicer_readiness()`'s,
+    `factory.manual_review_workspace.summarize_manual_review_workspace()`'s,
+    and `factory.slicer_intelligence.summarize_slicer_intelligence()`'s
+    "Architectural note" for why: all three consume `factory.review_gate`
     (directly or transitively), which already imports `project_inspection`,
-    so adding either field inside `project_inspection.py` would be a
+    so adding any of them inside `project_inspection.py` would be a
     circular import. This function is where those layers meet instead.
     """
     projects_root = Path(projects_root)
@@ -195,6 +197,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     for project, project_dir in zip(projects, project_dirs):
         project["slicer_readiness_summary"] = summarize_slicer_readiness(project_dir)
         project["manual_review_summary"] = summarize_manual_review_workspace(project_dir)
+        project["slicer_intelligence_summary"] = summarize_slicer_intelligence(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -692,6 +695,62 @@ def _build_manual_review_workspace_section_html(summary: dict[str, Any] | None) 
     return f'<div class="manual-review-workspace">{rows}</div>'
 
 
+_BUILD_VOLUME_FIT_LABELS = {
+    "fits": "Fits",
+    "does_not_fit": "Does Not Fit",
+    "unknown": "Unknown",
+}
+
+_BUILD_VOLUME_FIT_BADGE_CLASSES = {
+    "fits": "badge-review-ready",
+    "does_not_fit": "health-blocked",
+    "unknown": "badge-missing",
+}
+
+
+def _build_slicer_intelligence_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `slicer_intelligence_summary` (Phase 38) into a
+    compact static 'Slicer Intelligence' card section - risk level, build
+    volume fit, review item count, top review priority, and analysis
+    confidence. Placed right after "Manual Review Workspace" (all six -
+    Project Readiness, Generation Gate, Post-Generation Pipeline, Slicer
+    Review Readiness, Manual Review Workspace, Slicer Intelligence - are
+    "meta" cards summarizing what's possible next). Plain text only - no
+    JavaScript. This card never analyzes anything itself - it only
+    displays what
+    `factory.slicer_intelligence.summarize_slicer_intelligence()` already
+    computed read-only from existing validation reports/receipts/state.
+    It never opens a slicer, generates G-code, or prints anything - and
+    `risk_level` here is purely informational, never a blocker.
+    """
+    if not summary:
+        return '<div class="slicer-intelligence"><p class="none">No slicer intelligence analysis available for this project.</p></div>'
+
+    risk = summary.get("risk_level") or "Unknown"
+    risk_badge_class = _RISK_BADGE_CLASSES.get(risk, "badge-missing")
+
+    fit_status = summary.get("build_volume_fit") or "unknown"
+    fit_badge_class = _BUILD_VOLUME_FIT_BADGE_CLASSES.get(fit_status, "badge-missing")
+    fit_label = _BUILD_VOLUME_FIT_LABELS.get(fit_status, fit_status)
+
+    confidence = summary.get("confidence") or "Unknown"
+    confidence_badge_class = _CONFIDENCE_BADGE_CLASSES.get(confidence, "badge-missing")
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Risk", f'<span class="badge {risk_badge_class}">{_escape_html(risk)}</span>'),
+            ("Build", f'<span class="badge {fit_badge_class}">{_escape_html(fit_label)}</span>'),
+            ("Review items", _escape_html(str(summary.get("review_item_count") or 0))),
+            ("Priority", _text_or_fallback(summary.get("top_priority"), "None")),
+            ("Confidence", f'<span class="badge {confidence_badge_class}">{_escape_html(confidence)}</span>'),
+        )
+    )
+    rows += '<div class="di-row"><span class="di-label">Human review required</span></div>'
+
+    return f'<div class="slicer-intelligence">{rows}</div>'
+
+
 def _build_project_intake_section_html(intake: dict[str, Any] | None) -> str:
     """Render one project's `intake_summary` (Phase 30) into a compact static
     'Project Intake' card section - category, audience, environment, quality
@@ -1016,7 +1075,12 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     a workspace - it only shows what
     `factory.manual_review_workspace.summarize_manual_review_workspace()`
     already computed read-only, and never opens a slicer, generates
-    G-code, or prints anything.
+    G-code, or prints anything. The Slicer Intelligence card (Phase 38) is
+    the same once more: this board never analyzes build-volume fit or
+    geometry risk itself - it only shows what
+    `factory.slicer_intelligence.summarize_slicer_intelligence()` already
+    computed read-only, and its `risk_level` is purely informational,
+    never a blocker.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -1040,6 +1104,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
         + "</div>"
         '<div class="card-section"><h4>Manual Review Workspace</h4>'
         + _build_manual_review_workspace_section_html(project.get("manual_review_summary"))
+        + "</div>"
+        '<div class="card-section"><h4>Slicer Intelligence</h4>'
+        + _build_slicer_intelligence_section_html(project.get("slicer_intelligence_summary"))
         + "</div>"
         '<div class="card-section"><h4>Project Intake</h4>'
         + _build_project_intake_section_html(project.get("intake_summary"))

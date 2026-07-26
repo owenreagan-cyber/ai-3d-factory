@@ -324,6 +324,29 @@ README with a Human sign-off section, **referencing existing STL/
 validation/render/review-package files by relative path, never copying
 them**. The CLI always ends with an explicit no-automatic-print trailer.
 
+`factory slicer-inspect <project_dir> [--json]` is Slicer Review
+Intelligence & Print Risk Analysis (`factory.slicer_intelligence`, see
+`docs/slicer-intelligence.md`) - the pipeline's next step: Manual Review
+Workspace -> **Slicer Review Intelligence** -> Human Slicer Review ->
+.... **This does not slice, does not generate G-code, does not control a
+printer, and does not replace human slicer judgment** - it identifies
+potential slicer-review concerns before a human opens a slicer, on top of
+Phase 37's already-computed workspace state. **Entirely read-only - there
+is no write flag at all.** Reuses
+`factory.manual_review_workspace.assess_manual_review_workspace()` for
+every printer/material/technical-readiness signal, and each current
+STL's already-written validation report (bounding box, volume,
+watertight) for build-volume-fit (a genuinely new per-axis
+remaining-margin calculation atop the existing
+`check_build_volume_fit()`) and geometry-risk analysis (Tall Narrow
+Geometry, Large Flat Areas, Thin Features, Fragile Features, Multi-part
+Alignment - only categories supported by already-measured data, always
+phrased "Possible Risk," never "Will Fail"). A deterministic
+`risk_level`/`confidence` pair is purely informational - it never
+overrides `factory.slicer_readiness`/`factory.review_gate`'s own hard
+blockers. The CLI always ends with an explicit no-automatic-print
+trailer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

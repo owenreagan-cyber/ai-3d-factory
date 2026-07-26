@@ -201,6 +201,30 @@ dict the same way, at the same `preview_board.gather_board_data()`
 aggregation point - see `docs/manual-review-workspace.md` "Architectural
 note".
 
+**Phase 38 addendum:** `factory/slicer_intelligence.py` sits one layer
+further up still - it calls
+`manual_review_workspace.assess_manual_review_workspace()` directly, so
+the same cycle-avoidance applies transitively once more:
+
+```
+                     factory/project_inspection.py
+                      /                            \
+                     /                              \
+    factory/preview_board.py          factory/review_gate.py
+                     \                              /
+                      \                            /
+                     factory/slicer_readiness.py
+                                  |
+                     factory/manual_review_workspace.py
+                                  |
+                     factory/slicer_intelligence.py
+```
+
+`slicer_intelligence_summary` (Phase 38) is merged into each board
+project's dict the same way, at the same
+`preview_board.gather_board_data()` aggregation point - see
+`docs/slicer-intelligence.md` "Architectural note".
+
 ## Why local-first
 
 Every check in this repo (geometry validation, dimension fit, preview

@@ -2082,6 +2082,125 @@ history across every past run; any AI/LLM-backed decision-making;
 Blender/Meshy/slicer/printer execution - all explicitly out of scope for
 this phase.
 
+## Phase 38 — Slicer Review Intelligence & Print Risk Analysis (complete)
+
+A deterministic, read-only analysis layer that identifies potential
+slicer-review concerns before a human opens a slicer:
+
+```
+Slicer Readiness -> Manual Review Workspace ->
+Slicer Review Intelligence -> Human Slicer Review ->
+(never automatic printing)
+```
+
+**This does NOT slice, does NOT generate G-code, does NOT control a
+printer, and does NOT replace human slicer judgment.** It prepares a more
+intelligent review experience on top of Phase 37's already-computed
+workspace state - it never re-implements mesh validation, dimension
+checks, printer/material knowledge, artifact fingerprinting, or checklist
+generation.
+
+**This is a thin analysis layer, not a new write path.** Unlike every
+gated phase before it, this phase has **no write capability at all** -
+`evaluate_slicer_intelligence()` is purely an analysis lens over state
+Phase 36/37 already track; there is no `--create-*`/`--confirm-*` flag
+because there is no persistent artifact of this phase's own to create.
+
+**New module:** `factory.slicer_intelligence`:
+
+- `evaluate_slicer_intelligence(project_dir)` - the core, read-only
+  analysis. Reuses
+  `factory.manual_review_workspace.assess_manual_review_workspace()`
+  directly for every printer/material/technical-readiness signal, and
+  each current STL's already-written validation report's `mesh_stats`
+  (bounding box, volume, watertight, vertex/face counts - written by
+  `factory.validators.mesh_validate.validate_mesh()`) for build-volume-fit
+  and geometry-risk analysis.
+- **Build volume analysis** - re-calls
+  `factory.validators.dimension_check.check_build_volume_fit()` (never
+  reimplemented) with the project's own resolved target printer (not
+  whatever printer the validation report's own embedded check used - see
+  `docs/slicer-intelligence.md` for why that distinction matters), plus a
+  genuinely new per-axis remaining-margin calculation
+  (`_best_fit_margin()`) that didn't exist anywhere before - finds the
+  bounding-box orientation with the largest minimum margin across all six
+  permutations. Reports `"fits"`/`"does_not_fit"`/`"unknown"` - never
+  invents a dimension.
+- **Geometry risk analysis** - only categories directly supported by
+  already-measured data: Tall Narrow Geometry, Large Flat Areas, Thin
+  Features (a low volume/bounding-box "fill ratio"), Fragile Features (a
+  non-watertight mesh), and Multi-part Alignment (part count > 1).
+  Overhangs/bridging/supports are **never** claimed as detected risks -
+  no per-face analysis exists to support that honestly; every finding is
+  phrased "Possible Risk," never "Will Fail."
+- **Support/orientation/adhesion/multi-material considerations** - always
+  generic review *prompts*, never a computed support plan, never a
+  prescribed orientation, never a purge calculation, never an AMS
+  assignment - mirroring `factory.manual_review_workspace`'s own checklist
+  convention exactly.
+- **Material analysis** - classifies each part as `known`/`unresolved`/
+  `unknown_material` by reusing Phase 37's already-computed
+  `material_summary` (which itself already cross-references the local
+  materials knowledge base) - never a second lookup, never invented
+  settings for an unrecognized material.
+- **Risk scoring** - a deterministic `risk_level`
+  (`Low`/`Moderate`/`High`/`Unknown`) that is **purely informational and
+  never blocks anything** - `factory.slicer_readiness`/`factory.review_gate`'s
+  own hard blockers are completely unaffected by anything computed here.
+- **Confidence** - a separate deterministic signal
+  (`High`/`Medium`/`Low`/`Unknown`) reflecting how much measured geometry
+  data actually underlies the analysis - distinct from `risk_level` (how
+  worried to be) and from Phase 37's own `review_confidence` (how ready
+  the project is).
+- `summarize_slicer_intelligence(project_dir)` - a compact summary for
+  the Preview Board.
+
+**New CLI:** `factory slicer-inspect <project_dir> [--json]` - entirely
+read-only; there is no write flag at all. Human-readable output ends with
+an explicit "No slicer was opened." / "No G-code was generated." / "No
+print was started." trailer.
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `slicer_intelligence_summary` into each project's dict (same
+  architectural reasoning as Phase 36/37's own summary fields - see
+  `docs/slicer-intelligence.md` "Architectural note").
+- **`factory.preview_board.build_board_html()`** gained a compact "Slicer
+  Intelligence" card section, placed right after "Manual Review
+  Workspace" - risk level, build volume fit, review item count, top
+  review priority, and analysis confidence. Every existing detail card is
+  unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 26-37 field's shape;
+`factory.manual_review_workspace`/`factory.slicer_readiness`'s own
+assessment/approval/package/workspace logic and CLIs;
+`factory.review_gate.evaluate_review_gate()`'s own logic and JSON output
+shape (still never includes `slicer_intelligence_summary`); the board's
+existing summary table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API, never performs a web
+search, never scrapes a website, never downloads anything. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never slices,
+generates G-code, selects a slicer profile, auto-orients a model,
+auto-generates supports, or auto-optimizes a print - there is no write
+path in this phase at all. Never re-implements mesh validation, dimension
+checks, printer/material knowledge, artifact fingerprinting, or checklist
+generation - each is read directly from its existing module.
+
+**Not yet started (at the end of Phase 38):** per-face geometry analysis
+(overhangs, bridging, wall thickness, support requirements) - deliberately
+out of scope, represented only as generic review prompts, not a
+simulated slice; orientation-tradeoff-aware build-volume fitting (the
+current margin calculation is a geometric fit check only, not a
+strength/support/cosmetic-aware recommendation); fuzzy material matching
+(inherited limitation from Phase 37, exact match only); any persisted
+analysis history (every call recomputes fresh - by design, since this
+phase has no write path); any AI/LLM-backed decision-making;
+Blender/Meshy/slicer/printer execution - all explicitly out of scope for
+this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

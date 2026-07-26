@@ -369,8 +369,21 @@ unresolved/unrecognized printer or material (reported as `"Unknown"`/
 - **Never sets `human_approved` or `print_ready`** - this repo's ceiling
   everywhere remains `slicer_review_ready`.
 
+## Phase 38: consumed directly by `factory.slicer_intelligence`
+
+`factory.slicer_intelligence.evaluate_slicer_intelligence()` (Phase 38,
+see `docs/slicer-intelligence.md`) calls
+`assess_manual_review_workspace()` from this module directly, reusing its
+`printer_summary`/`material_summary`/`stl_summary`/`validation_summary`
+wholesale rather than re-deriving any of it. This module stays unchanged
+by Phase 38: it does not know about build-volume-fit analysis, geometry
+risk categories, or review-priority scoring - Phase 38 sits one further
+layer above it in the dependency graph (see `docs/architecture.md`'s
+Phase 38 addendum).
+
 See also `docs/slicer-readiness.md` (Phase 36), `docs/export-pipeline.md`
 (Phase 35), `docs/generation-gate.md` (Phase 34),
 `docs/manufacturing-knowledge-base.md`, `docs/review-gate.md`,
 `docs/preview-board.md`, `docs/slicer-review-workflow.md`,
+`docs/slicer-intelligence.md` (Phase 38, the next pipeline step),
 `docs/file-lifecycle.md`, and `docs/roadmap.md` Phase 37.
