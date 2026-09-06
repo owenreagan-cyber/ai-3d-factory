@@ -105,6 +105,14 @@ launches a slicer, never slices, and never generates G-code; it only
 adds each slicer's inventory metadata (detected/not detected, role,
 capabilities) alongside the workflow described above.
 
+`factory engines qualify` (Phase 44, `docs/tool-qualification.md`) adds
+evidence on top of that inventory - but for all three slicers,
+qualification stops at `metadata_only` (path + `Info.plist` version
+only): none is GUI-only-capable via any documented-safe headless flag in
+this repo, so none is ever passed to `subprocess`. This changes nothing
+about the manual workflow above - a human still opens the slicer
+themselves, exactly as described.
+
 ## 3MF packaging
 
 Bundling multi-part projects into a single `.3mf` (which can embed

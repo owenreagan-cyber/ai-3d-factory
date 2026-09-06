@@ -80,7 +80,9 @@ from factory.artifact_history import (
     get_artifact_history_for_path,
 )
 from factory.project_health import evaluate_project_health_for_path
+from factory import engine_registry
 from factory.engine_registry import summarize_engine_registry
+from factory.tool_qualification import build_qualification_report, UnknownToolError
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -179,6 +181,7 @@ AVAILABLE_COMMANDS = (
     "health <project_dir> [--json] [--verbose]",
     "engines [--json]",
     "engines probe [--json]",
+    "engines qualify [<tool_id>] [--json] [--verbose]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2085,6 +2088,113 @@ def engines_probe_cmd(
         print(json.dumps(data, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_engines_human(data, probed=True)
+
+
+_QUALIFICATION_CHECK_ICONS = {"pass": "[green]OK[/green]", "warn": "[yellow]WARN[/yellow]", "fail": "[red]FAIL[/red]", "skip": "-"}
+
+_QUALIFICATION_SAFETY_TRAILER = (
+    "No software was installed or upgraded.",
+    "No GUI application was launched.",
+    "No slicer was executed and no G-code was generated.",
+    "No printer was contacted. No network call was made.",
+    "Automatic printing remains disabled.",
+)
+
+
+def _render_qualification_human(report: dict[str, Any], *, verbose: bool) -> None:
+    console.print("[bold]LOCAL TOOL QUALIFICATION[/bold]\n")
+    for result in report["results"]:
+        console.print(f"[bold]{_rich_escape(result['display_name'])}[/bold]\n")
+        console.print("Detected:")
+        console.print("Yes" if result["detected"] else "No")
+        console.print()
+        if result["detected"] and result["detected_version"] != "unknown":
+            console.print("Version:")
+            console.print(result["detected_version"])
+            console.print()
+
+        if verbose and result["checks"]:
+            console.print("Checks:")
+            for check in result["checks"]:
+                icon = _QUALIFICATION_CHECK_ICONS.get(check["status"], "?")
+                evidence = f" - {_rich_escape(check['evidence'])}" if check["evidence"] else ""
+                console.print(f"{icon} {_rich_escape(check['label'])}{evidence}")
+            console.print()
+
+        console.print("Qualification:")
+        console.print(result["qualification_status"].replace("_", " ").title())
+        console.print("Level:")
+        console.print(result["qualification_level"].replace("_", " ").title())
+        console.print()
+
+        console.print("Execution:")
+        console.print("Approved" if result["execution_approved"] else "Not Approved")
+        console.print()
+
+        if verbose:
+            for warning in result["warnings"]:
+                console.print(f"[yellow]warning[/yellow]: {_rich_escape(warning)}")
+            for error in result["errors"]:
+                console.print(f"[red]error[/red]: {_rich_escape(error)}")
+            if result["warnings"] or result["errors"]:
+                console.print()
+
+    summary = report["summary"]
+    console.print("[bold]Summary:[/bold]")
+    console.print(f"  Total tools: {summary['total_tools']}")
+    console.print(f"  Qualification scope: {summary['qualification_scope']}")
+    console.print(f"  Qualified: {summary['qualified']}")
+    console.print(f"  Partially qualified: {summary['partially_qualified']}")
+    console.print(f"  Unqualified: {summary['unqualified']}")
+    console.print(f"  Not installed: {summary['not_installed']}")
+    console.print(f"  Manual required: {summary['manual_required']}")
+    console.print(f"  Cloud gated: {summary['cloud_gated']}")
+    console.print(f"  Unsupported (deferred): {summary['unsupported']}")
+    console.print(f"  Failed: {summary['failed']}")
+    console.print(f"  Execution approved: {summary['execution_approved']}")
+    console.print()
+    for line in _QUALIFICATION_SAFETY_TRAILER:
+        console.print(line)
+
+
+@engines_app.command(name="qualify")
+def engines_qualify_cmd(
+    tool_id: Optional[str] = typer.Argument(
+        None, help="Qualify only this tool_id (see `factory engines` for the full list); omit to qualify every registered tool"
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show every recorded check and any warnings/errors"),
+) -> None:
+    """Phase 44: safe, evidence-based local tool qualification. Detection (Phase 43) is not
+    qualification, and qualification is not execution approval - `execution_approved` stays
+    `false` on every result, regardless of qualification level. OpenSCAD is the only tool
+    qualified end-to-end (a temporary SCAD fixture exported to STL and validated by the
+    existing Factory mesh validator, in a `tempfile.TemporaryDirectory()` that is always
+    cleaned up); Blender/FreeCAD/every slicer stop at metadata-only (no subprocess is ever
+    invoked for them - see docs/tool-qualification.md); Meshy/Plasticity/Fusion/Onshape/Bambu
+    Connect are never qualified in this phase. Never installs, upgrades, or launches a GUI
+    application; never contacts a printer or network. See docs/tool-qualification.md."""
+    if tool_id is not None and tool_id not in engine_registry.TOOL_IDS:
+        message = f"unknown tool_id: {tool_id!r}. Known tool ids: {', '.join(engine_registry.TOOL_IDS)}"
+        if as_json:
+            print(json.dumps({"errors": [message]}, indent=2))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    try:
+        report = build_qualification_report(tool_id=tool_id)
+    except UnknownToolError as exc:
+        if as_json:
+            print(json.dumps({"errors": [str(exc)]}, indent=2))
+        else:
+            console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+
+    if as_json:
+        print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_qualification_human(report, verbose=verbose)
 
 
 @app.command(name="review-gate")

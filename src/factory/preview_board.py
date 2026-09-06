@@ -353,6 +353,14 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
     project-independent). Read-only: the summary it renders was computed
     by path/PATH/package-metadata detection only, no subprocess, no GUI
     launch, no network - see `factory.engine_registry`'s module docstring.
+
+    **Phase 44 note:** this section deliberately still shows only the
+    Phase 43 detection counts above, never a qualification status - Phase
+    44's `factory.tool_qualification` does real (bounded, temporary-
+    fixture) work for OpenSCAD/CadQuery, which this always-regenerated
+    board must never trigger as a side effect of viewing it. The pointer
+    line below is the only Phase 44 addition here; see
+    `docs/tool-qualification.md`.
     """
     if not summary:
         return '<p class="none">No tool environment data available.</p>'
@@ -366,6 +374,7 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
             ("Cloud engines gated", "cloud_engines_gated"),
         )
     )
+    rows += '<p class="tool-environment-hint">For qualification evidence, run <code>factory engines qualify</code>.</p>'
     return rows
 
 

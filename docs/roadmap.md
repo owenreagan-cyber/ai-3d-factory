@@ -2723,21 +2723,100 @@ install`/`upgrade`/`update`, and no Homebrew subprocess call of any kind
 in this phase - see `docs/engine-registry.md`'s "Homebrew metadata
 policy"); never contacts a printer.
 
+## Phase 44 — Local Tool Environment Qualification (complete)
+
+Answers what Phase 43 deliberately did not: **can a detected local tool
+actually perform the minimum capability the Factory expects from it?**
+Locked distinction: **Detected != Qualified != Execution Approved** - a
+tool may be `detected: true`, `qualification_status: "qualified"`, and
+`execution_approved: false` all at once; `execution_approved` is
+hardcoded `false` on every result in this phase, with no code path that
+ever sets it `true`.
+
+**New module: `factory.tool_qualification`** - qualifies the 8 in-scope
+tools (OpenSCAD stable/snapshot, CadQuery, Blender, FreeCAD, Bambu
+Studio, OrcaSlicer, PrusaSlicer); the 5 deferred tools (Meshy,
+Plasticity, Autodesk Fusion, Onshape, Bambu Connect) get
+`qualification_status: "unsupported"` regardless of local detection.
+Reuses `factory.engine_registry.probe_all_tools()`/`get_tool_registry()`
+(never a second detection implementation) and
+`factory.validators.mesh_validate.validate_mesh()` (never a second
+validator).
+
+**OpenSCAD (stable) is the only tool qualified end-to-end** to
+`factory_workflow_verified`: a fixed `cube([10, 10, 10]);` fixture,
+exported via one bounded `openscad -o <tmp>.stl <tmp>.scad` subprocess
+call (argument-list, `shell=False`, a hard timeout) inside a
+`tempfile.TemporaryDirectory()`, then validated by the existing Factory
+mesh validator - never inside `examples/`/`projects/`, always cleaned up
+and verified (never assumed). CadQuery gets an equivalent in-process
+capability test (`cadquery.Workplane("XY").box(10, 10, 10)`, exported and
+validated) when installed - explicitly **not** "arbitrary project
+Python": it only calls the already-installed, vetted `cadquery` library's
+own API with fixed, hand-written qualification code, never any project-
+or user-authored CadQuery source.
+
+**Blender and FreeCAD are never passed to `subprocess` in this phase
+either** - `docs/blender-local-track.md`'s standing "no subprocess call,
+no headless invocation" rule for Blender is treated as authoritative and
+binding, not just "uncertain enough to skip"; qualification for both
+stops at `metadata_only` (path + `Info.plist` version, from Phase 43).
+Bambu Studio/OrcaSlicer/PrusaSlicer stop at `metadata_only` too (no
+documented-safe headless flag exists for any GUI-only slicer in this
+repo). Detected-but-metadata-only tools get
+`qualification_status: "requires_manual_qualification"` - the spec's own
+"if a tool cannot be meaningfully qualified without visible GUI
+interaction, do not launch it" guidance, applied literally.
+
+**New CLI:** `factory engines qualify [<tool_id>] [--json] [--verbose]`.
+A per-tool qualification failure never aborts the rest - every call
+returns exactly 13 results. **Qualification results are not persisted**
+(no `qualification_history.json` in this phase - `factory engines
+qualify` runs live every time).
+
+**Real local qualification, this development machine:** OpenSCAD stable
+- `qualified`/`factory_workflow_verified` (v2021.01, real temp-fixture
+export + validation succeeded). Blender - `requires_manual_qualification`/
+`metadata_only` (detected, v5.2.0, `Info.plist` only). Bambu Studio -
+`requires_manual_qualification`/`metadata_only` (detected). CadQuery,
+FreeCAD, OrcaSlicer, PrusaSlicer, OpenSCAD snapshot - `not_installed`.
+Meshy, Plasticity, Autodesk Fusion, Onshape, Bambu Connect -
+`unsupported`/deferred.
+
+**Explicitly unchanged:** `factory.engine_registry`'s static registry
+metadata (qualification results are joined at runtime, never written back
+into it); `factory.project_health`'s `health_score` (this phase adds no
+health integration at all); the Preview Board's existing card set
+(gained one text line pointing at `factory engines qualify`, no new
+section, no per-tool cards, no automatic qualification during board
+generation).
+
+Never installs, upgrades, or launches a GUI application; never executes
+a slicer or generates G-code; never calls Meshy, contacts Onshape, or
+authenticates anywhere; never mutates Homebrew; never contacts a
+printer or the network. See `docs/tool-qualification.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
 each of these tools/tracks must remain present in the roadmap/registry
 permanently unless explicitly removed by a future approved phase:
 
-- **Phase 43** - Canonical Tool / Engine Registry (this phase, complete).
-- **Phase 44** - Local Tool Environment Qualification. Qualification-tests
-  OpenSCAD (stable and snapshot, if available), CadQuery, Blender,
-  FreeCAD, Bambu Studio, OrcaSlicer, and PrusaSlicer using headless/
-  version probes, temporary files/projects, and existing test/validation
-  harnesses - no visible desktop control, no GUI automation unless
-  separately approved, no printer contact, no slicing. Decides Detected
-  -> Qualified -> Eligible for future Factory execution; detection alone
-  never equals qualification. **Not started by Phase 43.**
+- **Phase 43** - Canonical Tool / Engine Registry (complete).
+- **Phase 44** - Local Tool Environment Qualification (this phase,
+  complete). Qualification-tested OpenSCAD (stable - reached
+  `factory_workflow_verified`; snapshot - not distinguishable, so
+  `not_installed`), CadQuery (not installed on this machine - every
+  "package present" path is test-only), Blender/FreeCAD (`metadata_only`
+  by standing no-subprocess policy), Bambu Studio/OrcaSlicer/PrusaSlicer
+  (`metadata_only`, GUI-only) using temporary fixtures and the existing
+  Factory mesh validator - no visible desktop control, no GUI automation,
+  no printer contact, no slicing. Decided Detected -> Qualified for
+  OpenSCAD only; every other tool stayed at `metadata_only`/
+  `not_installed`/`requires_manual_qualification`. Qualified does not
+  equal Eligible for future Factory execution - `execution_approved`
+  stays `false` on every result; that decision remains Phase 45's (and
+  later phases').
 - **Phase 45** - Blender Local Adapter, gated behind everything
   `docs/blender-local-track.md`'s "Required future gates before
   implementation" checklist requires.

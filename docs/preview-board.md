@@ -978,6 +978,13 @@ per-project summary fields above, `engine_registry` doesn't consume
 concern here - it's simply a peer aggregation module `preview_board.py`
 calls directly.
 
+**Phase 44 addition:** this section gained exactly one static text line -
+"For qualification evidence, run `factory engines qualify`." Board
+generation **never** runs qualification itself (that would spawn a real,
+bounded subprocess as a side effect of merely viewing the board, which
+Phase 44 explicitly forbids) - the section still shows only Phase 43's
+detection counts above. See `docs/tool-qualification.md`.
+
 Detection here is path/PATH/package-metadata only (never a subprocess,
 never a GUI launch) - see `docs/engine-registry.md`'s "Probe behavior".
 Deliberately **one compact section, not 13 tool cards and not one row per

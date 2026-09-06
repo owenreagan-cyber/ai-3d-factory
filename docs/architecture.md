@@ -363,6 +363,20 @@ factory/engine_registry.py  --->  factory/preview_board.py   (board-wide "Tool E
 same reason: `engine_registry` sits below both, imported by, never
 importing, either aggregation layer. See `docs/engine-registry.md`.
 
+**Phase 44 addendum:** `factory/tool_qualification.py` sits **above**
+`engine_registry`, forming one more link:
+
+```
+factory/engine_registry.py  --->  factory/tool_qualification.py  --->  factory/cli.py (`factory engines qualify`)
+```
+
+It is not consumed by `factory/preview_board.py` or
+`factory/project_health.py` at all in this phase (both would need to
+trigger real qualification work - a bounded subprocess for OpenSCAD - as
+a side effect of board/health generation, which Phase 44 explicitly
+forbids); `factory.tool_qualification` is a CLI-only consumer of
+`engine_registry` for now. See `docs/tool-qualification.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated

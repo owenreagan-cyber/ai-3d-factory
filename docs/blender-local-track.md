@@ -220,8 +220,30 @@ not even a read-only `/Applications` scan" note, scoped to
 See `docs/engine-registry.md`'s "Blender and FreeCAD: local, near-term,
 never executed" for the full detail.
 
+## Phase 44 amendment - qualification stops at metadata only, still no subprocess
+
+Phase 44 (`docs/tool-qualification.md`) added `factory.tool_qualification`,
+which gathers real evidence for most other in-scope tools (a bounded
+local-execution test for OpenSCAD, an equivalent in-process capability
+test for CadQuery). **Blender is deliberately excluded from that deeper
+treatment.** This document's "no subprocess call, no headless invocation"
+rule (see "Hard rules that apply today, in this phase" above) is treated
+as authoritative and binding for `factory.tool_qualification` too, not
+just "uncertain enough to skip" - qualification for Blender stops at
+`qualification_level: "metadata_only"` (the same path + `Info.plist`
+version Phase 43's `probe_all_tools()` already computed), with a
+`skip`-status "Headless/CLI probe" check recording exactly why, so the
+result stays fully explainable even though it stopped short.
+`qualification_status` is `"requires_manual_qualification"` when
+detected (never `"qualified"`, never `"unqualified"` - a policy choice
+not to probe further is neither a pass nor a failure), and
+`execution_approved` stays `false` regardless. Whether a future bounded
+`blender --background --version` probe is ever safe to add remains a
+**Phase 45** gate-review decision, never something a qualification phase
+decides on its own.
+
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
 local repair/render track", `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
 `docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
-`docs/engine-registry.md`, and `AGENT.md`.
+`docs/engine-registry.md`, `docs/tool-qualification.md`, and `AGENT.md`.

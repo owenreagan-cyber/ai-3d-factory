@@ -302,12 +302,23 @@ automated enforcement of the above.
   app's `Info.plist` carrying `CFBundleShortVersionString` - some
   installs may not, in which case `"unknown"` is reported honestly
   rather than guessed.
-- The OpenSCAD stable/snapshot distinction cannot yet actually be probed
-  differently - both channels resolve through the same
-  `resolve_openscad_executable()` path today; only formal Phase 44 work
-  can build a real second detection path.
+- The OpenSCAD stable/snapshot distinction still cannot actually be
+  probed differently - both channels resolve through the same
+  `resolve_openscad_executable()` path today; see `docs/tool-qualification.md`
+  (Phase 44) for the current qualification-side treatment of this same
+  limitation.
 - Qualitative suitability labels reflect each tool's well-documented
   public characteristics, not a benchmark run in this repo.
+
+## Phase 44 cross-reference
+
+`factory.tool_qualification` (Phase 44, `docs/tool-qualification.md`) is
+a **different module**, layered above this one, that answers a question
+this registry deliberately does not: whether a detected tool actually
+works. It reuses `probe_all_tools()`/`get_tool_registry()` directly
+rather than re-implementing any detection here, and never writes back
+into this module's static registry - qualification results are joined at
+runtime by the caller, never persisted into a tool's registry record.
 
 ## No-authority rule
 

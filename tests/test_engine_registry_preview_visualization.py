@@ -29,6 +29,20 @@ def test_tool_environment_section_handles_missing_data():
     assert "<script" not in html
 
 
+def test_tool_environment_section_points_at_qualify_command_phase_44():
+    """Phase 44 addition: the board never runs qualification itself, but
+    points a human at the command that does."""
+    summary = {
+        "core_local_tools_available": "1/2",
+        "slicers_detected": 1,
+        "near_term_engines_unqualified": 2,
+        "cloud_engines_gated": 2,
+    }
+    html = _build_tool_environment_html(summary)
+    assert "factory engines qualify" in html
+    assert "<script" not in html
+
+
 def test_tool_environment_section_escapes_html(monkeypatch):
     monkeypatch.setattr(
         engine_registry,

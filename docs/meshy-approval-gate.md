@@ -185,7 +185,18 @@ hand-written capability metadata. It never calls Meshy, never
 authenticates, and never contacts the network - see
 `docs/engine-registry.md`'s "Meshy: cloud-gated, never contacted".
 
+## Phase 44 cross-reference
+
+`factory.tool_qualification` (Phase 44, `docs/tool-qualification.md`)
+explicitly never qualifies Meshy - `qualification_status: "unsupported"`
+regardless of anything `factory.engine_registry` reports, since Meshy has
+no local install to detect at all. No qualification-phase work (bounded
+subprocess probes, temporary fixtures, capability tests) is performed for
+Meshy in any form; the cloud/cost/license approval gate itself remains
+Phase 46, strictly after this.
+
 See also `config/future_cloud_tools.json`, `docs/roadmap.md` Phase 16,
 `docs/design-quality-standard.md`, `docs/tool-routing.md`,
 `docs/licensing-policy.md`, `docs/safety-gates.md`,
-`config/agent_policy.json`, `docs/engine-registry.md`, and `AGENT.md`.
+`config/agent_policy.json`, `docs/engine-registry.md`,
+`docs/tool-qualification.md`, and `AGENT.md`.

@@ -435,6 +435,18 @@ never installs, upgrades, or launches anything, never executes Blender/
 FreeCAD/a slicer/Meshy, never contacts a printer or cloud service, and
 `automatic_print_permission` is always `false`.
 
+`factory engines qualify [<tool_id>] [--json] [--verbose]` (`factory.tool_qualification`,
+see `docs/tool-qualification.md`) is the next layer: real, bounded
+evidence for whether a detected tool actually works. OpenSCAD (stable) is
+qualified end-to-end (a temporary fixture is exported and validated by
+the existing Factory validator, in a `tempfile.TemporaryDirectory()`
+that's always cleaned up); CadQuery gets an equivalent in-process
+capability test when installed; Blender/FreeCAD/every slicer stop at
+metadata-only (no subprocess is ever invoked for any of them); Meshy/
+Plasticity/Fusion/Onshape/Bambu Connect are never qualified. Detected !=
+Qualified != Execution Approved - `execution_approved` is hardcoded
+`false` on every result, with no code path that ever sets it `true`.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

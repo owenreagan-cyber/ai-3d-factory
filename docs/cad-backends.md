@@ -25,6 +25,16 @@ canonical tool inventory via `factory engines`/`factory engines probe`,
 without replacing or duplicating this backend registry's own routing
 logic.
 
+Also unchanged by Phase 44 - `factory.tool_qualification`
+(`docs/tool-qualification.md`) reuses this module's `is_cadquery_available()`
+directly for its CadQuery qualification check (never a second
+importability check), and never rewrites this registry's `status`
+values. OpenSCAD reaches `factory engines qualify`'s highest
+qualification level (`factory_workflow_verified`) on top of this
+backend's existing `available` status; CadQuery gets the equivalent
+qualification only when actually installed - it stays `not_installed`
+here otherwise, exactly as this table already shows.
+
 The registry is recomputed on every call (not cached at import time), so
 `cadquery`'s status always reflects the current environment. Nothing in
 `factory.cad.backend` installs a package, generates geometry, writes a
