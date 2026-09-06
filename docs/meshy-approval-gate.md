@@ -176,7 +176,16 @@ gate status. It never reads `.env`, never validates credentials, never
 makes a network call, and never enables anything - see
 `src/factory/future_cloud_tools.py`.
 
+## Phase 43 cross-reference
+
+`factory.engine_registry` (Phase 43, `docs/engine-registry.md`) records
+Meshy as a permanent, cloud-gated registry entry - built entirely from
+`config/future_cloud_tools.json` (never a second gate) plus static,
+hand-written capability metadata. It never calls Meshy, never
+authenticates, and never contacts the network - see
+`docs/engine-registry.md`'s "Meshy: cloud-gated, never contacted".
+
 See also `config/future_cloud_tools.json`, `docs/roadmap.md` Phase 16,
 `docs/design-quality-standard.md`, `docs/tool-routing.md`,
 `docs/licensing-policy.md`, `docs/safety-gates.md`,
-`config/agent_policy.json`, and `AGENT.md`.
+`config/agent_policy.json`, `docs/engine-registry.md`, and `AGENT.md`.

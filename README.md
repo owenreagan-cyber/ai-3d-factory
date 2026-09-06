@@ -74,6 +74,8 @@ factory show-example simple-nameplate # detail for one example (read-only)
 factory check-future-tools            # read-only Meshy/future cloud tool gate status
 factory check-local-tools              # read-only Blender/future local tool gate status
 factory check-design-intent brief.json # read-only design_intent vs. known printer build volumes
+factory engines                       # canonical tool/engine registry (read-only, no local detection)
+factory engines probe                 # + safe read-only local detection (no install/launch/network)
 ```
 
 `factory plan` reads a local manufacturing knowledge base
@@ -417,6 +419,21 @@ message is read verbatim from the module that produced it - never
 rewritten - and `next_action` is always a single, human-readable
 recommendation, never an automated one. Entirely read-only with no write
 flag; never invokes a slicer, generates G-code, or contacts a printer.
+
+`factory engines [--json]` / `factory engines probe [--json]` is the
+Factory Engine Registry (`factory.engine_registry`, see
+`docs/engine-registry.md`) - the canonical inventory of every local/cloud
+design, CAD, slicer, and future tool this Factory knows about (OpenSCAD
+stable/snapshot, CadQuery, Blender, FreeCAD, Meshy, Plasticity, Autodesk
+Fusion, Onshape, Bambu Studio, OrcaSlicer, PrusaSlicer, Bambu Connect).
+`factory engines` shows the static registry only; `factory engines probe`
+additionally runs safe, read-only local detection (filesystem/`PATH`
+checks, package metadata, and a single bounded `openscad --version`
+call) - detection is not qualification, and qualification is not
+execution approval. This phase is architecture and discovery only: it
+never installs, upgrades, or launches anything, never executes Blender/
+FreeCAD/a slicer/Meshy, never contacts a printer or cloud service, and
+`automatic_print_permission` is always `false`.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

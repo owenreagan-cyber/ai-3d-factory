@@ -18,6 +18,13 @@ this repo knows about, each with a `status`:
 | `blender` | `future` | Reserved for mesh repair/organic cleanup/render — see the "Blender local repair/render track" in `docs/roadmap.md` (not yet phase-numbered). |
 | `meshy` | `future_gated` | Reserved for organic concept generation, explicit-approval-and-cost-gated — the gate itself was designed in `docs/roadmap.md` Phase 16 (`docs/meshy-approval-gate.md`, the full required checklist; `config/future_cloud_tools.json`; `factory check-future-tools`, read-only); actually calling Meshy is the (not yet phase-numbered) "Meshy approval/cost-gated implementation track". See also `docs/licensing-policy.md`. |
 
+This registry is unchanged by Phase 43 - `factory.engine_registry`
+(`docs/engine-registry.md`) aggregates it (plus FreeCAD, Plasticity,
+Autodesk Fusion, Onshape, the three slicers, and Bambu Connect) into one
+canonical tool inventory via `factory engines`/`factory engines probe`,
+without replacing or duplicating this backend registry's own routing
+logic.
+
 The registry is recomputed on every call (not cached at import time), so
 `cadquery`'s status always reflects the current environment. Nothing in
 `factory.cad.backend` installs a package, generates geometry, writes a

@@ -953,6 +953,36 @@ assets. Every existing detail card, including "Project Readiness", is
 unchanged and still follows it. See `docs/project-health.md` for the full
 scoring model, lifecycle-stage derivation, and blocker-precedence rules.
 
+## Tool Environment section (Phase 43)
+
+The board also gains one **board-wide** (not per-project) "Tool
+Environment" section, rendered once right after the header summary and
+before "Project Overview" - `factory.engine_registry.summarize_tool_environment()`'s
+compact view:
+
+```jsonc
+{
+  "core_local_tools_available": "1/2",
+  "slicers_detected": 1,
+  "near_term_engines_unqualified": 2,
+  "cloud_engines_gated": 2
+}
+```
+
+`gather_board_data()` merges this in as a new top-level `tool_environment_summary`
+key on the board dict itself (not per-project - the Factory Engine
+Registry is one registry for the whole repo, not one per project). See
+the "Aggregation Layer Convention" in `docs/architecture.md`; unlike the
+per-project summary fields above, `engine_registry` doesn't consume
+`project_inspection`/`review_gate` at all, so there's no circular-import
+concern here - it's simply a peer aggregation module `preview_board.py`
+calls directly.
+
+Detection here is path/PATH/package-metadata only (never a subprocess,
+never a GUI launch) - see `docs/engine-registry.md`'s "Probe behavior".
+Deliberately **one compact section, not 13 tool cards and not one row per
+project** - see `factory engines probe` for the full per-tool detail.
+
 ## Board JSON shape
 
 ```jsonc
@@ -1151,7 +1181,13 @@ scoring model, lifecycle-stage derivation, and blocker-precedence rules.
       }
     }
   ],
-  "notes": ["Local static preview only - ...", "..."]
+  "notes": ["Local static preview only - ...", "..."],
+  "tool_environment_summary": {
+    "core_local_tools_available": "1/2",
+    "slicers_detected": 1,
+    "near_term_engines_unqualified": 2,
+    "cloud_engines_gated": 2
+  }
 }
 ```
 

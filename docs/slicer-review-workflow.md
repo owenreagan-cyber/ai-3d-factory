@@ -94,6 +94,17 @@ recording an approval:
 explicit, human-initiated action outside this repo's automation, exactly
 as `AGENT.md` and `docs/safety-gates.md` already require.
 
+## Full tool inventory
+
+`factory engines`/`factory engines probe` (Phase 43,
+`docs/engine-registry.md`) records Bambu Studio, OrcaSlicer, and
+PrusaSlicer as canonical `slicer_review` registry entries - detected via
+the same `factory.slicer.local_slicer_probe.probe_slicers()` this
+workflow already relies on, never re-implemented. The registry never
+launches a slicer, never slices, and never generates G-code; it only
+adds each slicer's inventory metadata (detected/not detected, role,
+capabilities) alongside the workflow described above.
+
 ## 3MF packaging
 
 Bundling multi-part projects into a single `.3mf` (which can embed

@@ -346,6 +346,23 @@ has), so the same cycle-avoidance applies transitively once more:
 dict the same way, at the same `preview_board.gather_board_data()`
 aggregation point - see `docs/project-health.md`.
 
+**Phase 43 addendum:** `factory/engine_registry.py` is a **peer**
+aggregation module, not another link in the chain above - it never
+consumes `project_inspection`/`review_gate`/any project data at all (a
+tool registry is project-independent), so it has no circular-import risk
+to avoid in the first place:
+
+```
+factory/engine_registry.py  --->  factory/preview_board.py   (board-wide "Tool Environment" section)
+                             --->  factory/project_health.py  (per-project "tool_environment_summary" field)
+                             --->  factory/cli.py             (`factory engines`/`factory engines probe`)
+```
+
+`factory.project_health.evaluate_project_health()` calling
+`factory.engine_registry.summarize_tool_environment()` is safe for the
+same reason: `engine_registry` sits below both, imported by, never
+importing, either aggregation layer. See `docs/engine-registry.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
@@ -407,7 +424,10 @@ shape.
 **Applies to every future phase**, not just the seven above - any new
 aggregation/dashboard/summary module must sit *above* `project_inspection.py`
 in this same graph, never be imported by it, and wire its own per-project
-field into `preview_board.gather_board_data()` the same way.
+field into `preview_board.gather_board_data()` the same way. (A module
+that consumes no project data at all - like Phase 43's `engine_registry`
+- has no per-project field to wire in and no cycle to avoid; it is simply
+a peer module the aggregation layers call directly.)
 
 ## Why local-first
 

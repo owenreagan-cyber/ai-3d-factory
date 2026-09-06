@@ -192,8 +192,36 @@ searches for a local Blender installation (not even a read-only
 `/Applications` scan), never calls `subprocess`, never installs anything,
 and never enables anything - see `src/factory/future_local_tools.py`.
 
+## Phase 43 amendment - registry-level path detection
+
+Phase 43 (`docs/engine-registry.md`) added `factory.engine_registry`, a
+**different module** from `factory.future_local_tools`/`factory
+check-local-tools`, which does perform a read-only `.app` bundle/`PATH`
+detection check for Blender - the same technique
+`factory.slicer.local_slicer_probe.probe_slicers()` already uses for
+slicers. This is a narrow, deliberate amendment to this document's
+original "never searches the filesystem for an installed application,
+not even a read-only `/Applications` scan" note, scoped to
+`engine_registry` only:
+
+- `factory.future_local_tools.py`/`factory check-local-tools` are
+  **unchanged** - they still read `config/future_local_tools.json` only,
+  with no filesystem discovery of their own.
+- `factory.engine_registry` may look for a local Blender installation by
+  path (and, if found, read its version from `Info.plist` - a plain file
+  read, never process execution), purely to answer "is this tool
+  detected on this machine?" for the registry's own inventory purpose.
+- Every hard rule above is preserved in full: **no subprocess call, no
+  headless invocation, no launch** of Blender by `engine_registry`
+  either. Detection is not automation, and detecting a path is not the
+  same as trusting, launching, or scripting the application that lives
+  there.
+
+See `docs/engine-registry.md`'s "Blender and FreeCAD: local, near-term,
+never executed" for the full detail.
+
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
 local repair/render track", `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
 `docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
-and `AGENT.md`.
+`docs/engine-registry.md`, and `AGENT.md`.

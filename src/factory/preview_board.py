@@ -149,6 +149,7 @@ from factory.slicer_history import summarize_slicer_history
 from factory.project_timeline import summarize_project_timeline
 from factory.artifact_history import summarize_artifact_history
 from factory.project_health import summarize_project_health
+from factory.engine_registry import summarize_tool_environment
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -227,6 +228,11 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         "state_counts": state_counts,
         "projects": projects,
         "notes": list(REQUIRED_SAFETY_LINES),
+        # Board-wide, not per-project (Phase 43) - one Factory Engine Registry
+        # (`factory.engine_registry`), not one per project. Path/PATH/package-
+        # metadata detection only, no subprocess - see
+        # `summarize_tool_environment()`'s docstring.
+        "tool_environment_summary": summarize_tool_environment(),
     }
 
 
@@ -337,6 +343,30 @@ def _text_or_fallback(value: Any, placeholder: str) -> str:
 
 def _di_row(label: str, value_html: str) -> str:
     return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
+
+
+def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
+    """Board-wide (not per-project) "Tool Environment" section (Phase 43) -
+    a compact rendering of `factory.engine_registry.summarize_tool_environment()`.
+    One section for the whole board, never one card per tool (13 tools
+    would be noisy) and never one per project (the registry is
+    project-independent). Read-only: the summary it renders was computed
+    by path/PATH/package-metadata detection only, no subprocess, no GUI
+    launch, no network - see `factory.engine_registry`'s module docstring.
+    """
+    if not summary:
+        return '<p class="none">No tool environment data available.</p>'
+    rows = "".join(
+        f'<div class="tool-environment-row"><span class="tool-environment-label">{_escape_html(label)}:</span> '
+        f"{_escape_html(str(summary.get(key, 'unknown')))}</div>"
+        for label, key in (
+            ("Core local tools available", "core_local_tools_available"),
+            ("Slicers detected", "slicers_detected"),
+            ("Near-term engines unqualified", "near_term_engines_unqualified"),
+            ("Cloud engines gated", "cloud_engines_gated"),
+        )
+    )
+    return rows
 
 
 _PROJECT_HEALTH_STATUS_BADGE_CLASSES = {
@@ -1526,6 +1556,7 @@ def build_board_html(board: dict[str, Any]) -> str:
     suggestions_html = _build_suggestions_html(board["projects"])
     health_signals_html = _build_health_signals_html(board["projects"])
     project_cards_html = _build_project_cards_html(board["projects"])
+    tool_environment_html = _build_tool_environment_html(board.get("tool_environment_summary"))
 
     return f"""<!doctype html>
 <html lang="en">
@@ -1594,12 +1625,24 @@ def build_board_html(board: dict[str, Any]) -> str:
   .badge-missing {{ background: #eee; color: #666; }}
   .badge-review-ready {{ background: #d4edda; color: #1e5b2e; }}
   .badge-review-not-ready {{ background: #fde2e2; color: #8a1f1f; }}
+  .tool-environment {{ margin: 1.5rem 0; padding: 0.75rem 1.25rem; background: #fff; border: 1px solid #ddd; border-radius: 0.5rem; }}
+  .tool-environment h2 {{ margin-top: 0; }}
+  .tool-environment-intro {{ color: #555; }}
+  .tool-environment-row {{ font-size: 0.9rem; margin-bottom: 0.2rem; }}
+  .tool-environment-label {{ font-weight: 600; color: #444; }}
 </style>
 </head>
 <body>
 <h1>ai-3d-factory preview board</h1>
 <p class="meta">Generated {_escape_html(board["generated_at"])} &middot; projects_root: <code>{_escape_html(board["projects_root"])}</code> &middot; {board["project_count"]} project(s)</p>
 <p>{state_summary}</p>
+<div class="tool-environment">
+<h2>Tool Environment</h2>
+<p class="tool-environment-intro">Read-only inventory from the Factory Engine Registry (Phase 43) - path/PATH/package-metadata
+detection only, no subprocess, no GUI launch, no network. See <code>factory engines probe</code> for the full per-tool detail.
+Detection is not qualification: nothing here was installed, upgraded, or executed.</p>
+{tool_environment_html}
+</div>
 <div class="cards">
 <h2>Project Overview</h2>
 <p class="cards-intro">Design intent (if the brief declares one), manufacturing overview, artifact

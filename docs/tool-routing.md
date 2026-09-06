@@ -61,3 +61,13 @@ orientation, and supports before printing. `factory inspect-slicer`
 performs read-only discovery of these apps; nothing in this repo launches
 them, slices with them, or sends a print job through them. See
 `docs/slicer-review-workflow.md`.
+
+## Full tool inventory: `factory engines`
+
+Every tool named above (plus FreeCAD, Plasticity, Autodesk Fusion,
+Onshape, PrusaSlicer, and Bambu Connect) has a canonical registry record
+via `factory engines`/`factory engines probe` (Phase 43) - one place to
+see what's installed, what each tool is good at, and what phase (if any)
+owns its execution. This routing policy still decides *which* tool to
+recommend for a description; the registry describes each tool's current
+status without recommending anything. See `docs/engine-registry.md`.

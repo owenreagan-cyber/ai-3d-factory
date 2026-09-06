@@ -2626,20 +2626,145 @@ its own at all. Never re-scores readiness, risk, or approval - every
 number and message is read verbatim from the system that already
 computed it.
 
-**Not yet started (at the end of Phase 42):** Phase 47 - Manufacturing
-Intelligence (moved earlier in this roadmap per the Phase 40 roadmap-
-revision approval, scheduled directly next, ahead of the Engine Registry
-and organic-modeling phases); an Engine Registry (Phases 43-46's
-Blender/Meshy/hybrid-workflow foundation); actual file restoration; any
-AI/LLM-backed decision-making; Blender/Meshy/slicer/printer execution -
-all explicitly out of scope for this phase.
+**Not yet started (at the end of Phase 42):** the Engine Registry (Phase
+43) and everything after it - actual file restoration; any AI/LLM-backed
+decision-making; Blender/Meshy/slicer/printer execution - all explicitly
+out of scope for this phase.
+
+## Phase 43 — Design, Manufacturing, Slicer & Tool Registry (complete)
+
+**Roadmap note - supersedes the Phase 40 revision:** the Phase 40
+roadmap revision had moved "Manufacturing Intelligence" ahead of the
+Engine Registry. This phase's own locked-in near-term roadmap (below)
+restores the Engine Registry to its originally-scoped position as Phase
+43 and schedules Advanced Manufacturing Intelligence later, as Phase 49 -
+see "Near-term roadmap, locked in" below for the full, current sequence.
+
+The Factory's canonical registry for local design engines, cloud design
+engines, slicers, review tools, and manufacturing-adjacent tools -
+**architecture and read-only discovery only.** Answers, in one place:
+what tools exist, what are they good at, are they installed, what
+version/channel, what capabilities, are they qualified for Factory use,
+what safety/review requirements apply, and what future phase owns
+execution.
+
+```
+... -> Artifact History -> Project Health -> Tool / Engine Selection (Phase 43) -> future local/cloud execution -> Human Review -> Slicer Review -> never automatic printing
+```
+
+**New module: `factory.engine_registry`** - a canonical, permanent
+registry for 13 tools: OpenSCAD (stable), OpenSCAD (snapshot/development
+- tracked as a **separate** record, since `factory.export_pipeline.resolve_openscad_executable()`
+does not distinguish channels today), CadQuery, Blender, FreeCAD, Meshy,
+Plasticity, Autodesk Fusion, Onshape, Bambu Studio, OrcaSlicer,
+PrusaSlicer, and Bambu Connect. Reuses rather than duplicates every
+existing tool-facing module: `factory.cad.backend.is_cadquery_available()`,
+`factory.export_pipeline.resolve_openscad_executable()`,
+`factory.slicer.local_slicer_probe.probe_slicers()`, and
+`factory.future_local_tools`/`factory.future_cloud_tools`'s existing
+Blender/Meshy approval-gate configs - none of those specialized modules
+is replaced; `engine_registry` aggregates and normalizes them, plus adds
+registry-only entries for the five tools (FreeCAD, Plasticity, Autodesk
+Fusion, Onshape, Bambu Connect) nothing else tracked yet.
+
+**Detection is not qualification, and qualification is not execution
+approval** - every tool's `qualification_status` stays
+`not_tested`/`not_applicable`/`not_installed` in this phase; formal
+qualification testing is Phase 44's job. Detection technique is
+deliberately narrow and safe: filesystem/`PATH` checks (the same
+technique `local_slicer_probe`/`resolve_openscad_executable()` already
+use), `importlib.metadata.version()` for the optional `cadquery`
+package (metadata only, never an import of the package's own code), a
+`.app` bundle's `Info.plist` read via `plistlib` for GUI-only local
+apps' version (a plain file read, never process execution), and exactly
+one narrowly-scoped, timeout-bounded `openscad --version` subprocess
+call (the same safe pattern `factory.export_pipeline._probe_tool_version()`
+already uses) - reserved for the explicit `factory engines probe` CLI
+command; Preview Board and Project Health aggregation never trigger it.
+**Blender and FreeCAD are never passed to `subprocess` at all** -
+`docs/blender-local-track.md`'s existing "no subprocess call, no headless
+invocation" rule for Blender is preserved in full and extended to
+FreeCAD by the same reasoning (see that document's new "Phase 43
+amendment" section for the precise, narrow boundary of what changed: a
+filesystem detection check is now allowed at this registry layer; launch/
+execution remains forbidden everywhere).
+
+**New CLI:** `factory engines [--json]` (static registry view - no local
+detection at all) and `factory engines probe [--json]` (+ the safe
+detection above). A single tool's probe failure never aborts the rest of
+the registry. Every record's `automatic_print_permission` is `false`,
+with no exception.
+
+Two additive consumers, both read-only, neither touching an existing
+score/decision:
+
+- **`factory.preview_board.gather_board_data()`/`build_board_html()`**
+  gained one **board-wide** (not per-project, not one card per tool)
+  "Tool Environment" section - `factory.engine_registry.summarize_tool_environment()`'s
+  compact counts, rendered once, right after the header summary.
+- **`factory.project_health.evaluate_project_health()`** gained a
+  purely additive `tool_environment_summary` field - never touches
+  `health_score`/`overall_status`.
+
+**Explicitly unchanged:** `factory.cad.backend`'s backend registry and
+`status` values; `factory.design_orchestrator.recommend_engine()`'s
+recommendation logic; every existing approval-gate config
+(`config/future_local_tools.json`/`config/future_cloud_tools.json`);
+every existing module's own scoring/blocker/risk/approval logic and CLI;
+the board's existing per-project summary fields and every existing card
+section.
+
+Never installs, upgrades, or launches a GUI application (Blender,
+FreeCAD, Plasticity, Autodesk Fusion, Bambu Studio, OrcaSlicer,
+PrusaSlicer, Bambu Connect); never executes a slicer or generates
+G-code; never calls Meshy, contacts Onshape, or authenticates anywhere;
+never reads a cloud credential; never mutates Homebrew (no `brew
+install`/`upgrade`/`update`, and no Homebrew subprocess call of any kind
+in this phase - see `docs/engine-registry.md`'s "Homebrew metadata
+policy"); never contacts a printer.
+
+## Near-term roadmap, locked in
+
+The following sequence is locked in per this phase's roadmap amendment -
+each of these tools/tracks must remain present in the roadmap/registry
+permanently unless explicitly removed by a future approved phase:
+
+- **Phase 43** - Canonical Tool / Engine Registry (this phase, complete).
+- **Phase 44** - Local Tool Environment Qualification. Qualification-tests
+  OpenSCAD (stable and snapshot, if available), CadQuery, Blender,
+  FreeCAD, Bambu Studio, OrcaSlicer, and PrusaSlicer using headless/
+  version probes, temporary files/projects, and existing test/validation
+  harnesses - no visible desktop control, no GUI automation unless
+  separately approved, no printer contact, no slicing. Decides Detected
+  -> Qualified -> Eligible for future Factory execution; detection alone
+  never equals qualification. **Not started by Phase 43.**
+- **Phase 45** - Blender Local Adapter, gated behind everything
+  `docs/blender-local-track.md`'s "Required future gates before
+  implementation" checklist requires.
+- **Phase 46** - Meshy Cloud / Cost / License Gate: API credential
+  handling, real monetary cost, per-request/project cost cap, reference-
+  image privacy, commercial-use licensing, provenance, asset ownership,
+  external-data handling, human approval, and a hard disable/kill switch -
+  gated behind everything `docs/meshy-approval-gate.md` requires.
+- **Phase 47** - Meshy Concept & Print-Preparation Gateway, only after
+  Phase 46's explicit approval. Meshy output always enters: provenance ->
+  artifact receipt -> cleanup/manufacturing adaptation -> Factory
+  validation -> preview -> human review -> slicer review -> never
+  automatic printing.
+- **Phase 48** - Hybrid Design Workflow Manager.
+- **Phase 49** - Advanced Manufacturing Intelligence.
 
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide
 with a later ad hoc phase (see "Roadmap numbering policy" above). None of
-these have a scheduled start; each will take the next available phase
-number, per the policy above, once someone actually begins it.
+these have been *started* (implemented) yet.
+
+**Phase 43 update:** the Blender and Meshy tracks below now have locked-in
+future phase numbers (Phase 45 and Phases 46-47 respectively - see
+"Near-term roadmap, locked in" above) even though neither has actually
+begun; they stay listed here too until each is actually started, per this
+section's own numbering policy.
 
 ### Meshy approval/cost-gated implementation track
 

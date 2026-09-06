@@ -71,6 +71,7 @@ from factory.manual_review_workspace import assess_manual_review_workspace
 from factory.slicer_intelligence import evaluate_slicer_intelligence
 from factory.project_timeline import get_project_timeline, summarize_project_timeline
 from factory.artifact_history import get_artifact_history, summarize_artifact_history
+from factory.engine_registry import summarize_tool_environment
 
 # ---------------------------------------------------------------------------
 # Vocabulary
@@ -762,6 +763,11 @@ def evaluate_project_health(project_dir: Path) -> dict[str, Any]:
             "engine_rationale": (design_orchestrator_summary or {}).get("engine_rationale"),
         },
         "confidence": confidence,
+        # Phase 43 - purely additive, project-independent (the Factory Engine
+        # Registry is one registry for the whole repo, not one per project).
+        # Never touches `health_score`/`overall_status`; see
+        # `factory.engine_registry.summarize_tool_environment()`.
+        "tool_environment_summary": summarize_tool_environment(),
         "no_automatic_print": True,
     }
 

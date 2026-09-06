@@ -80,6 +80,7 @@ from factory.artifact_history import (
     get_artifact_history_for_path,
 )
 from factory.project_health import evaluate_project_health_for_path
+from factory.engine_registry import summarize_engine_registry
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -176,6 +177,8 @@ AVAILABLE_COMMANDS = (
     "artifact-diff <project_dir> --from VERSION --to VERSION [--json]",
     "artifact-rollback-plan <project_dir> --to VERSION [--json]",
     "health <project_dir> [--json] [--verbose]",
+    "engines [--json]",
+    "engines probe [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1982,6 +1985,106 @@ def health_cmd(
     console.print("This is a read-only aggregation of existing Factory intelligence - it never")
     console.print("recalculates readiness, never overrides a blocker, and never writes anything.")
     console.print("Human approval required. No automatic printing.")
+
+
+_ENGINE_DISPLAY_GROUP_LABELS = {
+    "design_cad": "DESIGN / CAD",
+    "cloud": "CLOUD",
+    "slicers": "SLICERS",
+    "future": "FUTURE",
+}
+
+_ENGINE_SAFETY_TRAILER = (
+    "No tools were installed, upgraded, launched, or executed.",
+    "No slicer was run. No G-code was created. No printer was contacted.",
+    "Automatic printing remains disabled.",
+)
+
+
+def _render_engines_human(data: dict[str, Any], *, probed: bool) -> None:
+    console.print("[bold]FACTORY ENGINE REGISTRY[/bold]\n")
+    tools = data["tools"]
+    for group in data["categories"]:
+        console.print(f"[bold]{_ENGINE_DISPLAY_GROUP_LABELS.get(group, group.upper())}[/bold]\n")
+        for tool in tools.values():
+            if tool["display_group"] != group:
+                continue
+            console.print(f"[bold]{_rich_escape(tool['display_name'])}[/bold]")
+            console.print(f"  Status: {tool['roadmap_status']}")
+            if probed:
+                console.print(f"  Detected: {'yes' if tool['detected'] else 'no'}")
+                if tool["detected"]:
+                    console.print(f"  Path: {tool['detected_path'] or 'unknown'}")
+                    console.print(f"  Version: {tool['detected_version']}")
+                    if tool["detected_channel"] != "unknown":
+                        console.print(f"  Channel: {tool['detected_channel']}")
+            console.print(f"  Execution: {tool['execution_status']}")
+            console.print(f"  Qualification: {tool['qualification_status']}")
+            if tool["network_required"]:
+                console.print("  Network: required")
+            if tool["possible_monetary_cost"]:
+                console.print("  Cost: possible")
+            if tool["human_approval_required"]:
+                console.print("  Human approval: required")
+            console.print()
+
+    summary = data["summary"]
+    console.print("[bold]Summary:[/bold]")
+    console.print(
+        f"  Core local tools detected: {summary['core_local_tools_detected']}/{summary['core_local_tools_total']}"
+    )
+    console.print(f"  Slicers detected: {summary['slicers_detected']}/{summary['slicers_total']}")
+    console.print(f"  Near-term engines detected: {summary['near_term_tools_detected']}/{summary['near_term_tools_total']}")
+    console.print(f"  Cloud engines gated: {summary['cloud_tools_gated']}/{summary['cloud_tools_total']}")
+    console.print()
+
+    for line in _ENGINE_SAFETY_TRAILER:
+        console.print(line)
+
+
+engines_app = typer.Typer(
+    name="engines",
+    help=(
+        "Factory Engine Registry (Phase 43) - the canonical, read-only inventory of local/cloud "
+        "design, CAD, slicer, and future tool integrations. `factory engines` shows the static "
+        "registry (no local detection); `factory engines probe` additionally runs safe, read-only "
+        "local detection (filesystem/PATH checks, package metadata, and a single bounded `openscad "
+        "--version` call). Never installs, upgrades, or launches anything; never executes Blender/"
+        "FreeCAD/a slicer/Meshy; never contacts a printer or cloud service. See docs/engine-registry.md."
+    ),
+    invoke_without_command=True,
+)
+app.add_typer(engines_app, name="engines")
+
+
+@engines_app.callback(invoke_without_command=True)
+def engines_default_cmd(
+    ctx: typer.Context,
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Registry view only - does not probe the local environment (see `factory engines probe`)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    data = summarize_engine_registry(probe=False)
+    if as_json:
+        print(json.dumps(data, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_engines_human(data, probed=False)
+
+
+@engines_app.command(name="probe")
+def engines_probe_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Registry view plus safe, read-only local detection: known `.app` bundle paths, `PATH`
+    binaries, Python package metadata, and a single bounded `openscad --version` call. Never
+    installs, upgrades, or launches a GUI application; never executes Blender/FreeCAD/a slicer;
+    never contacts a network. See docs/engine-registry.md."""
+    data = summarize_engine_registry(probe=True, include_version_subprocess=True)
+    if as_json:
+        print(json.dumps(data, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_engines_human(data, probed=True)
 
 
 @app.command(name="review-gate")
