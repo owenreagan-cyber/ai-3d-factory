@@ -14,6 +14,7 @@ from typing import Any, Optional
 
 import typer
 from rich.console import Console
+from rich.markup import escape as _rich_escape
 
 from factory import project_store
 from factory.cad import cadquery_backend
@@ -78,6 +79,7 @@ from factory.artifact_history import (
     diff_artifact_versions,
     get_artifact_history_for_path,
 )
+from factory.project_health import evaluate_project_health_for_path
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -173,6 +175,7 @@ AVAILABLE_COMMANDS = (
     "artifact-history <project_dir> [--json]",
     "artifact-diff <project_dir> --from VERSION --to VERSION [--json]",
     "artifact-rollback-plan <project_dir> --to VERSION [--json]",
+    "health <project_dir> [--json] [--verbose]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -1864,6 +1867,121 @@ def artifact_rollback_plan_cmd(
     console.print()
     console.print("No files were restored. No files were copied. No files were deleted.")
     console.print("No manifest was modified. No slicer was opened. No print was started.")
+
+
+@app.command(name="health")
+def health_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory (see factory init-project)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show category score breakdown, full blocker/warning/risk detail, and recent activity"),
+) -> None:
+    """Project Health Dashboard (Phase 42) - one unified, read-only view of a project's
+    current state, aggregating existing Factory intelligence (Phases 13, 26-41). This
+    command never recalculates readiness, never duplicates risk/validation/artifact
+    logic, and never overrides an existing blocker - `health_score` is purely
+    informational and can never mask a `Status: Blocked` result. Entirely read-only -
+    there is no write flag; never invokes a slicer, generates G-code, or contacts a
+    printer/network. See docs/project-health.md."""
+    if not project_dir.is_dir():
+        message = f"not a directory: {project_dir}"
+        if as_json:
+            print(json.dumps({"errors": [message], "no_automatic_print": True}, indent=2, sort_keys=False))
+        else:
+            console.print(f"[red]error[/red]: {message}")
+        raise typer.Exit(code=1)
+
+    health = evaluate_project_health_for_path(project_dir)
+
+    if as_json:
+        payload = dict(health)
+        payload["errors"] = []
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]PROJECT HEALTH[/bold]\n")
+    console.print(f"[bold]{health['project']}[/bold]\n")
+    console.print("[bold]Status:[/bold]")
+    console.print(health["overall_status"])
+    console.print()
+    console.print("[bold]Health:[/bold]")
+    console.print(f"{health['health_score']}% ({health['health_level']})")
+    console.print()
+    console.print("[bold]Lifecycle:[/bold]")
+    console.print(health["lifecycle_stage"])
+    console.print()
+    console.print("[bold]Completion:[/bold]")
+    console.print(f"{health['completion_percentage']}%")
+    console.print()
+    console.print("[bold]Blockers:[/bold]")
+    console.print(str(len(health["blockers"])))
+    console.print()
+    console.print("[bold]Warnings:[/bold]")
+    console.print(str(len(health["warnings"])))
+    console.print()
+    console.print("[bold]Risks:[/bold]")
+    console.print(str(len(health["risks"])))
+    console.print()
+    console.print("[bold]Next Action:[/bold]")
+    console.print(health["next_action"])
+    console.print()
+
+    if verbose:
+        console.print("[bold]Health score breakdown:[/bold]")
+        for category, score in health["health_score_categories"].items():
+            console.print(f"  {category.replace('_', ' ').title()}: {score}%")
+        console.print()
+
+        if health["blockers"]:
+            console.print("[bold]Blocker detail:[/bold]")
+            for item in health["blockers"]:
+                console.print(_rich_escape(f"⚠ ({item['source']}) {item['message']}"))
+            console.print()
+
+        if health["warnings"]:
+            console.print("[bold]Warning detail:[/bold]")
+            for item in health["warnings"]:
+                console.print(_rich_escape(f"⚠ ({item['source']}) {item['message']}"))
+            console.print()
+
+        if health["risks"]:
+            console.print("[bold]Risk detail:[/bold]")
+            for item in health["risks"]:
+                console.print(_rich_escape(f"⚠ ({item['category']}) {item['message']}"))
+            console.print()
+
+        if health["strengths"]:
+            console.print("[bold]Strengths:[/bold]")
+            for message in health["strengths"]:
+                console.print(f"✓ {message}")
+            console.print()
+
+        console.print("[bold]Recent Activity:[/bold]")
+        if health["recent_activity"]:
+            for event in health["recent_activity"]:
+                icon = "⚠" if event["severity"] in ("warning", "blocked") else "✓"
+                console.print(f"{icon} {event['label']}")
+        else:
+            console.print("No dated timeline events recorded yet for this project.")
+        console.print()
+
+        artifact = health["artifact_summary"]
+        console.print("[bold]Artifact History:[/bold]")
+        if artifact.get("history_available"):
+            console.print(f"  Latest version: v{artifact['latest_version']}")
+            changed = artifact.get("changed_since_previous")
+            if changed:
+                console.print(f"  Recent changes: {', '.join(changed)}")
+            elif changed is not None:
+                console.print("  Recent changes: None")
+        else:
+            console.print("  No artifact versions recorded yet.")
+        console.print()
+
+    console.print(f"Confidence: {health['confidence']}")
+    console.print()
+    console.print("This is a read-only aggregation of existing Factory intelligence - it never")
+    console.print("recalculates readiness, never overrides a blocker, and never writes anything.")
+    console.print("Human approval required. No automatic printing.")
 
 
 @app.command(name="review-gate")

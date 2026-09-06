@@ -148,6 +148,7 @@ from factory.slicer_intelligence import summarize_slicer_intelligence
 from factory.slicer_history import summarize_slicer_history
 from factory.project_timeline import summarize_project_timeline
 from factory.artifact_history import summarize_artifact_history
+from factory.project_health import summarize_project_health
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -185,11 +186,12 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     anything. Merges `slicer_readiness_summary` (Phase 36),
     `manual_review_summary` (Phase 37), `slicer_intelligence_summary`
     (Phase 38), `slicer_history_summary` (Phase 39), `timeline_summary`
-    (Phase 40), and `artifact_history_summary` (Phase 41) into each
-    project's dict here, at the aggregation point, rather than inside
+    (Phase 40), `artifact_history_summary` (Phase 41), and
+    `project_health_summary` (Phase 42) into each project's dict here, at
+    the aggregation point, rather than inside
     `factory.project_inspection.summarize_project()` itself - see the
     standing "Aggregation Layer Convention" in `docs/architecture.md` (and
-    each module's own "Architectural note") for why: all six either
+    each module's own "Architectural note") for why: all seven either
     directly or transitively consume `factory.review_gate`, which already
     imports `project_inspection`, so adding any of them inside
     `project_inspection.py` would be a circular import. This function is
@@ -199,6 +201,8 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     none of them ever writes one; history is only ever created by an
     explicit `factory slicer-inspect --save-analysis` call, never by board
     generation, and artifact history has no write path at all.
+    `summarize_project_health()` (Phase 42) is a pure aggregation of the
+    other six - it never writes anything either.
     """
     projects_root = Path(projects_root)
     project_dirs = discover_projects(projects_root)
@@ -210,6 +214,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["slicer_history_summary"] = summarize_slicer_history(project_dir)
         project["timeline_summary"] = summarize_project_timeline(project_dir)
         project["artifact_history_summary"] = summarize_artifact_history(project_dir)
+        project["project_health_summary"] = summarize_project_health(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -332,6 +337,62 @@ def _text_or_fallback(value: Any, placeholder: str) -> str:
 
 def _di_row(label: str, value_html: str) -> str:
     return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
+
+
+_PROJECT_HEALTH_STATUS_BADGE_CLASSES = {
+    "Blocked": "health-blocked",
+    "Complete": "badge-review-ready",
+    "Ready for Slicer Review": "badge-review-ready",
+    "Awaiting Human Approval": "health-warning",
+}
+
+_PROJECT_HEALTH_LEVEL_BADGE_CLASSES = {
+    "excellent": "badge-review-ready",
+    "good": "badge-present",
+    "fair": "health-warning",
+    "poor": "health-blocked",
+    "unknown": "badge-missing",
+}
+
+
+def _build_project_health_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `project_health_summary` (Phase 42) into a
+    compact static 'Project Health' dashboard section - overall status,
+    health score, lifecycle stage, blocker/warning counts, and the next
+    recommended action. Placed *first* in the card, ahead of "Project
+    Readiness" - a dashboard of dashboards, summarizing every card below
+    it without replacing or removing any of them. Plain text only - no
+    JavaScript. This section never recalculates readiness, never
+    duplicates risk/validation/artifact logic, and never overrides a
+    blocker - `factory.project_health.summarize_project_health()` already
+    computed every field here read-only from existing summaries; `status`
+    always says "Blocked" when a genuine obstruction exists, regardless of
+    how high `score` happens to be.
+    """
+    if not summary:
+        return '<div class="project-health"><p class="none">No health evaluation available for this project.</p></div>'
+
+    status = summary.get("status") or "Unknown"
+    status_badge_class = _PROJECT_HEALTH_STATUS_BADGE_CLASSES.get(status, "health-warning")
+
+    level = summary.get("health_level") or "unknown"
+    level_badge_class = _PROJECT_HEALTH_LEVEL_BADGE_CLASSES.get(level, "badge-missing")
+    score = summary.get("score")
+    score_html = f"{score}%" if isinstance(score, (int, float)) else "Unknown"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("Status", f'<span class="badge {status_badge_class}">{_escape_html(status)}</span>'),
+            ("Health", f'{_escape_html(score_html)} <span class="badge {level_badge_class}">{_escape_html(level)}</span>'),
+            ("Stage", _escape_html((summary.get("lifecycle_stage") or "unknown").replace("_", " ").title())),
+            ("Blockers", _escape_html(str(summary.get("blocker_count", 0)))),
+            ("Warnings", _escape_html(str(summary.get("warning_count", 0)))),
+            ("Next", _escape_html(summary.get("next_action") or "None")),
+        )
+    )
+
+    return f'<div class="project-health">{rows}</div>'
 
 
 _READINESS_STATE_BADGE_CLASSES = {
@@ -1239,7 +1300,14 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     list, diff, and rollback plan live in `factory
     artifact-history`/`artifact-diff`/`artifact-rollback-plan`, not on
     this board - and none of those write, restore, copy, or delete a
-    file either.
+    file either. The Project Health card (Phase 42) is now the very first
+    section, ahead of "Project Readiness" - a dashboard *of* dashboards:
+    this board never recalculates readiness, never duplicates risk/
+    validation/artifact logic, and never overrides a blocker - it only
+    shows what `factory.project_health.summarize_project_health()`
+    already computed read-only from every summary already listed above.
+    Every existing detail card, including "Project Readiness", is
+    unchanged and still follows it.
     """
     project_name = project.get("project_name") or "(unnamed project)"
     project_dir = project.get("project_dir") or ""
@@ -1247,6 +1315,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     return (
         '<div class="project-card">'
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
+        '<div class="card-section"><h4>Project Health</h4>'
+        + _build_project_health_section_html(project.get("project_health_summary"))
+        + "</div>"
         '<div class="card-section"><h4>Project Readiness</h4>'
         + _build_project_readiness_section_html(project.get("design_orchestrator_summary"))
         + "</div>"

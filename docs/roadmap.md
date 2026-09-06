@@ -2524,6 +2524,116 @@ timestamp source for intake/design-intent/reference-board stages; any
 AI/LLM-backed decision-making; Blender/Meshy/slicer/printer execution -
 all explicitly out of scope for this phase.
 
+## Phase 42 — Project Health Dashboard & Unified Factory Status View (complete)
+
+The first unified, single-project health view - it aggregates existing
+Factory intelligence (Phases 13, 26-41) into one deterministic dashboard:
+
+```
+Feature Modules -> Summary Models -> Project Health Dashboard -> Human Understanding
+```
+
+**This phase summarizes - it does not decide.** It creates no new
+manufacturing logic, no new readiness rules, and replaces no existing
+system. The dashboard must not recalculate readiness, duplicate risk/
+validation/artifact logic, create new approval rules, or override an
+existing blocker.
+
+**New module: `factory.project_health`:**
+
+- `compute_health_score()` - a deterministic, weighted 0-100 score across
+  seven documented categories (Project Definition 15%, Design Intent 10%,
+  Manufacturing Planning 15%, CAD Generation 15%, Artifact Completeness
+  15%, Validation 15%, Review Readiness 15%), every category read
+  straight off an already-computed summary (the Design Orchestrator's own
+  category percentages, generation/export receipts, and Phase 36's own
+  `readiness_score`) - never a second assessment. **Purely
+  informational: a project can score 85% and still report `Status:
+  Blocked`.**
+- `_determine_lifecycle_stage()` - a 12-stage decision tree (idea,
+  intake, briefing, design, planning, cad_generation, export, validation,
+  review_preparation, slicer_review, complete, blocked) derived entirely
+  from existing evidence: `brief.json`'s own `status` field for early
+  pre-CAD stages, refined by the receipt-backed slicer-readiness stack
+  (Phase 36) once CAD exists, since `status` is not always advanced for
+  every micro-step. Read-only - never mutates `brief.json`.
+- **A precise "blocked vs. not-yet-reached" distinction** - a discovered
+  nuance this phase had to solve carefully: `readiness_status ==
+  "blocked"` (Phase 36) also fires for entirely normal in-progress states
+  (e.g. an STL exists but hasn't been rendered yet), which would
+  misreport nearly every early/mid-stage project as stuck if surfaced
+  directly. A genuine obstruction is only a manufacturability block
+  (Phase 25/33), `health_signals["summary"] == "blocked"` (Phase 13 -
+  real corruption/staleness, not "hasn't happened yet"), or an actual
+  failed STL validation. See "Blocked vs. not-yet-reached" in
+  `docs/project-health.md`.
+- Aggregated `blockers`/`warnings`/`risks`/`strengths` - every message
+  read **verbatim** from the module that produced it, tagged with its
+  source, never rewritten. `risks` reuses Phase 38's own `geometry_risks`/
+  `manufacturing_risks` directly; `warnings` reuses Phase 38/39's own
+  already-deduplicated cumulative warning list; `strengths` are new to
+  this phase but each is a direct restatement of an existing boolean/enum
+  (approval recorded, package created, validation passed cleanly, a
+  readiness score >= 90%, design intent declared, reference materials
+  attached, stable artifacts, full timeline history) - never a new
+  judgment call.
+- `_determine_next_action()` - one deterministic recommendation per
+  project, preferring each layer's own already-computed "what to do
+  next" text (export pipeline's `next_step`, readiness's
+  `next_actions[0]`, workspace's `recommended_actions[0]`) over inventing
+  new phrasing. Never automated - always a string a human reads and acts
+  on themselves.
+- `confidence` - how much receipt-backed evidence this evaluation had to
+  work with (not how good the project is) - lower with more missing
+  signals (unreadable/missing brief, no manifest, no export/generation
+  receipt, no artifact history yet).
+- `summarize_project_health()` - a compact summary for the Preview Board
+  (status, score, health level, lifecycle stage, blocker/warning counts,
+  next action).
+
+**New CLI:** `factory health <project_dir> [--json] [--verbose]` -
+entirely read-only, no write flag. `--verbose` adds the category score
+breakdown, full blocker/warning/risk detail, strengths, recent activity
+(a thin window over Phase 40's own timeline), and artifact history
+detail (Phase 41's own latest version/recent changes) - none of it
+re-derived, all of it read directly from the modules that already
+computed it.
+
+Two consumers, both additive:
+
+- **`factory.preview_board.gather_board_data()`** merges
+  `project_health_summary` into each project's dict (same architectural
+  reasoning as every Phase 36-41 summary field - see the "Aggregation
+  Layer Convention" in `docs/architecture.md`).
+- **`factory.preview_board.build_board_html()`** gained a compact
+  "Project Health" card - **the first card section on every project**,
+  ahead of "Project Readiness" (a dashboard *of* dashboards, summarizing
+  every card below it without replacing or removing any of them). Every
+  existing detail card is unchanged and still follows it.
+
+**Explicitly unchanged:** every Phase 13/26-41 field's shape; every
+existing module's own scoring/blocker/risk/approval logic and CLI;
+`factory.review_gate.evaluate_review_gate()`'s own logic and JSON output
+shape (still never includes `project_health_summary`); the board's
+existing summary table and every existing card section.
+
+Never contacts a printer, discovers printers, contacts a slicer, makes a
+network call of any kind. Never calls an AI/LLM API. Never invokes
+Blender, Meshy, or FreeCAD, and never installs anything. Never generates
+CAD, exports, validates, renders, approves a project, creates a review
+package, or slices/prints anything - this module has no write path of
+its own at all. Never re-scores readiness, risk, or approval - every
+number and message is read verbatim from the system that already
+computed it.
+
+**Not yet started (at the end of Phase 42):** Phase 47 - Manufacturing
+Intelligence (moved earlier in this roadmap per the Phase 40 roadmap-
+revision approval, scheduled directly next, ahead of the Engine Registry
+and organic-modeling phases); an Engine Registry (Phases 43-46's
+Blender/Meshy/hybrid-workflow foundation); actual file restoration; any
+AI/LLM-backed decision-making; Blender/Meshy/slicer/printer execution -
+all explicitly out of scope for this phase.
+
 ## Future tracks, not yet phase-numbered
 
 Named so future docs can cite them without a number that might collide

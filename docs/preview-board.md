@@ -907,6 +907,52 @@ card is unchanged and still follows it. See `docs/artifact-history.md`
 for the full version-derivation model, diff behavior, and rollback
 planning.
 
+## Project Health section (Phase 42)
+
+Each project's card also carries `project_health_summary` -
+`factory.project_health.summarize_project_health()`'s compact view:
+
+```jsonc
+{
+  "status": "Ready for Slicer Review",
+  "score": 87,
+  "health_level": "good",
+  "lifecycle_stage": "slicer_review",
+  "blocker_count": 0,
+  "warning_count": 2,
+  "next_action": "Open the parts in a local slicer for manual review - see manual_review/README.md."
+}
+```
+
+**Like every Phase 36-41 summary field, this is not computed inside
+`factory.project_inspection.summarize_project()`.**
+`factory.project_health` calls `factory.slicer_readiness`/
+`factory.manual_review_workspace`/`factory.slicer_intelligence` directly,
+each of which transitively imports the same chain that already forced
+Phase 36-41's summary fields out of `project_inspection.py` - adding this
+field there would recreate the same circular import.
+`factory.preview_board.gather_board_data()` calls
+`summarize_project_health(project_dir)` per project and merges the result
+in at the same aggregation point - see the "Aggregation Layer Convention"
+in `docs/architecture.md` and `docs/project-health.md` "Architectural
+note".
+
+Always evaluated read-only - `factory.project_health` has no write path
+of its own at all. Always a dict, never `None`, purely additive and
+purely advisory: never read by `classify_visual_readiness()`,
+`build_health_signals()`, or `build_suggested_actions()`, and every
+existing command's JSON output still never includes it. `score` is
+purely informational and never overrides `status` - a project can score
+85% and still show `status: "Blocked"`.
+
+The board's **HTML** gained a compact "Project Health" card section -
+**the very first card on every project**, ahead of "Project Readiness":
+Status (badge), Health (score + level badge), Stage, Blockers, Warnings,
+and Next action. Static HTML/CSS only - no JavaScript, no external
+assets. Every existing detail card, including "Project Readiness", is
+unchanged and still follows it. See `docs/project-health.md` for the full
+scoring model, lifecycle-stage derivation, and blocker-precedence rules.
+
 ## Board JSON shape
 
 ```jsonc

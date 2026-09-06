@@ -400,6 +400,24 @@ future, separately-approved capability. All three commands are entirely
 read-only with no write flag anywhere, and every command ends with an
 explicit no-automatic-print trailer.
 
+`factory health <project_dir> [--json] [--verbose]` is the Project Health
+Dashboard (`factory.project_health`, see `docs/project-health.md`) - the
+first unified, single-project health view, aggregating everything above
+into one deterministic dashboard. **This phase summarizes - it creates
+no new manufacturing logic, no new readiness rules, and replaces no
+existing system.** A documented, weighted 0-100 health score across seven
+categories is **purely informational and can never override a
+blocker** - a project can score 85% and still report `Status: Blocked`.
+A 12-stage lifecycle (idea -> intake -> briefing -> design -> planning ->
+cad_generation -> export -> validation -> review_preparation ->
+slicer_review -> complete -> blocked) is derived entirely from existing
+evidence, carefully distinguishing a genuine obstruction from a project
+that simply hasn't reached a stage yet. Every blocker/warning/risk
+message is read verbatim from the module that produced it - never
+rewritten - and `next_action` is always a single, human-readable
+recommendation, never an automated one. Entirely read-only with no write
+flag; never invokes a slicer, generates G-code, or contacts a printer.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

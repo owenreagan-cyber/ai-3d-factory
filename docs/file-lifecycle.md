@@ -86,6 +86,16 @@ exactly the directory/filename conventions above - `cad/` → `cad`,
 classification scheme. It introduces no new folder or file of its own;
 it is entirely read-only.
 
+## Reused by Phase 42's project health dashboard
+
+`factory.project_health` (Phase 42, `docs/project-health.md`) reads
+every project file listed above only indirectly, through the existing
+summary/assessment functions (`factory.project_inspection`,
+`factory.slicer_readiness`, `factory.manual_review_workspace`,
+`factory.slicer_intelligence`, `factory.project_timeline`,
+`factory.artifact_history`) - it never reads a project file directly and
+introduces no new folder or file of its own; it is entirely read-only.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is
