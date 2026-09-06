@@ -447,6 +447,22 @@ Plasticity/Fusion/Onshape/Bambu Connect are never qualified. Detected !=
 Qualified != Execution Approved - `execution_approved` is hardcoded
 `false` on every result, with no code path that ever sets it `true`.
 
+`factory blender inspect [--json]` / `factory blender qualify
+[--confirm-fixture] [--json] [--verbose]` (`factory.blender_gate` +
+`factory.blender_adapter`, see `docs/blender-adapter.md`) go one step
+further, narrowly, for Blender only: the first controlled local Blender
+execution path. `inspect` is fully read-only; `qualify` runs one bounded,
+Python-free `--version` headless probe; only `qualify --confirm-fixture`
+additionally runs a full fixture pipeline (a fixed, repository-reviewed
+sphere script exported to a temporary STL, validated and previewed by
+the existing Factory validator/renderer, always cleaned up). Locked
+progression: Detected -> Metadata Qualified -> Headless Runtime Qualified
+-> Fixture Execution Qualified -> Adapter Qualified -> Project Execution
+Eligible -> Explicit Human Confirmation -> Actual Project Execution -
+this phase reaches, at most, Adapter Qualified; `project_execution_approved`
+is hardcoded `false` on every result. Never installs, upgrades, or
+GUI-launches Blender; never contacts a slicer, printer, or network.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

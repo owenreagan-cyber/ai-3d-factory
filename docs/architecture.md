@@ -377,6 +377,25 @@ a side effect of board/health generation, which Phase 44 explicitly
 forbids); `factory.tool_qualification` is a CLI-only consumer of
 `engine_registry` for now. See `docs/tool-qualification.md`.
 
+**Phase 45 addendum:** `factory/blender_gate.py` and
+`factory/blender_adapter.py` form two more links, both CLI-only, neither
+consumed by `preview_board`/`project_health` (for the same "never trigger
+real execution as a side effect of viewing a board/health summary"
+reasoning Phase 44 already established):
+
+```
+factory/engine_registry.py  --->  factory/blender_gate.py  --->  factory/blender_adapter.py  --->  factory/cli.py (`factory blender inspect`/`qualify`)
+```
+
+`blender_gate` is read-only (permission/readiness/dry-run planning, zero
+subprocess calls); `blender_adapter` is the only module in this repo that
+ever passes Blender to `subprocess`, and only against one Factory-owned
+temporary fixture, never a project. `factory.tool_qualification`'s own
+Blender result (Phase 44) is untouched - Phase 45's deeper evidence lives
+in this separate pair of modules, joined only at the CLI layer
+(`factory.blender_adapter.build_blender_report()`), never written back
+into Phase 44's result. See `docs/blender-adapter.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated

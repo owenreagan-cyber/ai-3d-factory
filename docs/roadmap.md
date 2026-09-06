@@ -2796,6 +2796,79 @@ a slicer or generates G-code; never calls Meshy, contacts Onshape, or
 authenticates anywhere; never mutates Homebrew; never contacts a
 printer or the network. See `docs/tool-qualification.md`.
 
+## Phase 45 — Blender Local Execution Gate & Adapter (complete)
+
+Builds the first controlled local Blender execution path - the gate
+review Phase 44 explicitly deferred. Locked progression: **Detected ->
+Metadata Qualified -> Headless Runtime Qualified -> Fixture Execution
+Qualified -> Adapter Qualified -> Project Execution Eligible -> Explicit
+Human Confirmation -> Actual Project Execution.** This phase reaches, at
+most, Adapter Qualified, for one narrow workflow only -
+`project_execution_approved` is hardcoded `false` on every result, with
+no code path that ever sets it `true`.
+
+**New modules: `factory.blender_gate`** (read-only permission/readiness/
+dry-run planning; zero subprocess calls) **and `factory.blender_adapter`**
+(the only module in this repo that ever passes Blender to `subprocess`).
+Every real invocation: an absolute, already-resolved binary path (joined
+from Phase 43's `.app` bundle detection), an argument list, `shell=False`,
+a hard timeout, `--background` (headless), `--factory-startup` (skip the
+user's startup file), `-Y` (disable autoexec, already Blender's default),
+and `--offline-mode` (force network off regardless of user preference).
+
+**Exactly two real Blender invocations exist:** a `--version` headless
+probe (no Python executed at all) and, only with explicit
+`--confirm-fixture` confirmation, one `--python
+blender_fixtures/factory_qualification_fixture.py` run against a fixed,
+hand-written, repository-reviewed fixture script - a 10mm-radius UV
+sphere exported to a temporary STL. **This is not "arbitrary Blender
+Python"**: the script imports only `bpy`/`sys`, reads no external input
+besides the one output path given on the command line, writes to exactly
+that one path, and lives outside `src/` so it never collides with the
+pre-existing repo-wide `test_no_blender_execution_code_anywhere_in_src()`
+scan. The exported STL is validated by the existing
+`factory.validators.mesh_validate.validate_mesh()` and previewed by the
+existing `factory.previews.render_preview.render_preview()` - no
+Blender-specific validator or visual-QA subsystem exists or was added.
+Before/after temp-directory inventory detects any unexpected file Blender
+might create; cleanup is verified with an explicit `Path.exists()` check,
+never assumed.
+
+**New CLI:** `factory blender inspect` (fully read-only) and `factory
+blender qualify [--confirm-fixture] [--json] [--verbose]`. Default
+`qualify` (no flag) runs only the bounded `--version` probe - no fixture,
+no temp directory. **Qualification is never persisted** - every call
+re-verifies live, the same choice Phase 44 made for
+`factory.tool_qualification`.
+
+**Real local qualification, this development machine:** Blender detected
+(`/Applications/Blender.app`, `Contents/MacOS/Blender`, v5.2.0), headless
+runtime verified, and (with `--confirm-fixture`) the full fixture
+pipeline succeeded - `adapter_qualification_status: "qualified"` (STL
+export pass, Factory validation WARN - "no printer config available",
+the same honest WARN Phase 44's OpenSCAD fixture got - Factory preview
+render PASS, temp directory cleaned and verified). **FreeCAD, and every
+other tool, is untouched by this phase** - still exactly at Phase 44's
+`metadata_only` evidence level.
+
+**Explicitly unchanged:** `factory.tool_qualification`'s own Blender
+result (still `metadata_only`/`requires_manual_qualification` - Phase
+45's deeper evidence is joined at the CLI layer, never written back into
+it); `factory.engine_registry`'s static Blender record;
+`factory.project_health`'s `health_score`; `config/future_local_tools.json`'s
+`blender.enabled` (stays `false`) and `requires_explicit_human_approval`
+(stays `true`); `factory.cad.backend`'s `blender` entry's `status` (stays
+`"future"`); the Preview Board's existing card set (gained one more text
+line pointing at `factory blender inspect`/`qualify`, no per-tool card, no
+automatic Blender execution during board generation).
+
+Never installs, upgrades, or GUI-launches Blender; never installs an
+add-on; never modifies a Blender preference; never contacts a slicer,
+printer, or the network; never generates G-code; never writes to
+`examples/` or `projects/`. See `docs/blender-adapter.md` for the full
+gate-checklist reconciliation against `docs/blender-local-track.md`'s
+original ten required gates.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -2817,9 +2890,25 @@ permanently unless explicitly removed by a future approved phase:
   equal Eligible for future Factory execution - `execution_approved`
   stays `false` on every result; that decision remains Phase 45's (and
   later phases').
-- **Phase 45** - Blender Local Adapter, gated behind everything
-  `docs/blender-local-track.md`'s "Required future gates before
-  implementation" checklist requires.
+- **Phase 45** - Blender Local Execution Gate & Adapter (complete). Built
+  the first controlled local Blender execution path - `factory.blender_gate`
+  (read-only permission/readiness/dry-run planning) and
+  `factory.blender_adapter` (the only module in this repo that ever
+  passes Blender to `subprocess`, and only against one Factory-owned
+  temporary fixture). Real local result on this machine: Blender detected
+  (`5.2.0`), headless runtime verified (`--background --version`), and
+  (with explicit `--confirm-fixture` confirmation) the full
+  `fixture_organic_model` pipeline reached `adapter_qualification_status:
+  "qualified"` (fixed sphere -> STL -> existing Factory validator -> WARN
+  -> existing Factory preview renderer -> PASS -> verified cleanup).
+  **`project_execution_approved` stays `false` regardless** - qualifying
+  the adapter is evidence, never approval for real project generation;
+  `config/future_local_tools.json`'s `blender.enabled` stays `false` and
+  `factory.cad.backend`'s `blender` status stays `"future"`, both
+  unchanged by this phase. See `docs/blender-adapter.md`'s gate-checklist
+  reconciliation for the full accounting of which of
+  `docs/blender-local-track.md`'s original ten gates remain unsatisfied
+  for real project use.
 - **Phase 46** - Meshy Cloud / Cost / License Gate: API credential
   handling, real monetary cost, per-request/project cost cap, reference-
   image privacy, commercial-use licensing, provenance, asset ownership,
@@ -2873,6 +2962,15 @@ explicit, reviewed decision - not as part of starting this track. Repairs
 and renders must also preserve or improve design quality, not just fix
 geometry - see `docs/blender-local-track.md`'s "Design-quality review for
 Blender outputs" (Phase 22) and `docs/design-quality-standard.md`.
+
+**Phase 45 note:** Phase 45 (`docs/blender-adapter.md`) built the
+bounded-subprocess *execution capability* this track will eventually use
+(`factory.blender_adapter`, `--background` + a fixed Factory-owned
+script) and proved it against one throwaway qualification fixture - it
+did **not** start this track. No repair or render logic exists yet;
+`blender.enabled` still stays `false`, and every requirement above still
+gates real implementation of mesh repair/higher-fidelity rendering on
+actual projects.
 
 ### 3MF packaging experiments track
 

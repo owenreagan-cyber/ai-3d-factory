@@ -169,9 +169,12 @@ subprocess for either tool, and this registry is a different module from
 `factory.future_local_tools`/`check-local-tools`, whose own read-only
 scope is unchanged.
 
-Both are `roadmap_status: "near_term"` - Blender is owned by the (not yet
-scheduled) Phase 45 "Blender Local Adapter" track; FreeCAD has no
-scheduled adapter phase yet.
+Both are `roadmap_status: "near_term"` - Blender is owned by the Phase 45
+"Blender Local Execution Gate & Adapter" track (complete - see
+`docs/blender-adapter.md`; it adds exactly two real, bounded Blender
+invocations against one throwaway qualification fixture, never against a
+project, and this registry's own static Blender record is unchanged by
+it); FreeCAD has no scheduled adapter phase yet.
 
 ## Meshy: cloud-gated, never contacted
 

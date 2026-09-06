@@ -162,6 +162,18 @@ further is neither a pass nor a failure). Whether a future bounded
 headless probe is ever safe for either tool is a **Phase 45** gate
 decision, never this phase's.
 
+**Phase 45 update:** that gate review happened, narrowly, for Blender
+only - `factory.blender_gate`/`factory.blender_adapter` (see
+`docs/blender-adapter.md`) now run a real, bounded `--version` headless
+probe and, with explicit `--confirm-fixture` confirmation, a full
+qualification-fixture pipeline. **This module's own Blender qualification
+result is unchanged** - it still stops at `metadata_only`/
+`requires_manual_qualification`, exactly as documented above; Phase 45's
+deeper evidence lives in a separate module and is joined at the CLI layer
+(`factory.blender_adapter.build_blender_report()`), never written back
+into this module's result. FreeCAD remains untouched by Phase 45 - still
+`metadata_only` here, still no scheduled adapter phase.
+
 ### Bambu Studio, OrcaSlicer, PrusaSlicer - metadata only, GUI-only tools
 
 All three are `cli_available: False`/`gui_only: True` in the Phase 43
@@ -319,18 +331,23 @@ its own design.
 - Qualification results are point-in-time and machine-specific; nothing
   is cached or compared across runs in this phase.
 
-## Phase 45 handoff
+## Phase 45 handoff (complete - see docs/blender-adapter.md)
 
 Blender: detected (`/Applications/Blender.app`, version `5.2.0` via
 `Info.plist`), `qualification_level: "metadata_only"`,
-`qualification_status: "requires_manual_qualification"`,
-`execution_approved: false`. Every one of `docs/blender-local-track.md`'s
-ten "Required future gates before implementation" remains unsatisfied -
-this phase performed detection-adjacent evidence gathering only; it did
-not seek, and could not grant, any of that checklist's approvals
-(explicit human approval to enable automation, dry-run mode, output
-directory isolation, provenance metadata, before/after validation/render,
-etc.).
+`qualification_status: "requires_manual_qualification"` **in this
+module** - unchanged. Phase 45 performed the gate review this handoff
+called for, narrowly: `factory.blender_gate`/`factory.blender_adapter`
+now run a real, bounded `--version` headless probe (always) and a full
+qualification-fixture pipeline (only with explicit `--confirm-fixture`
+confirmation), reaching `adapter_qualification_status: "qualified"` for
+the one narrow `fixture_organic_model` workflow on this development
+machine. **`project_execution_approved`/`execution_approved` still stay
+`false` everywhere** - qualifying the adapter is evidence, never approval
+to generate real project geometry. Most of `docs/blender-local-track.md`'s
+original ten gates remain unsatisfied for real project automation; see
+`docs/blender-adapter.md`'s "Gate checklist reconciliation" for the full,
+item-by-item accounting.
 
 FreeCAD: not detected on this development machine
 (`qualification_status: "not_installed"`). No headless-CLI capability was

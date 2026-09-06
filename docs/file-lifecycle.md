@@ -36,6 +36,12 @@ projects/<slug>/
   or `--create-package --confirm-package`, never by the plain read-only
   assessment. Not one of the fixed `factory init-project` subfolders above
   - all three files are created lazily, only after a real confirmed run.
+  **Phase 45 note:** a future real Blender project-generation workflow
+  would write to its own `<project>/generated/blender/` subdirectory
+  (never mixed into `stl/`/`renders/`) and its own additive receipt -
+  documented in `docs/blender-adapter.md`, not implemented yet. Phase 45
+  itself never writes anywhere under `projects/` at all; its one
+  qualification fixture lives entirely in a `tempfile.TemporaryDirectory()`.
 - **`stl/` → `validation/` + `renders/`**: `factory validate` and
   `factory render` write their outputs into these folders automatically
   when the input mesh lives under a project's `stl/` directory (or

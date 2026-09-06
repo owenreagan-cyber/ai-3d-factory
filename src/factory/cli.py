@@ -83,6 +83,8 @@ from factory.project_health import evaluate_project_health_for_path
 from factory import engine_registry
 from factory.engine_registry import summarize_engine_registry
 from factory.tool_qualification import build_qualification_report, UnknownToolError
+from factory.blender_adapter import build_blender_report
+from factory.blender_gate import evaluate_blender_execution_gate
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -182,6 +184,8 @@ AVAILABLE_COMMANDS = (
     "engines [--json]",
     "engines probe [--json]",
     "engines qualify [<tool_id>] [--json] [--verbose]",
+    "blender inspect [--json]",
+    "blender qualify [--confirm-fixture] [--json] [--verbose]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2195,6 +2199,156 @@ def engines_qualify_cmd(
         print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_qualification_human(report, verbose=verbose)
+
+
+_BLENDER_SAFETY_TRAILER = (
+    "No Blender GUI was launched. No add-on was installed. No project file was modified.",
+    "No slicer was contacted. No G-code was generated. No printer was contacted. No print was started.",
+    "This is fixture-qualification evidence only - it is not project execution approval. See docs/blender-adapter.md.",
+)
+
+
+def _render_blender_human(report: dict[str, Any], *, verbose: bool) -> None:
+    gate = report["gate"]
+    qualification = report["qualification"]
+    console.print("[bold]BLENDER EXECUTION GATE[/bold]\n")
+
+    console.print("[bold]Detected:[/bold]")
+    console.print("Yes" if qualification["detected"] else "No")
+    console.print()
+
+    if qualification["detected"]:
+        console.print("[bold]Version:[/bold]")
+        console.print(qualification["detected_version"])
+        console.print()
+
+    console.print("[bold]Headless runtime:[/bold]")
+    console.print(qualification["headless_runtime_status"].replace("_", " ").title())
+    console.print()
+
+    console.print("[bold]Fixture execution:[/bold]")
+    console.print(qualification["fixture_execution_status"].replace("_", " ").title())
+    console.print()
+
+    console.print("[bold]Adapter:[/bold]")
+    console.print(qualification["adapter_qualification_status"].replace("_", " ").title())
+    console.print()
+
+    console.print("[bold]Execution approval:[/bold]")
+    console.print("No")
+    console.print()
+
+    if qualification["adapter_qualification_status"] != "qualified":
+        console.print("[bold]Next:[/bold]")
+        if not qualification["detected"]:
+            console.print("Install Blender is a human decision this repo never makes; not detected locally.")
+        elif qualification["fixture_execution_status"] == "not_run":
+            console.print("Run explicit temporary fixture qualification: `factory blender qualify --confirm-fixture`.")
+        else:
+            console.print("Review the errors/warnings below before retrying.")
+        console.print()
+
+    if verbose:
+        console.print("[bold]Checks:[/bold]")
+        for check in qualification["fixture_checks"]:
+            icon = {"pass": "[green]OK[/green]", "warn": "[yellow]WARN[/yellow]", "fail": "[red]FAIL[/red]", "skip": "[dim]SKIP[/dim]"}[check["status"]]
+            console.print(f"  {icon}  {_rich_escape(check['label'])} - {_rich_escape(check['evidence'])}")
+        console.print()
+
+        if qualification["warnings"]:
+            console.print("[bold]Warnings:[/bold]")
+            for warning in qualification["warnings"]:
+                console.print(f"  - {_rich_escape(warning)}")
+            console.print()
+
+        if qualification["errors"]:
+            console.print("[bold]Errors:[/bold]")
+            for error in qualification["errors"]:
+                console.print(f"  - {_rich_escape(error)}")
+            console.print()
+
+        console.print("[bold]Gate checklist:[/bold]")
+        for item in gate["gate_checklist"]:
+            marker = {"satisfied": "[green]OK[/green]", "partially_satisfied": "[yellow]PARTIAL[/yellow]", "deferred": "[dim]DEFERRED[/dim]", "unsatisfied": "[red]UNSATISFIED[/red]"}.get(item["status"], item["status"])
+            console.print(f"  {marker}  {_rich_escape(item['item'])}")
+            console.print(f"      {_rich_escape(item['note'])}")
+        console.print()
+
+    for line in _BLENDER_SAFETY_TRAILER:
+        console.print(line)
+
+
+blender_app = typer.Typer(
+    name="blender",
+    help=(
+        "Blender Local Execution Gate & Adapter (Phase 45) - the first controlled local Blender "
+        "execution path, narrowly scoped to one Factory-owned qualification fixture "
+        "(`fixture_organic_model`). `factory blender inspect` is fully read-only (zero subprocess "
+        "calls). `factory blender qualify` runs one bounded, real, Python-free `blender --background "
+        "--version` headless check; only `factory blender qualify --confirm-fixture` additionally "
+        "runs the full fixture pipeline (a fixed sphere exported to a temporary STL, validated by "
+        "the existing Factory mesh validator, and previewed by the existing Factory preview "
+        "renderer). Never installs, upgrades, or GUI-launches Blender; never installs an add-on; "
+        "never contacts a slicer, printer, or network. `project_execution_approved` is always "
+        "`false` - qualifying the adapter is evidence, never approval to generate real project "
+        "geometry. See docs/blender-adapter.md."
+    ),
+)
+app.add_typer(blender_app, name="blender")
+
+
+@blender_app.command(name="inspect")
+def blender_inspect_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Fully read-only: Blender detection (Phase 43), the Phase 45 gate checklist reconciliation,
+    and the dry-run fixture-execution plan. Never calls subprocess, never launches anything."""
+    gate = evaluate_blender_execution_gate()
+
+    if as_json:
+        print(json.dumps(gate, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]BLENDER GATE INSPECTION[/bold]\n")
+    console.print(f"[bold]Detected:[/bold] {'Yes' if gate['detected'] else 'No'}")
+    if gate["detected"]:
+        console.print(f"[bold]Path:[/bold] {gate['detected_path']}")
+        console.print(f"[bold]Version:[/bold] {gate['detected_version']}")
+    console.print(f"[bold]Gate status:[/bold] {gate['gate_status']}")
+    console.print(f"[bold]Supported workflows:[/bold] {', '.join(gate['supported_workflows'])}")
+    console.print()
+
+    console.print("[bold]Gate checklist:[/bold]")
+    for item in gate["gate_checklist"]:
+        marker = {"satisfied": "[green]OK[/green]", "partially_satisfied": "[yellow]PARTIAL[/yellow]", "deferred": "[dim]DEFERRED[/dim]", "unsatisfied": "[red]UNSATISFIED[/red]"}.get(item["status"], item["status"])
+        console.print(f"  {marker}  {_rich_escape(item['item'])}")
+        console.print(f"      {_rich_escape(item['note'])}")
+    console.print()
+
+    for line in _BLENDER_SAFETY_TRAILER:
+        console.print(line)
+
+
+@blender_app.command(name="qualify")
+def blender_qualify_cmd(
+    confirm_fixture: bool = typer.Option(
+        False, "--confirm-fixture", help="Explicit confirmation to actually run the one-shot, temp-dir-only Blender fixture pipeline"
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    verbose: bool = typer.Option(False, "--verbose", help="Show every recorded check, warning/error, and the gate checklist"),
+) -> None:
+    """Phase 45: Blender local execution gate + adapter qualification. Without --confirm-fixture,
+    runs one bounded, real, Python-free `blender --background --version` headless check only - no
+    fixture is created. With --confirm-fixture, additionally runs the full bounded fixture pipeline
+    (temp dir only, one Blender invocation running exactly one Factory-owned script, Factory
+    validator/preview reuse, verified cleanup). `project_execution_approved` is always `false`
+    regardless of outcome - see docs/blender-adapter.md."""
+    report = build_blender_report(confirm_fixture=confirm_fixture)
+
+    if as_json:
+        print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_blender_human(report, verbose=verbose)
 
 
 @app.command(name="review-gate")

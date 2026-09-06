@@ -242,8 +242,55 @@ not to probe further is neither a pass nor a failure), and
 **Phase 45** gate-review decision, never something a qualification phase
 decides on its own.
 
+## Phase 45 amendment - a bounded, one-shot fixture execution path, still no project automation
+
+Phase 44 named this document's "no subprocess call, no headless
+invocation" rule the standing, binding policy for Blender - and
+explicitly named **Phase 45** as the gate-review phase that would decide
+whether a bounded headless probe is ever safe to add. This is that
+review, and its answer is narrow: **`factory.blender_gate`/
+`factory.blender_adapter` add exactly two real Blender invocations - a
+`--version` headless probe and one `--background` run of a single,
+fixed, Factory-owned, repository-reviewed qualification-fixture script
+(`blender_fixtures/factory_qualification_fixture.py`) - never a project
+file, never a user- or project-supplied script, never real project
+automation.**
+
+Every hard rule above stays in force for real project use:
+
+- **No Blender automation on any actual project** - this phase's Blender
+  invocations only ever target one throwaway qualification fixture in a
+  `tempfile.TemporaryDirectory()`. No project file is ever read, written,
+  or repaired by this phase.
+- **No Blender add-ons, no Blender MCP** - unchanged. No `--addons` flag
+  is ever passed.
+- **No automatic repair acceptance, render trust, print-readiness
+  inference, or `human_approved` setting** - unchanged; this phase
+  produces no repair, no project render, and touches no project status at
+  all.
+- **`config/future_local_tools.json`'s `blender.enabled` stays `false`,
+  and `requires_explicit_human_approval` stays `true`** - this phase does
+  not flip either. The one-shot qualification-fixture pipeline this phase
+  adds is authorized narrowly by this phase's own spec (a dated, explicit
+  human instruction), which is a different, narrower thing than
+  "Blender automation is enabled for real project use" - that remains a
+  separate, later, explicit decision this document's original checklist
+  still gates in full.
+- **`factory.cad.backend`'s `blender` entry's `status` stays `"future"`**
+  - unchanged by this phase, exactly as this document's original "what
+  this phase does not do" section required.
+
+See `docs/blender-adapter.md` for the full gate-checklist reconciliation
+(the original 10-item list above, mapped item-by-item against a new
+15-item Phase 45 checklist), the exact subprocess/startup-isolation/
+Python-execution safety policy, and why the fixture script deliberately
+lives outside `src/` (so `import bpy` never appears in the repo-wide scan
+`test_no_blender_execution_code_anywhere_in_src()` below still runs
+against).
+
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
 local repair/render track", `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
 `docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
-`docs/engine-registry.md`, `docs/tool-qualification.md`, and `AGENT.md`.
+`docs/engine-registry.md`, `docs/tool-qualification.md`,
+`docs/blender-adapter.md`, and `AGENT.md`.

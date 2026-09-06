@@ -361,6 +361,13 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
     board must never trigger as a side effect of viewing it. The pointer
     line below is the only Phase 44 addition here; see
     `docs/tool-qualification.md`.
+
+    **Phase 45 note:** same reasoning, one more pointer line - Blender is
+    already folded into "Near-term engines unqualified" above (Phase 43),
+    and `factory.blender_adapter.run_fixture_qualification()` does real
+    (bounded, headless, temp-dir-only) Blender execution, which this
+    always-regenerated board must never trigger as a side effect of
+    viewing it. See `docs/blender-adapter.md`.
     """
     if not summary:
         return '<p class="none">No tool environment data available.</p>'
@@ -375,6 +382,11 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
         )
     )
     rows += '<p class="tool-environment-hint">For qualification evidence, run <code>factory engines qualify</code>.</p>'
+    rows += (
+        '<p class="tool-environment-hint">For Blender\'s execution gate status, run '
+        "<code>factory blender inspect</code> (or <code>factory blender qualify</code> for headless "
+        "runtime evidence) - never run automatically here.</p>"
+    )
     return rows
 
 
