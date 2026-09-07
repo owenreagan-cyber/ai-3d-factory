@@ -400,8 +400,12 @@ def test_readme_pointer_mentions_etsy_worthy_standard():
 
 
 def test_phase_registry_still_sequential_with_no_gaps_after_phase23():
+    """A sub-phase row (`47A`, `47B`, `47B.7`, ...) shares its base integer
+    with its siblings - consecutive same-base sub-phase rows collapse to
+    one entry before checking for a real gap/duplicate."""
     content = PHASE_REGISTRY_PATH.read_text(encoding="utf-8")
-    numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", content, re.MULTILINE)]
+    raw_numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)(?:[A-Z](?:\.\d+)?)?\s*\|", content, re.MULTILINE)]
+    numbers = [n for i, n in enumerate(raw_numbers) if i == 0 or n != raw_numbers[i - 1]]
     assert numbers, "expected at least one purely-numeric phase row"
     assert numbers == list(range(numbers[0], numbers[0] + len(numbers))), (
         f"phase-registry.md numbered rows have a gap or duplicate: {numbers}"
@@ -593,8 +597,12 @@ def test_concept_brief_json_files_would_validate_as_a_brief_if_ever_promoted():
 
 
 def test_phase_registry_still_sequential_with_no_gaps_after_phase24():
+    """A sub-phase row (`47A`, `47B`, `47B.7`, ...) shares its base integer
+    with its siblings - consecutive same-base sub-phase rows collapse to
+    one entry before checking for a real gap/duplicate."""
     content = PHASE_REGISTRY_PATH.read_text(encoding="utf-8")
-    numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", content, re.MULTILINE)]
+    raw_numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)(?:[A-Z](?:\.\d+)?)?\s*\|", content, re.MULTILINE)]
+    numbers = [n for i, n in enumerate(raw_numbers) if i == 0 or n != raw_numbers[i - 1]]
     assert numbers, "expected at least one purely-numeric phase row"
     assert numbers == list(range(numbers[0], numbers[0] + len(numbers))), (
         f"phase-registry.md numbered rows have a gap or duplicate: {numbers}"

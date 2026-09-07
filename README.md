@@ -507,8 +507,13 @@ live-run --prompt TEXT --confirm-live [--json]` is blocked unless
 policy/budget/kill-switch/one-shot-approval/`--confirm-live` all pass, in
 that locked order - only then is `MESHY_API_KEY` ever read. Zero real
 Meshy contact occurred while building this: every test uses a fake
-transport. The first real live call is still a separate, unrecorded
-approval.
+transport. **Update:** the first real live call has since happened,
+under a separate, explicit one-shot approval - one Text-to-3D task, 20
+credits, geometry clean (watertight) but not manufacturing-ready at its
+returned scale (~1.9m bounding box). Both kill-switch flags were
+re-disarmed to `false` immediately afterward; see
+`docs/meshy-live-transport.md` and `docs/hybrid-workflow.md` (the
+adaptation-planning phase that finding motivated).
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
@@ -529,6 +534,18 @@ library (read-only). See
 small set of plain-Markdown files (not `factory`-managed projects) used
 only to exercise the Project Intake Engine's parsing - see
 `docs/project-intake.md`.
+
+`factory workflow plan <project> [--json]` / `factory workflow assess
+<file> [--json]` (Phase 48, `factory.hybrid_workflow`) are the planning
+layer between a generative-AI/CAD artifact and manufacturing-ready
+output - read-only, no `workflow execute`. Motivated by the first real
+Meshy artifact coming back geometrically clean but ~1.9m tall: this adds
+the repo's first scale-plausibility check and a coarse, always-human-
+confirmed manufacturing-intent read, with tool routing that reuses the
+existing engine registry/Blender gate rather than a second selector.
+`automatic_execution_allowed` is hardcoded `false` on every plan - it
+never launches Blender, a CAD backend, a slicer, or a printer. See
+`docs/hybrid-workflow.md`.
 
 ## Workflow
 

@@ -338,12 +338,24 @@ explicit human approval (an armed one-shot approval record, both
 kill-switch flags flipped, and `--confirm-live`) that no code path in
 this repo can grant by itself.
 
+**Update - Phase 48:** a real Meshy receipt (`live_api_used: true`) is
+now consumed by `factory.hybrid_workflow.build_adaptation_plan()` as its
+primary evidence for an `"meshy_organic"`-typed artifact, entirely
+read-only - it re-runs `factory.validators.mesh_validate.validate_mesh()`
+against the receipt's own recorded artifact path and reasons about
+scale/manufacturing intent from there. Phase 47B.7's post-flight review
+of the first real artifact (a piggy bank, ~1.9m bounding box) is
+Phase 48's own motivating example. See `docs/hybrid-workflow.md`.
+
 ## Limitations
 
 - `InMemoryCreditLedger` has no cross-process persistence - "daily"/
   "monthly" totals are only ever totals within one Python process.
 - Timeline/artifact-history integration is designed for, but not wired
-  into, `factory.project_timeline`/`factory.artifact_history` this phase.
+  into, `factory.project_timeline`/`factory.artifact_history` this phase
+  (Phase 47B.7 later wired a real, non-mocked receipt into both - see
+  `docs/meshy-live-transport.md`; this mocked-adapter phase's own
+  receipts remain unwired, since they are architecture-proving only).
 - Only Text-to-3D is modeled; Image-to-3D/Multi-Image-to-3D/existing-mesh
   upload remain a future Phase 47C, pending the version-path ambiguity
   `docs/meshy-current-research.md` flagged.

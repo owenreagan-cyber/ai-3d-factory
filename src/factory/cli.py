@@ -85,6 +85,7 @@ from factory.engine_registry import summarize_engine_registry
 from factory.tool_qualification import build_qualification_report, UnknownToolError
 from factory.blender_adapter import build_blender_report
 from factory.blender_gate import evaluate_blender_execution_gate
+from factory.hybrid_workflow import assess_artifact_file, build_adaptation_plan
 from factory.meshy_approval import (
     MeshyPolicyError,
     build_meshy_approval_plan,
@@ -222,6 +223,8 @@ AVAILABLE_COMMANDS = (
     "meshy revoke-live-approval APPROVAL_ID [--reason TEXT]",
     "meshy live-run --prompt TEXT --confirm-live [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
     "meshy reconcile-ledger-entry RESERVATION_ID --reason TEXT [--json]",
+    "workflow plan <project_dir> [--json]",
+    "workflow assess <artifact_path> [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2385,6 +2388,82 @@ def blender_qualify_cmd(
         print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_blender_human(report, verbose=verbose)
+
+
+workflow_app = typer.Typer(
+    name="workflow",
+    help=(
+        "Hybrid Design Workflow Manager (Phase 48) - the planning layer between a generative-AI "
+        "concept (Meshy) or CAD-generated artifact and manufacturing-ready Factory output. "
+        "Read-only and fully offline: never calls Meshy, never launches Blender or a CAD backend, "
+        "never invokes a slicer, never rescales or repairs a mesh. `automatic_execution_allowed` is "
+        "always `false` on every plan. See docs/hybrid-workflow.md."
+    ),
+)
+app.add_typer(workflow_app, name="workflow")
+
+
+@workflow_app.command(name="plan")
+def workflow_plan_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 48: the full adaptation plan for one project's existing input artifact (a Meshy
+    receipt or a CAD generation/export receipt) - workflow classification, tool routing, scale
+    assessment, manufacturing intent, and required human confirmations. Read-only: re-runs the
+    existing Factory mesh validator against the already-recorded artifact path, never a new one.
+    Never modifies anything; never contacts Meshy, Blender, a CAD backend, a slicer, or a printer."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+    plan = build_adaptation_plan(project_dir)
+
+    if as_json:
+        print(json.dumps(plan, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]HYBRID WORKFLOW PLAN[/bold]\n")
+    console.print(f"[bold]Artifact type:[/bold] {plan['artifact_type']}")
+    console.print(f"[bold]Workflow type:[/bold] {plan['workflow_type']}")
+    console.print(f"[bold]Recommended engine:[/bold] {plan['recommended_engine'] or '(none)'}")
+    console.print(f"[bold]Manufacturing readiness:[/bold] {plan['manufacturing_readiness']}\n")
+    if plan["issues_found"]:
+        console.print("[bold]Issues found:[/bold]")
+        for issue in plan["issues_found"]:
+            console.print(f"  - {_rich_escape(issue)}")
+        console.print()
+    if plan["adaptation_steps"]:
+        console.print("[bold]Adaptation steps (planned, not executed):[/bold]")
+        for step in plan["adaptation_steps"]:
+            console.print(f"  - {step['step']} (tool: {step.get('tool') or step.get('candidate_tools')})")
+        console.print()
+    console.print("Automatic execution is impossible. Human confirmation required for every step above.")
+
+
+@workflow_app.command(name="assess")
+def workflow_assess_cmd(
+    artifact_path: Path = typer.Argument(..., help="Path to a mesh file (.stl, .obj, .ply, ...)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 48: a lightweight, standalone assessment of one mesh file - validation status, mesh
+    stats, and a scale-plausibility read - without needing a project or receipt. Read-only; never
+    modifies the file."""
+    result = assess_artifact_file(artifact_path)
+
+    if as_json:
+        print(json.dumps(result, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]ARTIFACT ASSESSMENT[/bold]\n")
+    if result["error"]:
+        console.print(f"[red]error[/red]: {result['error']}")
+        raise typer.Exit(code=1)
+    console.print(f"[bold]Validation:[/bold] {_icon(result['validation_overall_status'])}")
+    scale = result["scale_assessment"]
+    console.print(f"[bold]Current dimensions (mm):[/bold] {scale['current_dimensions_mm']}")
+    console.print(f"[bold]Scale confidence:[/bold] {scale['confidence']} - {scale['reason']}")
+    console.print("\nA human must confirm any target dimensions before scaling. Automatic execution is impossible.")
 
 
 _MESHY_SAFETY_TRAILER = (

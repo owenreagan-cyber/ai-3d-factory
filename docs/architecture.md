@@ -466,6 +466,32 @@ only ever constructs `HttpMeshyTransport`/`LiveMeshyCredentialProvider`
 after every gate in the locked order has passed, and accepts them as
 injectable factories for testing. See `docs/meshy-live-transport.md`.
 
+**Phase 48 addendum:** `factory/hybrid_workflow.py` sits *downstream* of
+the artifact-producing systems above, never upstream - it reads a Meshy
+receipt, a CAD generation/export receipt, and (via
+`factory.design_intent_check`) an optional `design_intent` block, and
+reuses `factory.engine_registry`/`factory.blender_gate` for tool routing
+rather than re-scoring suitability itself:
+
+```
+factory/meshy_live_adapter.py (receipt)  --->
+factory/generation_gate.py (receipt)     --->  factory/hybrid_workflow.py
+factory/export_pipeline.py (receipt)     --->        |
+factory/design_intent_check.py (reused)  --->        |
+factory/engine_registry.py (reused)      --->        |
+factory/blender_gate.py (reused)         --->        |
+factory/validators/mesh_validate.py (reused)         |
+                                                       v
+                          factory/cli.py (`factory workflow plan`/`assess`)
+                          factory/preview_board.py (`hybrid_workflow_summary`, aggregation point only)
+```
+
+This module never transforms an artifact and writes nothing - it is
+planning only. It never imports `factory.blender_adapter` (the module
+that actually invokes Blender) or `factory.cad.backend` (CAD execution);
+a recommended step's readiness is always the real gate's own status,
+never re-asserted independently. See `docs/hybrid-workflow.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
@@ -519,10 +545,10 @@ same: add the new summary field inside
 point, never inside `project_inspection.py`. This is why
 `slicer_readiness_summary`, `manual_review_summary`,
 `slicer_intelligence_summary`, `slicer_history_summary`,
-`timeline_summary`, `artifact_history_summary`, and
-`project_health_summary` all live on the board's per-project dict without
-ever touching `project_inspection.summarize_project()`'s own return
-shape.
+`timeline_summary`, `artifact_history_summary`,
+`project_health_summary`, and (Phase 48) `hybrid_workflow_summary` all
+live on the board's per-project dict without ever touching
+`project_inspection.summarize_project()`'s own return shape.
 
 **Applies to every future phase**, not just the seven above - any new
 aggregation/dashboard/summary module must sit *above* `project_inspection.py`

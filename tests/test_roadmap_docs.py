@@ -73,8 +73,13 @@ def test_phase_registry_lists_future_tracks_separately_from_numbered_phases():
 
 
 def test_phase_registry_numbered_rows_are_sequential_with_no_gaps():
+    """A sub-phase row (`47A`, `47B`, `47B.7`, ...) shares its base integer
+    with its siblings - Phase 47 was split into 47A/47B from the start and
+    never has its own bare `47` row, so consecutive same-base sub-phase
+    rows collapse to one entry before checking for a real gap/duplicate."""
     content = PHASE_REGISTRY_PATH.read_text(encoding="utf-8")
-    numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", content, re.MULTILINE)]
+    raw_numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)(?:[A-Z](?:\.\d+)?)?\s*\|", content, re.MULTILINE)]
+    numbers = [n for i, n in enumerate(raw_numbers) if i == 0 or n != raw_numbers[i - 1]]
     assert numbers, "expected at least one purely-numeric phase row"
     assert numbers == list(range(numbers[0], numbers[0] + len(numbers))), (
         f"phase-registry.md numbered rows have a gap or duplicate: {numbers}"

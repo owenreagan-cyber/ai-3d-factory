@@ -3035,7 +3035,27 @@ permanently unless explicitly removed by a future approved phase:
   Meshy output always enters: provenance -> artifact receipt ->
   cleanup/manufacturing adaptation -> Factory validation -> preview ->
   human review -> slicer review -> never automatic printing.
-- **Phase 48** - Hybrid Design Workflow Manager.
+- **Phase 48** - Hybrid Design Workflow Manager (complete). The
+  adaptation-planning layer between a generative-AI/CAD artifact and
+  manufacturing-ready Factory output - `factory.hybrid_workflow`
+  (`factory workflow plan <project>`/`factory workflow assess <file>`,
+  both read-only). Motivated directly by Phase 47B.7's post-flight review
+  of the first real Meshy artifact (a piggy bank, ~1.9m bounding box,
+  geometry clean but scale not manufacturing-ready): this phase adds the
+  first scale-plausibility assessment in the repo (nothing before it
+  judged absolute size, only build-volume fit against a configured
+  printer), a coarse always-advisory manufacturing-intent classifier, and
+  deterministic tool routing reusing `factory.engine_registry`/
+  `factory.blender_gate` rather than a second engine selector. Produces
+  one deterministic `AdaptationPlan` per project - workflow-type
+  classification, recommended engine, adaptation steps, required human
+  confirmations, scale/intent assessments - and transforms nothing:
+  `automatic_execution_allowed` is hardcoded `false` on every plan, no
+  new receipt-writer exists (there is nothing to persist since nothing
+  executes), and `hybrid_workflow_summary` is wired into
+  `factory.preview_board.gather_board_data()` at the aggregation point
+  only, never touching `project_health`'s score. See
+  `docs/hybrid-workflow.md`.
 - **Phase 49** - Advanced Manufacturing Intelligence.
 
 ## Future tracks, not yet phase-numbered

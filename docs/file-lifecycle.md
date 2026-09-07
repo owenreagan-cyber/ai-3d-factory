@@ -138,6 +138,15 @@ passes and `--project <dir>` is given: `generated/meshy/raw/<task_id>.stl`
 collision-protected, never overwriting an existing artifact. Without
 every gate passing, nothing is written at all.
 
+**Phase 48 addendum:** `factory workflow plan`/`factory workflow assess`
+write **nothing at all**, ever - no new file, no new directory, no
+receipt. `factory.hybrid_workflow` only reads existing receipts
+(`generated/meshy_receipt.json`, `generated/generation_receipt.json`,
+`generated/export_receipt.json`) and an optional `design_intent` block
+already in `brief.json`. There is no `hybrid_workflow_receipt` yet -
+nothing here executes, so there is nothing to persist. See
+`docs/hybrid-workflow.md`.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

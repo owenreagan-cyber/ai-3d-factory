@@ -353,8 +353,12 @@ def test_future_cloud_tools_config_unaffected_by_local_tools_addition():
 
 
 def test_phase_registry_still_sequential_with_no_gaps():
+    """A sub-phase row (`47A`, `47B`, `47B.7`, ...) shares its base integer
+    with its siblings - consecutive same-base sub-phase rows collapse to
+    one entry before checking for a real gap/duplicate."""
     content = (project_store.REPO_ROOT / "docs" / "phase-registry.md").read_text(encoding="utf-8")
-    numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)\s*\|", content, re.MULTILINE)]
+    raw_numbers = [int(n) for n in re.findall(r"^\|\s*(\d+)(?:[A-Z](?:\.\d+)?)?\s*\|", content, re.MULTILINE)]
+    numbers = [n for i, n in enumerate(raw_numbers) if i == 0 or n != raw_numbers[i - 1]]
     assert numbers, "expected at least one purely-numeric phase row"
     assert numbers == list(range(numbers[0], numbers[0] + len(numbers))), (
         f"phase-registry.md numbered rows have a gap or duplicate: {numbers}"

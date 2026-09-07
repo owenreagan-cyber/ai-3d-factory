@@ -288,9 +288,18 @@ lives outside `src/` (so `import bpy` never appears in the repo-wide scan
 `test_no_blender_execution_code_anywhere_in_src()` below still runs
 against).
 
+**Phase 48 addendum:** `factory.hybrid_workflow` recommends a Blender
+adaptation step for organic (Meshy-origin) artifacts, always carrying
+`evaluate_blender_execution_gate()`'s real `gate_status`/
+`project_execution_approved` verbatim - it never claims Blender is ready
+to execute a real project when this gate says otherwise, and it never
+imports `factory.blender_adapter` (the only module that actually invokes
+Blender). A recommended step is a plan a human reviews, not a bypass of
+anything above. See `docs/hybrid-workflow.md`.
+
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
 local repair/render track", `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
 `docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
 `docs/engine-registry.md`, `docs/tool-qualification.md`,
-`docs/blender-adapter.md`, and `AGENT.md`.
+`docs/blender-adapter.md`, `docs/hybrid-workflow.md`, and `AGENT.md`.
