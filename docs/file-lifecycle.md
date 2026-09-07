@@ -102,6 +102,17 @@ summary/assessment functions (`factory.project_inspection`,
 `factory.artifact_history`) - it never reads a project file directly and
 introduces no new folder or file of its own; it is entirely read-only.
 
+## Phase 46's `config/meshy_policy.json` is repo-level, not project-level
+
+Unlike every file above, `config/meshy_policy.json` (Phase 46,
+`docs/meshy-policy.md`) lives outside any project directory entirely -
+one committed, non-secret policy file for the whole repo, mirroring
+`config/future_cloud_tools.json`'s existing pattern. It is never created,
+read, or written per-project, never appears in a project's `cad/`/`stl/`/
+`part_manifest.json`, and is touched by exactly two explicit CLI writes
+(`factory meshy approve-policy`/`revoke-policy`) - never automatically,
+never as a side effect of any project-scoped command above.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

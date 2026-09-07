@@ -150,6 +150,7 @@ from factory.project_timeline import summarize_project_timeline
 from factory.artifact_history import summarize_artifact_history
 from factory.project_health import summarize_project_health
 from factory.engine_registry import summarize_tool_environment
+from factory.meshy_approval import summarize_meshy_policy_for_board
 
 BOARD_DIRNAME = "preview_board"
 INDEX_FILENAME = "index.json"
@@ -233,6 +234,12 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         # metadata detection only, no subprocess - see
         # `summarize_tool_environment()`'s docstring.
         "tool_environment_summary": summarize_tool_environment(),
+        # Board-wide, not per-project, and deliberately a separate field from
+        # tool_environment_summary above (Phase 46) - factory.project_health
+        # consumes tool_environment_summary and must not be touched this
+        # phase; see factory.meshy_approval's "Architectural note". Policy/
+        # approval evaluation only - no network, no credential read.
+        "meshy_policy_summary": summarize_meshy_policy_for_board(),
     }
 
 
@@ -345,7 +352,7 @@ def _di_row(label: str, value_html: str) -> str:
     return f'<div class="di-row"><span class="di-label">{_escape_html(label)}:</span> <span class="di-value">{value_html}</span></div>'
 
 
-def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
+def _build_tool_environment_html(summary: dict[str, Any] | None, meshy_summary: dict[str, Any] | None = None) -> str:
     """Board-wide (not per-project) "Tool Environment" section (Phase 43) -
     a compact rendering of `factory.engine_registry.summarize_tool_environment()`.
     One section for the whole board, never one card per tool (13 tools
@@ -368,6 +375,14 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
     (bounded, headless, temp-dir-only) Blender execution, which this
     always-regenerated board must never trigger as a side effect of
     viewing it. See `docs/blender-adapter.md`.
+
+    **Phase 46 note:** one more compact line, sourced from
+    `factory.meshy_approval.summarize_meshy_policy_for_board()` - never a
+    Meshy-specific card, never a network call (this policy/approval gate
+    makes none, ever). Deliberately separate from
+    `summarize_tool_environment()`'s own dict (which
+    `factory.project_health` also consumes and which this phase must not
+    touch) - see `factory.meshy_approval`'s "Architectural note".
     """
     if not summary:
         return '<p class="none">No tool environment data available.</p>'
@@ -387,6 +402,13 @@ def _build_tool_environment_html(summary: dict[str, Any] | None) -> str:
         "<code>factory blender inspect</code> (or <code>factory blender qualify</code> for headless "
         "runtime evidence) - never run automatically here.</p>"
     )
+    if meshy_summary:
+        rows += (
+            '<div class="tool-environment-row"><span class="tool-environment-label">Meshy:</span> '
+            f"cloud gated, policy {_escape_html(str(meshy_summary.get('gate_status', 'unknown')))}, "
+            f"execution disabled ({_escape_html(str(meshy_summary.get('blocker_count', 0)))} blocker(s))</div>"
+        )
+        rows += '<p class="tool-environment-hint">For the full Meshy approval gate, run <code>factory meshy status</code>.</p>'
     return rows
 
 
@@ -1577,7 +1599,7 @@ def build_board_html(board: dict[str, Any]) -> str:
     suggestions_html = _build_suggestions_html(board["projects"])
     health_signals_html = _build_health_signals_html(board["projects"])
     project_cards_html = _build_project_cards_html(board["projects"])
-    tool_environment_html = _build_tool_environment_html(board.get("tool_environment_summary"))
+    tool_environment_html = _build_tool_environment_html(board.get("tool_environment_summary"), board.get("meshy_policy_summary"))
 
     return f"""<!doctype html>
 <html lang="en">

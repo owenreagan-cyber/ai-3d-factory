@@ -396,6 +396,27 @@ in this separate pair of modules, joined only at the CLI layer
 (`factory.blender_adapter.build_blender_report()`), never written back
 into Phase 44's result. See `docs/blender-adapter.md`.
 
+**Phase 46 addendum:** `factory/meshy_approval.py` is one more link,
+CLI-and-preview-board-consumed (unlike Phase 44/45's Blender/OpenSCAD
+qualification modules, this one performs no subprocess/network work at
+all - joining it into `preview_board`'s always-regenerated output carries
+no side-effect risk):
+
+```
+factory/engine_registry.py  --->  factory/meshy_approval.py  --->  factory/cli.py (`factory meshy status`/`policy`)
+                             \--->  factory/preview_board.py (`meshy_policy_summary`, a field
+                                     deliberately separate from `tool_environment_summary`)
+```
+
+It also reads `factory/future_cloud_tools.py` (Phase 16's existing kill
+switch) and `factory/reference_board.py`'s `LICENSES` vocabulary directly
+- neither of those modules imports it back. Deliberately **not** consumed
+by `factory/project_health.py` at all - `health_score` stays entirely
+untouched by Meshy policy state, matching the same "a mechanical project
+must not become unhealthy because a cloud tool is ungated" reasoning
+Phase 43 already established for tool detection generally. See
+`docs/meshy-policy.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated

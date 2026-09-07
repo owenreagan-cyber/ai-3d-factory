@@ -154,7 +154,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
     board = gather_board_data(isolated_projects_dir)
     assert set(board.keys()) == {
         "generated_at", "projects_root", "project_count", "state_counts", "projects", "notes",
-        "tool_environment_summary",
+        "tool_environment_summary", "meshy_policy_summary",
     }
     project = board["projects"][0]
     expected_keys = {

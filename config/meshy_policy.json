@@ -1,0 +1,47 @@
+{
+  "$schema_note": "Phase 46 Meshy cloud-use policy scaffold - see docs/meshy-policy.md and docs/meshy-approval-gate.md. No API keys, URLs, provider SDK config, or real secrets belong in this file. Read/write only by factory.meshy_approval, which never contacts a network, never reads a credential value, and never enables Meshy execution - see config/future_cloud_tools.json for the separate, always-authoritative enabled/disabled kill switch.",
+  "policy_version": 1,
+  "cost_policy": {
+    "currency": null,
+    "per_request_cap": null,
+    "per_project_cap": null,
+    "daily_cap": null,
+    "monthly_cap": null,
+    "require_cost_estimate_before_request": true,
+    "require_confirmation_above_threshold": true,
+    "unknown_price_behavior": "block",
+    "spend_tracking_required": true,
+    "hard_stop_on_unknown_cost": true,
+    "credit_policy": {
+      "max_credits_per_request": null,
+      "max_credits_per_project": null,
+      "max_credits_per_day": null,
+      "max_credits_per_month": null
+    }
+  },
+  "license_policy": {
+    "commercial_use_required": null,
+    "commercial_use_verified": false,
+    "terms_reviewed": false,
+    "terms_review_date": null,
+    "output_ownership_verified": false,
+    "input_rights_required": true,
+    "reference_license_required": true,
+    "third_party_asset_restrictions": "unknown",
+    "unknown_license_behavior": "block_commercial_use"
+  },
+  "approval": {
+    "approved_at": null,
+    "approved_by": null,
+    "approval_scope": null,
+    "cost_policy_acknowledged": false,
+    "license_policy_acknowledged": false,
+    "privacy_policy_acknowledged": false,
+    "provenance_policy_acknowledged": false,
+    "cloud_data_policy_acknowledged": false,
+    "execution_enabled": false,
+    "notes": [],
+    "revoked_at": null,
+    "revocation_history": []
+  }
+}

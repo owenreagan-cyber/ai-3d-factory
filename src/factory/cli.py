@@ -85,6 +85,13 @@ from factory.engine_registry import summarize_engine_registry
 from factory.tool_qualification import build_qualification_report, UnknownToolError
 from factory.blender_adapter import build_blender_report
 from factory.blender_gate import evaluate_blender_execution_gate
+from factory.meshy_approval import (
+    MeshyPolicyError,
+    evaluate_meshy_gate,
+    evaluate_meshy_phase47_readiness,
+    record_meshy_policy_approval,
+    revoke_meshy_policy_approval,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -186,6 +193,11 @@ AVAILABLE_COMMANDS = (
     "engines qualify [<tool_id>] [--json] [--verbose]",
     "blender inspect [--json]",
     "blender qualify [--confirm-fixture] [--json] [--verbose]",
+    "meshy status [--json]",
+    "meshy policy [--json]",
+    "meshy approval-status [--json]",
+    "meshy approve-policy --ack-cost --ack-license --ack-privacy --ack-provenance [--approved-by NAME]",
+    "meshy revoke-policy [--reason TEXT]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2349,6 +2361,173 @@ def blender_qualify_cmd(
         print(json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_blender_human(report, verbose=verbose)
+
+
+_MESHY_SAFETY_TRAILER = (
+    "No Meshy API call was made. No credentials were read. No data left this machine. No money was spent.",
+    "This is policy/approval infrastructure only - it never contacts Meshy or any cloud service. See docs/meshy-policy.md.",
+)
+
+
+def _render_meshy_human(gate: dict[str, Any], readiness: dict[str, Any]) -> None:
+    console.print("[bold]MESHY CLOUD APPROVAL GATE[/bold]\n")
+
+    console.print("[bold]Registry:[/bold]")
+    console.print("Known future cloud tool (Phase 43)")
+    console.print()
+
+    console.print("[bold]Network:[/bold]")
+    console.print("Required in future. Not used now.")
+    console.print()
+
+    console.print("[bold]Credentials:[/bold]")
+    console.print("Not read.")
+    console.print()
+
+    console.print("[bold]Cost policy:[/bold]")
+    console.print("Configured" if gate["gate_status"] not in ("needs_cost_policy",) else "Incomplete")
+    console.print()
+
+    console.print("[bold]License policy:[/bold]")
+    console.print("Reviewed" if gate["license_policy"].get("terms_reviewed") else "Requires review")
+    console.print()
+
+    console.print("[bold]Privacy policy:[/bold]")
+    console.print("Configured conservatively")
+    console.print()
+
+    console.print("[bold]Reference upload:[/bold]")
+    console.print("Blocked by default")
+    console.print()
+
+    console.print("[bold]Human approval:[/bold]")
+    console.print("Recorded" if gate["approval_recorded"] else "Not recorded")
+    console.print()
+
+    console.print("[bold]Kill switch:[/bold]")
+    console.print("Cloud execution disabled")
+    console.print()
+
+    console.print("[bold]Phase 47 readiness:[/bold]")
+    console.print("Ready" if readiness["ready_for_phase47"] else "Not ready")
+    console.print()
+
+    if gate["blockers"]:
+        console.print("[bold]Blockers:[/bold]")
+        for item in gate["blockers"]:
+            console.print(f"- {_rich_escape(item)}")
+        console.print()
+
+    for line in _MESHY_SAFETY_TRAILER:
+        console.print(line)
+
+
+meshy_app = typer.Typer(
+    name="meshy",
+    help=(
+        "Meshy Cloud / Cost / License / Privacy Approval Gate (Phase 46) - policy and approval "
+        "infrastructure only. Zero Meshy network calls, zero credential reads, zero data upload, "
+        "zero paid API calls - no exceptions. `factory meshy status`/`policy`/`approval-status` are "
+        "fully read-only. `factory meshy approve-policy`/`revoke-policy` write only to the local, "
+        "non-secret config/meshy_policy.json - never to config/future_cloud_tools.json's kill "
+        "switch, and can never set execution_enabled=true. See docs/meshy-policy.md."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(meshy_app, name="meshy")
+
+
+@meshy_app.command(name="status")
+def meshy_status_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only Meshy cloud approval gate status. Never contacts a network, never reads a credential."""
+    gate = evaluate_meshy_gate()
+    readiness = evaluate_meshy_phase47_readiness(gate)
+    if as_json:
+        print(json.dumps({"tool": "meshy", "gate": gate, "phase47_readiness": readiness, "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_human(gate, readiness)
+
+
+def _meshy_safety_block() -> dict[str, bool]:
+    return {
+        "network_used": False,
+        "credentials_read": False,
+        "data_uploaded": False,
+        "money_spent": False,
+        "printer_contacted": False,
+        "automatic_print_allowed": False,
+    }
+
+
+@meshy_app.command(name="policy")
+def meshy_policy_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only full Meshy policy detail: cost, license, privacy, provenance, and approval state.
+    Never contacts a network, never reads a credential."""
+    gate = evaluate_meshy_gate()
+    readiness = evaluate_meshy_phase47_readiness(gate)
+    if as_json:
+        print(json.dumps({"tool": "meshy", "gate": gate, "cost_policy": gate["cost_policy"], "license_policy": gate["license_policy"], "privacy_policy": gate["privacy_policy"], "provenance_policy": gate["provenance_policy"], "approval": gate["approval"], "phase47_readiness": readiness, "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_human(gate, readiness)
+
+
+@meshy_app.command(name="approval-status")
+def meshy_approval_status_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Read-only view of just the recorded approval state (never the whole policy)."""
+    gate = evaluate_meshy_gate()
+    if as_json:
+        print(json.dumps({"tool": "meshy", "approval": gate["approval"], "approval_recorded": gate["approval_recorded"], "gate_status": gate["gate_status"], "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    console.print("[bold]MESHY APPROVAL STATUS[/bold]\n")
+    console.print(f"Approval recorded: {'Yes' if gate['approval_recorded'] else 'No'}")
+    console.print(f"Approval scope: {gate['approval']['approval_scope'] or 'None'}")
+    console.print(f"Execution enabled: {gate['kill_switch']['execution_enabled']}")
+    console.print()
+    for line in _MESHY_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="approve-policy")
+def meshy_approve_policy_cmd(
+    ack_cost: bool = typer.Option(False, "--ack-cost", help="Acknowledge the configured cost policy"),
+    ack_license: bool = typer.Option(False, "--ack-license", help="Acknowledge the reviewed license policy"),
+    ack_privacy: bool = typer.Option(False, "--ack-privacy", help="Acknowledge the privacy/data policy"),
+    ack_provenance: bool = typer.Option(False, "--ack-provenance", help="Acknowledge the provenance requirements"),
+    approved_by: str = typer.Option(None, "--approved-by", help="Name/identifier of the human recording this approval"),
+) -> None:
+    """Explicit write: records human approval of the Meshy policy scaffold (approval_scope=policy_only).
+    Requires all four --ack-* flags. Requires a cost cap and a reviewed license policy to already be set
+    in config/meshy_policy.json. Can NEVER enable Meshy execution - execution_enabled stays false always."""
+    try:
+        gate = record_meshy_policy_approval(ack_cost=ack_cost, ack_license=ack_license, ack_privacy=ack_privacy, ack_provenance=ack_provenance, approved_by=approved_by)
+    except MeshyPolicyError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]recorded[/green]: Meshy policy approval (scope: policy_only), execution_enabled={gate['kill_switch']['execution_enabled']}")
+    for line in _MESHY_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="revoke-policy")
+def meshy_revoke_policy_cmd(
+    reason: str = typer.Option(None, "--reason", help="Optional reason recorded in the revocation history"),
+) -> None:
+    """Explicit write: revokes any previously recorded Meshy policy approval. Local file only - no network,
+    no remote revocation. Preserves the prior approval as history rather than discarding it."""
+    try:
+        gate = revoke_meshy_policy_approval(reason=reason)
+    except MeshyPolicyError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]revoked[/green]: Meshy policy approval. gate_status={gate['gate_status']}")
+    for line in _MESHY_SAFETY_TRAILER:
+        console.print(line)
 
 
 @app.command(name="review-gate")

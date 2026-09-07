@@ -191,10 +191,16 @@ Meshy; it is static, documented capability description only.
 
 **Meshy-generated or Meshy-repaired output != Factory validated != human
 approved** - three separate facts, never collapsed into one. See
-`docs/meshy-approval-gate.md` for the full checklist a future
-implementation (Phase 46 cloud/cost/license gate, then Phase 47
-concept/print-preparation gateway) must satisfy before Meshy is ever
-actually called.
+`docs/meshy-approval-gate.md` for the full checklist Meshy's actual
+implementation must satisfy, and `docs/meshy-policy.md` for Phase 46,
+which turned that checklist into a concrete, machine-readable policy/
+approval model (`factory.meshy_approval`, `factory meshy status/policy`)
+- still without adding a single network call, credential read, or Meshy
+call of any kind. This registry's own `meshy` record is unchanged by
+Phase 46; `factory meshy status` joins it with the new policy gate at
+runtime instead. Phase 47 (concept/print-preparation gateway) remains the
+first phase that may actually contact Meshy - only after Phase 46's
+policy is human-approved, which merely existing does not satisfy.
 
 ## Plasticity, Autodesk Fusion, Onshape: permanent future entries
 

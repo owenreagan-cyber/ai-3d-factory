@@ -89,6 +89,16 @@ unknown | personal_use | commercial_allowed | cc_by | cc_by_sa | cc_by_nc | publ
 "Advisory conditions" below) - not hard failures, but flagged so a human
 notices before treating the reference as safe to reuse or remix.
 
+**Phase 46 cross-reference:** `factory.meshy_approval.
+classify_reference_cloud_upload_permission()` maps each of these values
+to a separate cloud-upload permission - `personal_use`/`unknown`
+(and `proprietary`/`custom`) stay blocked from any future cloud upload by
+default, `cc_by_nc` is flagged non-commercial-use-only, and only
+`public_domain`/`cc_by`/`cc_by_sa`/`commercial_allowed` are treated as
+upload-safe on their own. This is a pure policy mapping, consulted by no
+real upload path (none exists yet) and never mutating
+`reference_board.json` - see `docs/meshy-policy.md`.
+
 ## Supported usage intent values
 
 ```
@@ -363,5 +373,7 @@ surface under time pressure. Same reasoning as
 
 See also `docs/design-intent-brief.md`, `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md` (the "Explicit input review before upload"
-standard this phase's advisory warnings echo), `docs/preview-board.md`,
-`docs/roadmap.md` Phase 28 / Phase 29, and `AGENT.md`.
+standard this phase's advisory warnings echo), `docs/meshy-policy.md`
+(Phase 46's cloud-upload permission mapping for these license values),
+`docs/preview-board.md`, `docs/roadmap.md` Phase 28 / Phase 29, and
+`AGENT.md`.

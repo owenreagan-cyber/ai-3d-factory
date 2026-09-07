@@ -11,7 +11,9 @@ an auto-printer; see `AGENT.md` for the full philosophy and safety rules.
 - Not connected to Meshy or any paid generative-mesh/AI API. Meshy is
   future-only, always disabled by default, and gated behind a documented
   approval/cost checklist before any implementation may add real calls -
-  see `docs/meshy-approval-gate.md` and `factory check-future-tools`.
+  see `docs/meshy-approval-gate.md`, `factory check-future-tools`, and
+  `factory meshy status` (`docs/meshy-policy.md`) for the concrete
+  policy/approval gate.
 - Not connected to Bambu cloud or any printer over LAN/USB.
 - Not something that marks a project `print_ready` automatically.
 
@@ -462,6 +464,24 @@ Eligible -> Explicit Human Confirmation -> Actual Project Execution -
 this phase reaches, at most, Adapter Qualified; `project_execution_approved`
 is hardcoded `false` on every result. Never installs, upgrades, or
 GUI-launches Blender; never contacts a slicer, printer, or network.
+
+`factory meshy status` / `policy` / `approval-status [--json]`
+(`factory.meshy_approval`, see `docs/meshy-policy.md`) is Meshy's cloud/
+cost/license/privacy approval **gate**, not an integration - it never
+calls Meshy, never contacts a network, and never reads a credential (it
+doesn't even check whether a Meshy API key environment variable exists).
+It turns `docs/meshy-approval-gate.md`'s Phase 16 planning checklist into
+a concrete, machine-readable policy (`config/meshy_policy.json`: cost/
+credit caps, license/commercial-use posture, a privacy/data-class policy
+that forbids classroom/private/unknown-source data from cloud upload by
+default) and approval record. `factory meshy approve-policy --ack-cost
+--ack-license --ack-privacy --ack-provenance` / `revoke-policy` are the
+only two writes - both local-file-only, both requiring every
+acknowledgement, and neither able to enable execution:
+`approval.execution_enabled` is hardcoded `false` in every code path this
+phase adds. Meshy availability != Meshy approval != API execution
+approval; actually calling Meshy remains a future, separately-approved
+phase.
 
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher

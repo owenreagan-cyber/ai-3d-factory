@@ -195,6 +195,55 @@ subprocess probes, temporary fixtures, capability tests) is performed for
 Meshy in any form; the cloud/cost/license approval gate itself remains
 Phase 46, strictly after this.
 
+## Phase 46 cross-reference
+
+`factory.meshy_approval` (Phase 46, `docs/meshy-policy.md`) turns this
+checklist into a concrete, machine-readable policy/approval model - it
+does not implement Meshy either, and still never calls it, imports a
+Meshy SDK, contacts a network, or reads a credential. It reads (never
+rewrites) this document's checklist, `config/future_cloud_tools.json`'s
+kill switch, and Phase 43's registry record, and adds one new, committed,
+non-secret file: `config/meshy_policy.json` (cost/credit caps, license
+posture, and an always-`false` `execution_enabled` approval record).
+Mapping this checklist's 10 requirements against Phase 46:
+
+1. **Explicit human approval** - Phase 46 implementation: `factory meshy
+   approve-policy` records it, but merely shipping this phase does not
+   count as that approval; see `docs/meshy-policy.md`.
+2. **Explicit cost/budget cap** - Phase 46 implementation: `cost_policy`'s
+   `per_request_cap`/`per_project_cap`/`daily_cap`/`monthly_cap`, all
+   `null` until a human sets one; `unknown_price_behavior` defaults to
+   `"block"`.
+3. **Explicit per-run confirmation** - unsatisfied; no per-run call exists
+   at all yet (Phase 47).
+4. **Explicit input review before upload** - Phase 46 implementation, as
+   policy: `INPUT_CLASS_POLICY`'s per-class review requirement and the
+   privacy/data-class model below; no actual upload code path exists to
+   review anything yet (Phase 47).
+5. **Explicit output review after generation** - unsatisfied; no
+   generation exists yet.
+6. **Local storage policy for generated assets** - Phase 47 deferred; only
+   the required provenance *field list* (`REQUIRED_OUTPUT_PROVENANCE_FIELDS`)
+   is defined this phase.
+7. **License/ownership notes** - Phase 46 implementation:
+   `license_policy` plus `classify_reference_cloud_upload_permission()`,
+   which maps `factory.reference_board`'s own `license` values to a
+   cloud-upload permission without ever mutating `reference_board.json`.
+8. **Student/privacy/data notes** - Phase 46 implementation:
+   `DATA_CLASSES`/`FORBIDDEN_DATA_CLASSES_BY_DEFAULT` explicitly forbids
+   student/private/classroom/unknown-source data from cloud upload by
+   default - policy metadata only, never a file scanner.
+9. **Fallback local-only path** - already satisfied since Phase 16
+   (`fallback_if_unavailable_or_over_budget` in
+   `config/future_cloud_tools.json`); unchanged.
+10. **Full pipeline still required afterward** - already satisfied
+    (Phase 43's registry record already states this); Phase 46 restates
+    it as `PRINTABILITY_POLICY_LOCK`, carried into every gate/CLI output.
+
+`factory meshy status`/`policy`/`approval-status` (all read-only) and
+`factory meshy approve-policy`/`revoke-policy` (the only two writes, both
+local-file-only) - see `docs/meshy-policy.md`.
+
 See also `config/future_cloud_tools.json`, `docs/roadmap.md` Phase 16,
 `docs/design-quality-standard.md`, `docs/tool-routing.md`,
 `docs/licensing-policy.md`, `docs/safety-gates.md`,

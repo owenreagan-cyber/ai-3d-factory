@@ -2869,6 +2869,54 @@ printer, or the network; never generates G-code; never writes to
 gate-checklist reconciliation against `docs/blender-local-track.md`'s
 original ten required gates.
 
+## Phase 46 — Meshy Cloud / Cost / License / Privacy Approval Gate (complete)
+
+Turns the Phase 16 planning scaffold (`docs/meshy-approval-gate.md`) into
+one concrete, machine-readable policy/approval model. **This phase is
+policy and approval infrastructure only** - zero Meshy network calls,
+zero paid API calls, zero credential reads (this module doesn't even
+check whether a Meshy API key environment variable exists), zero
+reference/project data leaving the machine.
+
+    Meshy availability != Meshy approval != API execution approval
+
+**New module: `factory.meshy_approval`.** Reads (never rewrites) Phase
+43's registry record and Phase 16's `config/future_cloud_tools.json` kill
+switch. Adds one new committed, non-secret file, `config/meshy_policy.json`
+(cost/credit caps, license/commercial-use posture, and an approval record
+whose `execution_enabled` field is hardcoded `false` in every code path -
+no flag or `--ack-*` combination in this phase can ever set it `true`).
+
+A deterministic `gate_status` walks a fixed priority order -
+`needs_cost_policy` -> `needs_license_policy` -> `needs_human_approval` ->
+`approved_for_future_api_integration` (or `revoked`) - while `blockers`
+lists every currently-unmet requirement at once.
+`evaluate_meshy_phase47_readiness()`'s `ready_for_phase47=True` means only
+"the policy scaffold a future phase needs now exists," never "safe to
+call Meshy now." A privacy/data-class policy forbids classroom/private/
+unknown-source data from cloud upload by default (policy metadata only,
+never a file scanner), and `classify_reference_cloud_upload_permission()`
+maps `factory.reference_board`'s own `license` values to a cloud-upload
+permission without ever mutating `reference_board.json` - `"unknown"`,
+`"proprietary"`, `"personal_use"`, and `"custom"` all stay blocked by
+default; only `"public_domain"`/`"cc_by"`/`"cc_by_sa"`/`"commercial_allowed"`
+are treated as upload-safe on their own, and `"cc_by_nc"` is flagged
+non-commercial-use-only.
+
+`factory meshy status`/`policy`/`approval-status` are fully read-only;
+`factory meshy approve-policy --ack-cost --ack-license --ack-privacy
+--ack-provenance` and `factory meshy revoke-policy` are the only two
+writes, both local-file-only, both refusing to run without every
+acknowledgement, and neither able to enable execution. Preview Board
+gained one compact global line (`meshy_policy_summary`, deliberately a
+separate top-level field from `tool_environment_summary` so
+`factory.project_health`'s `health_score` stays completely untouched - no
+per-project card, no automatic qualification, no network call during
+board generation). Zero network/subprocess use is proven, not just
+asserted, by tests that monkeypatch `socket.socket`/`subprocess.run`/
+`os.system` to raise and assert every command still succeeds. See
+`docs/meshy-policy.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -2909,11 +2957,18 @@ permanently unless explicitly removed by a future approved phase:
   reconciliation for the full accounting of which of
   `docs/blender-local-track.md`'s original ten gates remain unsatisfied
   for real project use.
-- **Phase 46** - Meshy Cloud / Cost / License Gate: API credential
-  handling, real monetary cost, per-request/project cost cap, reference-
-  image privacy, commercial-use licensing, provenance, asset ownership,
-  external-data handling, human approval, and a hard disable/kill switch -
-  gated behind everything `docs/meshy-approval-gate.md` requires.
+- **Phase 46** - Meshy Cloud / Cost / License / Privacy Approval Gate
+  (complete). Turned `docs/meshy-approval-gate.md`'s Phase 16 planning
+  scaffold into a concrete policy/approval model
+  (`factory.meshy_approval`, `config/meshy_policy.json`) - cost/credit
+  caps, license/commercial-use posture, a privacy/data-class policy
+  (classroom/private/unknown-source data forbidden for cloud upload by
+  default), and a `factory.reference_board` license-to-cloud-upload
+  mapping, all pure policy/classification with zero network calls, zero
+  credential reads, and zero data upload. `approval.execution_enabled`
+  stays hardcoded `false` in every code path - `evaluate_meshy_
+  phase47_readiness()`'s `ready_for_phase47=True` still never means Meshy
+  may be called. See `docs/meshy-policy.md`.
 - **Phase 47** - Meshy Concept & Print-Preparation Gateway, only after
   Phase 46's explicit approval. Meshy output always enters: provenance ->
   artifact receipt -> cleanup/manufacturing adaptation -> Factory
