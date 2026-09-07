@@ -201,7 +201,7 @@ def test_no_command_ever_enables_execution(policy_path):
 def test_meshy_help_lists_subcommands():
     result = runner.invoke(app, ["meshy", "--help"])
     assert result.exit_code == 0
-    for name in ("status", "policy", "approval-status", "approve-policy", "revoke-policy"):
+    for name in ("status", "policy", "approval-status", "approve-policy", "revoke-policy", "approval-plan"):
         assert name in result.stdout
 
 
@@ -212,7 +212,7 @@ def test_meshy_help_never_offers_generate_upload_connect_login_subcommands():
     from factory.cli import meshy_app
 
     registered = {command.name for command in meshy_app.registered_commands}
-    assert registered == {"status", "policy", "approval-status", "approve-policy", "revoke-policy"}
+    assert registered == {"status", "policy", "approval-status", "approve-policy", "revoke-policy", "approval-plan"}
     for forbidden in ("generate", "upload", "connect", "login"):
         assert forbidden not in registered
 

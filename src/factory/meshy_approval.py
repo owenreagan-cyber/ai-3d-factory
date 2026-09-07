@@ -496,6 +496,300 @@ def classify_data_class_cloud_permission(data_class: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Human approval decision package (Phase 46.5) - read-only, writes nothing,
+# records nothing, and selects nothing on the human's behalf. Turns the
+# Phase 46 policy scaffold into an explicit list of decisions a human must
+# make before Phase 47 may begin. Every "proposed_default" here is exactly
+# that - a proposal, not a recorded value; only `record_meshy_policy_approval()`
+# (an explicit, separate, human-invoked call) can ever change `approval`.
+# See docs/meshy-policy.md "Phase 46.5 - human approval preparation".
+# ---------------------------------------------------------------------------
+
+# The two Phase 47 approval kinds this decision package keeps separate per
+# its own spec ("SEPARATE TWO TYPES OF PHASE 47 APPROVAL") - informational
+# vocabulary only; no code path in this repo grants either one, since
+# Phase 47 does not exist yet.
+PHASE47_APPROVAL_KINDS = ("implementation_only", "live_call")
+
+# (classification key, which existing classifier it belongs to) - reused
+# directly from INPUT_CLASS_POLICY / classify_reference_cloud_upload_permission /
+# classify_data_class_cloud_permission; this table invents no new policy.
+_APPROVAL_PLAN_CLASSIFICATION_ROWS: tuple[tuple[str, str, str], ...] = (
+    ("Text prompt", "text_prompt", "input_class"),
+    ("User-created image", "user_created_reference", "data_class"),
+    ("Public-domain image", "public_domain", "license"),
+    ("Licensed third-party image", "cc_by", "license"),
+    ("Unknown-license image", "unknown", "license"),
+    ("Student photo", "student_photo", "data_class"),
+    ("Student identifying data", "student_data", "data_class"),
+    ("Private/confidential file", "confidential_project", "data_class"),
+    ("Existing mesh", "existing_mesh", "input_class"),
+)
+
+
+def _approval_plan_classification_row(label: str, key: str, kind: str) -> dict[str, Any]:
+    if kind == "input_class":
+        return {"label": label, "kind": kind, "key": key, **INPUT_CLASS_POLICY.get(key, {})}
+    if kind == "license":
+        return {"label": label, "kind": kind, **classify_reference_cloud_upload_permission(key)}
+    return {"label": label, "kind": kind, **classify_data_class_cloud_permission(key)}
+
+
+def build_meshy_approval_plan() -> dict[str, Any]:
+    """The Phase 46.5 human decision package. Pure read: joins
+    `evaluate_meshy_gate()`/`evaluate_meshy_phase47_readiness()` with a
+    fixed list of the human decisions still outstanding and a labeled set
+    of proposed (never applied) safe defaults. Never calls Meshy, never
+    reads a credential, never writes `config/meshy_policy.json`, and never
+    selects a decision on the human's behalf - every `current` value below
+    is read straight from the policy file as-is; every `proposed_default`
+    is prefixed, in every rendering, with "PROPOSED - NOT APPROVED"."""
+    gate = evaluate_meshy_gate()
+    readiness = evaluate_meshy_phase47_readiness(gate)
+    cost_policy = gate["cost_policy"]
+    approval = gate["approval"]
+
+    decisions = [
+        {
+            "id": 1,
+            "title": "Intended use",
+            "choices": ["internal_concept_studies", "personal_or_gift", "classroom", "commercial_or_etsy", "all_approved_project_types"],
+            "current": None,
+            "note": "Not specified yet. Drives the license/commercial posture (decision 4) and the Phase 47 scope (decision 10).",
+        },
+        {
+            "id": 2,
+            "title": "Text prompts",
+            "choices": ["never_allow", "allow_after_per_run_confirmation"],
+            "current": None,
+            "proposed_default": "allow_after_per_run_confirmation",
+            "note": "Lowest relative privacy risk of the input classes; provenance is still mandatory regardless.",
+        },
+        {
+            "id": 3,
+            "title": "User-created images",
+            "choices": ["never_upload", "allow_after_per_reference_approval"],
+            "current": None,
+            "proposed_default": "allow_after_per_reference_approval",
+        },
+        {
+            "id": 4,
+            "title": "Third-party reference images",
+            "choices": ["never_upload", "allow_when_license_and_upload_rights_known"],
+            "current": None,
+            "proposed_default": "allow_when_license_and_upload_rights_known",
+            "note": "Blocked unless license AND cloud-upload permission are both explicitly known - see classify_reference_cloud_upload_permission().",
+        },
+        {
+            "id": 5,
+            "title": "Student / classroom data",
+            "choices": ["always_forbidden"],
+            "current": None,
+            "proposed_default": "always_forbidden",
+            "note": "Not a real choice - this policy offers no other option for student/classroom data.",
+        },
+        {
+            "id": 6,
+            "title": "Existing mesh upload",
+            "choices": ["never", "allow_when_ownership_or_license_confirmed"],
+            "current": None,
+            "proposed_default": "allow_when_ownership_or_license_confirmed",
+        },
+        {
+            "id": 7,
+            "title": "Cost limits",
+            "choices": None,
+            "current": {k: cost_policy.get(k) for k in ("currency", "per_request_cap", "per_project_cap", "daily_cap", "monthly_cap")},
+            "note": "All null/unset. Real values require human input - see cost_fields_requiring_human_input below.",
+        },
+        {
+            "id": 8,
+            "title": "Credits",
+            "choices": None,
+            "current": dict(cost_policy.get("credit_policy", {})),
+            "note": "All null/unset. Only meaningful if Meshy's actual billing model is credit-based - EXTERNAL VERIFICATION REQUIRED.",
+        },
+        {
+            "id": 9,
+            "title": "Provenance",
+            "choices": ["mandatory"],
+            "current": None,
+            "proposed_default": "mandatory",
+            "note": "Not a real choice - this policy requires provenance on every future request/output regardless.",
+        },
+        {
+            "id": 10,
+            "title": "Phase 47 scope",
+            "choices": [
+                "do_not_authorize_phase47",
+                "authorize_implementation_only_no_live_api",
+                "authorize_implementation_and_confirmed_test_calls",
+                "broader_future_execution_not_recommended_at_this_checkpoint",
+            ],
+            "current": None,
+            "note": "Maps to phase47_implementation_approval / phase47_live_call_approval below - these two approvals are always kept separate.",
+        },
+    ]
+
+    proposed_safe_defaults = {
+        "label": "PROPOSED - NOT APPROVED",
+        "privacy": {
+            "student_identities": "forbidden",
+            "student_photos": "forbidden",
+            "private_or_classroom_records": "forbidden",
+            "credentials_or_secrets": "forbidden",
+            "confidential_files": "forbidden",
+            "unrelated_personal_files": "forbidden",
+        },
+        "references": {
+            "unknown_license": "blocked",
+            "proprietary_reference": "blocked_unless_explicit_rights_exist",
+            "user_created_reference": "allowed_after_explicit_approval",
+            "public_domain_reference": "allowed",
+            "appropriately_licensed_reference": "allowed_subject_to_license_terms",
+            "multi_image_request": "every_image_reviewed_independently",
+        },
+        "cloud": {
+            "execution": "disabled_by_default",
+            "per_run_confirmation_required": True,
+            "kill_switch_checked_before_every_request": True,
+            "automatic_retries_that_incur_cost": False,
+            "automatic_batch_generation": False,
+            "unattended_cloud_generation": False,
+        },
+        "cost": {
+            "unknown_cost_behavior": "block",
+            "call_without_bounded_cost": False,
+            "silent_overage": False,
+            "automatic_paid_retry": False,
+            "automatic_paid_upscale_or_refine": False,
+        },
+        "commercial": {
+            "commercial_or_etsy_use": "requires_explicit_licensing_posture",
+            "infer_commercial_rights": False,
+        },
+        "provenance": {"required": True},
+        "manufacturing": {
+            "meshy_output_trusted": False,
+            "factory_validation_mandatory": True,
+            "human_review_mandatory": True,
+        },
+    }
+
+    cost_fields_requiring_human_input = {
+        "max_cost_per_request": cost_policy.get("per_request_cap"),
+        "max_cost_per_project": cost_policy.get("per_project_cap"),
+        "max_cost_per_day": cost_policy.get("daily_cap"),
+        "max_cost_per_month": cost_policy.get("monthly_cap"),
+        "max_credits_per_request": cost_policy.get("credit_policy", {}).get("max_credits_per_request"),
+        "max_credits_per_project": cost_policy.get("credit_policy", {}).get("max_credits_per_project"),
+        "max_credits_per_day": cost_policy.get("credit_policy", {}).get("max_credits_per_day"),
+        "max_credits_per_month": cost_policy.get("credit_policy", {}).get("max_credits_per_month"),
+        "unknown_price_behavior": cost_policy.get("unknown_price_behavior", "block"),
+        "require_estimate_before_request": cost_policy.get("require_cost_estimate_before_request", True),
+        "require_confirmation_before_paid_request": cost_policy.get("require_confirmation_above_threshold", True),
+        "automatic_paid_retry_allowed": False,
+        "external_verification_required": "Current Meshy pricing/credit rates cannot be determined offline - EXTERNAL VERIFICATION REQUIRED before setting real values.",
+    }
+
+    reference_board_future_field_proposal = {
+        "status": "proposal_only_not_added",
+        "proposed_field": "cloud_upload_status",
+        "proposed_values": ["allowed", "blocked", "requires_review", "unknown"],
+        "note": (
+            "Kept deliberately separate from reference_board.json's existing usage-rights field - "
+            "'design reference only' usage rights are not the same permission as 'may be sent to a "
+            "third-party cloud API'. Not added to reference_board.json by this function; a future "
+            "phase would add it additively if actually needed for Phase 47."
+        ),
+    }
+
+    phase47_scope_proposal = {
+        "47A": {
+            "name": "Meshy adapter, mocked only",
+            "includes": [
+                "API client abstraction", "no credentials required", "no real network", "mocked responses",
+                "request planning", "cost-budget checks", "kill switch", "provenance", "receipts",
+                "mocked artifact download abstraction", "Factory validation integration", "tests",
+            ],
+            "excludes": ["any real Meshy API call"],
+        },
+        "47B": {
+            "name": "First controlled Meshy call",
+            "requires": "a separate, explicit approval beyond 47A",
+            "includes": ["one bounded request", "human watches/reviews the result"],
+            "excludes": ["automatic retry", "batch requests", "repair chain", "print-prep chain"],
+        },
+        "47C": {
+            "name": "Additional Meshy capabilities",
+            "requires": "47B to have succeeded first",
+            "candidate_capabilities": list(KNOWN_MESHY_CAPABILITIES),
+        },
+        "recommended_initial_scope": (
+            "One concept-generation request type -> one returned mesh -> provenance -> artifact receipt -> "
+            "Factory validation -> preview -> human review. Advanced Meshy print-preparation operations "
+            "(Smart Topology, Auto Split, Analyze/Repair Printability, 3MF) stay gated until this basic "
+            "cloud lifecycle is proven in 47B."
+        ),
+    }
+
+    phase47_implementation_approval = {
+        "status": "not_recorded",
+        "distinct_from": "phase47_live_call_approval",
+        "note": "Would allow building the Meshy adapter/planner/tests against mocked responses - never a real API call.",
+    }
+    phase47_live_call_approval = {
+        "status": "not_recorded",
+        "requires": [
+            "phase47_implementation_approval already recorded and implementation reviewed",
+            "credentials configured separately (never read/validated by this repo's policy layer)",
+            "real cost caps configured", "current Meshy pricing/cost mechanism understood (external verification)",
+            "license posture reviewed", "privacy policy approved", "provenance approved",
+            "kill switch (config/future_cloud_tools.json meshy.enabled) explicitly enabled by a human",
+            "per-run confirmation at call time",
+        ],
+    }
+
+    exact_commands_after_decisions = [
+        "Hand-edit config/meshy_policy.json: set real values for per_request_cap/per_project_cap/daily_cap/"
+        "monthly_cap (and currency), and set license_policy.terms_reviewed=true after reviewing Meshy's "
+        "terms of service for your intended use.",
+        "factory meshy policy --json   # confirm gate_status has advanced past needs_cost_policy/needs_license_policy",
+        "factory meshy approve-policy --ack-cost --ack-license --ack-privacy --ack-provenance   "
+        "# records approval_scope=policy_only; execution_enabled stays false",
+        "factory meshy approval-status   # confirm approval is recorded and execution remains disabled",
+    ]
+
+    return {
+        "tool": "meshy",
+        "current_state": {
+            "policy_infrastructure": "complete",
+            "policy_approval": "recorded" if gate["approval_recorded"] else "not_recorded",
+            "execution": "disabled",
+            "network_access": "disabled",
+            "gate_status": gate["gate_status"],
+        },
+        "decisions": decisions,
+        "proposed_safe_defaults": proposed_safe_defaults,
+        "cost_fields_requiring_human_input": cost_fields_requiring_human_input,
+        "input_classification_matrix": [_approval_plan_classification_row(label, key, kind) for label, key, kind in _APPROVAL_PLAN_CLASSIFICATION_ROWS],
+        "reference_board_future_field_proposal": reference_board_future_field_proposal,
+        "provenance_policy": gate["provenance_policy"],
+        "kill_switch": gate["kill_switch"],
+        "phase47_scope_proposal": phase47_scope_proposal,
+        "phase47_implementation_approval": phase47_implementation_approval,
+        "phase47_live_call_approval": phase47_live_call_approval,
+        "phase47_readiness": readiness,
+        "exact_commands_after_decisions": exact_commands_after_decisions,
+        "network_used": False,
+        "credentials_read": False,
+        "money_spent": 0,
+        "automatic_print_allowed": False,
+        "no_automatic_print": True,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Approval lifecycle - the only two functions in this module that write
 # ---------------------------------------------------------------------------
 

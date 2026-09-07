@@ -87,6 +87,7 @@ from factory.blender_adapter import build_blender_report
 from factory.blender_gate import evaluate_blender_execution_gate
 from factory.meshy_approval import (
     MeshyPolicyError,
+    build_meshy_approval_plan,
     evaluate_meshy_gate,
     evaluate_meshy_phase47_readiness,
     record_meshy_policy_approval,
@@ -198,6 +199,7 @@ AVAILABLE_COMMANDS = (
     "meshy approval-status [--json]",
     "meshy approve-policy --ack-cost --ack-license --ack-privacy --ack-provenance [--approved-by NAME]",
     "meshy revoke-policy [--reason TEXT]",
+    "meshy approval-plan [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2526,6 +2528,64 @@ def meshy_revoke_policy_cmd(
         console.print(f"[red]error[/red]: {exc}")
         raise typer.Exit(code=1)
     console.print(f"[green]revoked[/green]: Meshy policy approval. gate_status={gate['gate_status']}")
+    for line in _MESHY_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="approval-plan")
+def meshy_approval_plan_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 46.5: read-only Meshy human approval decision package. Writes nothing, records nothing,
+    and selects no decision on the human's behalf - every proposed default is labeled PROPOSED - NOT
+    APPROVED. Lists the outstanding decisions, conservative proposed defaults, the cost fields that
+    still need real human-supplied values, and the exact commands to run afterward. Never contacts
+    Meshy or any network, never reads a credential. See docs/meshy-policy.md "Phase 46.5"."""
+    plan = build_meshy_approval_plan()
+
+    if as_json:
+        print(json.dumps(plan, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+
+    console.print("[bold]MESHY HUMAN APPROVAL PLAN[/bold]\n")
+
+    console.print("[bold]Current State[/bold]")
+    for label, value in (
+        ("Policy infrastructure", plan["current_state"]["policy_infrastructure"]),
+        ("Policy approval", plan["current_state"]["policy_approval"]),
+        ("Execution", plan["current_state"]["execution"]),
+        ("Network access", plan["current_state"]["network_access"]),
+    ):
+        console.print(f"{label}: {value}")
+    console.print()
+
+    for decision in plan["decisions"]:
+        console.print(f"[bold]DECISION {decision['id']} - {_rich_escape(decision['title'])}[/bold]")
+        if decision["choices"]:
+            for choice in decision["choices"]:
+                console.print(f"[ ] {choice}")
+        current = decision.get("current")
+        console.print(f"Current: {current if current not in (None, {}) else 'Not specified'}")
+        if decision.get("proposed_default"):
+            console.print(f"Proposed (NOT APPROVED): {decision['proposed_default']}")
+        if decision.get("note"):
+            console.print(_rich_escape(decision["note"]))
+        console.print()
+
+    console.print("[bold]Recommended Phase 47 scope (proposed - not approved):[/bold]")
+    console.print(_rich_escape(plan["phase47_scope_proposal"]["recommended_initial_scope"]))
+    console.print()
+
+    console.print("[bold]Phase 47 implementation approval:[/bold]", plan["phase47_implementation_approval"]["status"])
+    console.print("[bold]Phase 47 live-call approval:[/bold]", plan["phase47_live_call_approval"]["status"])
+    console.print()
+
+    console.print("[bold]Exact commands you could run after making these decisions:[/bold]")
+    for command in plan["exact_commands_after_decisions"]:
+        console.print(f"  {_rich_escape(command)}")
+    console.print()
+
+    console.print("No Meshy API call was made. No credentials were read. No decision was recorded on your behalf.")
     for line in _MESHY_SAFETY_TRAILER:
         console.print(line)
 

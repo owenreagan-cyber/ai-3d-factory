@@ -274,6 +274,43 @@ only "this policy scaffold is complete enough for a future phase to
 begin implementing the Meshy adapter against it" - **never** "safe to
 call Meshy now."
 
+## Phase 46.5 - human approval preparation
+
+Phase 46 built the policy *infrastructure*. Phase 46.5 turns it into an
+explicit, read-only **human decision package** - `build_meshy_approval_plan()`
+(`factory meshy approval-plan` / `--json`) - so a human can actually make
+the decisions Phase 46's policy scaffold left open, before Phase 47 may
+begin. It writes nothing, records nothing, and selects no decision on the
+human's behalf: every proposed value is labeled `PROPOSED - NOT APPROVED`
+and every `current` value is read straight from `config/meshy_policy.json`
+as-is.
+
+The plan enumerates ten decisions (intended use; text prompts; user-created
+images; third-party reference images; student/classroom data - not a real
+choice, always forbidden; existing-mesh upload; cost limits; credits;
+provenance - not a real choice, always mandatory; Phase 47 scope), a
+conservative `proposed_safe_defaults` block, the exact `cost_policy` fields
+still needing a real human-supplied value (labeled `EXTERNAL VERIFICATION
+REQUIRED` for anything - like current Meshy pricing - this repo cannot
+determine offline), an input/reference/data-class classification matrix
+built entirely from Phase 46's own `INPUT_CLASS_POLICY` /
+`classify_reference_cloud_upload_permission()` /
+`classify_data_class_cloud_permission()` (no new classification logic), a
+proposal-only future `reference_board.json` field
+(`cloud_upload_status` - deliberately never added automatically, and kept
+distinct from that file's existing usage-rights field), and a staged
+Phase 47A/47B/47C scope recommendation (mocked adapter only -> one
+explicitly-approved live call -> additional capabilities, never all at
+once).
+
+**Two Phase 47 approvals stay separate, always:** `phase47_implementation_approval`
+(would allow building the Meshy adapter against mocked responses) and
+`phase47_live_call_approval` (a real API call - requires implementation
+review, real cost caps, reviewed license/privacy/provenance policy, the
+kill switch explicitly enabled, and per-run confirmation). Both report
+`"status": "not_recorded"` until a human takes the separate, explicit
+action each one requires - nothing in this phase can record either.
+
 ## Engine registry / Preview Board / Project Health integration
 
 - `factory.engine_registry`'s canonical Meshy record (Phase 43) is
@@ -297,6 +334,7 @@ call Meshy now."
 factory meshy status                                                    # read-only
 factory meshy policy [--json]                                           # read-only, full detail
 factory meshy approval-status [--json]                                  # read-only, approval only
+factory meshy approval-plan [--json]                                    # read-only, human decision package (Phase 46.5)
 factory meshy approve-policy --ack-cost --ack-license --ack-privacy \
   --ack-provenance [--approved-by NAME]                                 # explicit write
 factory meshy revoke-policy [--reason TEXT]                             # explicit write
