@@ -271,6 +271,27 @@ def test_credit_cap_fields_present_and_unset_by_default(policy_path):
         assert credit_policy[field] is None
 
 
+def test_credit_only_cap_counts_as_configured(policy_path):
+    """Meshy's own billing is credit-based (Phase 46.6 research) - a human
+    who sets only credit caps, with no invented dollar conversion, has a
+    fully-configured cost policy, not a partial one."""
+    policy = json.loads(policy_path.read_text())
+    policy["cost_policy"]["credit_policy"]["max_credits_per_request"] = 25
+    policy_path.write_text(json.dumps(policy))
+    assert m._cost_policy_configured(m.load_meshy_policy()["cost_policy"]) is True
+
+    gate = m.evaluate_meshy_gate()
+    assert gate["gate_status"] != "needs_cost_policy"
+
+
+def test_credit_only_cap_alone_still_needs_license_review(policy_path):
+    policy = json.loads(policy_path.read_text())
+    policy["cost_policy"]["credit_policy"]["max_credits_per_month"] = 500
+    policy_path.write_text(json.dumps(policy))
+    gate = m.evaluate_meshy_gate()
+    assert gate["gate_status"] == "needs_license_policy"
+
+
 def test_no_negative_cost_cap_semantics_assumed():
     """This module never validates/clamps a human-entered cap - it only
     reads what's there. A negative cap is a human data-entry error to

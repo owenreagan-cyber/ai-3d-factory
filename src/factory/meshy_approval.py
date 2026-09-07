@@ -274,12 +274,20 @@ def _save_meshy_policy(policy: dict[str, Any]) -> None:
 
 def _cost_policy_configured(cost_policy: dict[str, Any]) -> bool:
     """A cost policy counts as "configured" once at least one real cap is
-    set - an all-null cost policy (this phase's shipped default) leaves
-    `unknown_price_behavior` doing all the work, which is exactly the
-    conservative starting point, not a completed policy."""
+    set - dollar-denominated or credit-denominated. An all-null cost
+    policy (this phase's shipped default) leaves `unknown_price_behavior`
+    doing all the work, which is exactly the conservative starting point,
+    not a completed policy. Meshy's own billing is credit-based (see
+    docs/meshy-current-research.md "Pricing/credit findings"), so a human
+    approving a real credit budget without also inventing a credit-to-
+    dollar conversion is a genuine, fully-configured policy - not a
+    partial one."""
+    if any(cost_policy.get(field) is not None for field in ("per_request_cap", "per_project_cap", "daily_cap", "monthly_cap")):
+        return True
+    credit_policy = cost_policy.get("credit_policy") or {}
     return any(
-        cost_policy.get(field) is not None
-        for field in ("per_request_cap", "per_project_cap", "daily_cap", "monthly_cap")
+        credit_policy.get(field) is not None
+        for field in ("max_credits_per_request", "max_credits_per_project", "max_credits_per_day", "max_credits_per_month")
     )
 
 

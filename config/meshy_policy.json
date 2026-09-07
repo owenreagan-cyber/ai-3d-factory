@@ -13,34 +13,36 @@
     "spend_tracking_required": true,
     "hard_stop_on_unknown_cost": true,
     "credit_policy": {
-      "max_credits_per_request": null,
-      "max_credits_per_project": null,
-      "max_credits_per_day": null,
-      "max_credits_per_month": null
+      "max_credits_per_request": 25,
+      "max_credits_per_project": 100,
+      "max_credits_per_day": 150,
+      "max_credits_per_month": 500
     }
   },
   "license_policy": {
-    "commercial_use_required": null,
+    "commercial_use_required": true,
     "commercial_use_verified": false,
-    "terms_reviewed": false,
-    "terms_review_date": null,
-    "output_ownership_verified": false,
+    "terms_reviewed": true,
+    "terms_review_date": "2026-09-06",
+    "output_ownership_verified": true,
     "input_rights_required": true,
     "reference_license_required": true,
-    "third_party_asset_restrictions": "unknown",
+    "third_party_asset_restrictions": "uploader_must_already_hold_rights_meshy_grants_none",
     "unknown_license_behavior": "block_commercial_use"
   },
   "approval": {
-    "approved_at": null,
-    "approved_by": null,
-    "approval_scope": null,
-    "cost_policy_acknowledged": false,
-    "license_policy_acknowledged": false,
-    "privacy_policy_acknowledged": false,
-    "provenance_policy_acknowledged": false,
-    "cloud_data_policy_acknowledged": false,
+    "approved_at": "2026-09-07T00:48:21.076588+00:00",
+    "approved_by": "owen.reagan@thalesacademy.org",
+    "approval_scope": "policy_only",
+    "cost_policy_acknowledged": true,
+    "license_policy_acknowledged": true,
+    "privacy_policy_acknowledged": true,
+    "provenance_policy_acknowledged": true,
+    "cloud_data_policy_acknowledged": true,
     "execution_enabled": false,
-    "notes": [],
+    "notes": [
+      "Phase 46.6-informed approval (research date 2026-09-06, docs/meshy-current-research.md). Plan context: Meshy Pro, 1000 included monthly credits (education discount application pending separately, not yet reflected). Commercial posture: physical-product resale permitted subject to current Meshy terms + verified rights to all inputs; digital-asset resale remains case-reviewable pending further clarity on Meshy's physical-vs-digital resale distinction, which the research left unclear. Automatic paid retry and automatic batch generation both reconfirmed disabled (already hardcoded false in this module; no code path can set either true). Phase 47A (mocked adapter) approved; Phase 47B (real API call) explicitly NOT approved; execution_enabled and future_cloud_tools' Meshy kill switch both remain disabled."
+    ],
     "revoked_at": null,
     "revocation_history": []
   }

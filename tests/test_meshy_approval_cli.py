@@ -155,6 +155,16 @@ def test_approve_policy_succeeds_with_all_acks(policy_path):
     assert payload["approval"]["execution_enabled"] is False
 
 
+def test_approve_policy_note_flag_recorded(policy_path):
+    _set_ready_for_approval(policy_path)
+    result = runner.invoke(app, ["meshy", "approve-policy", "--ack-cost", "--ack-license", "--ack-privacy", "--ack-provenance", "--note", "research context for this approval"])
+    assert result.exit_code == 0
+
+    status = runner.invoke(app, ["meshy", "approval-status", "--json"])
+    payload = json.loads(status.stdout)
+    assert "research context for this approval" in payload["approval"]["notes"]
+
+
 def test_approve_policy_refused_without_cost_cap(policy_path):
     result = runner.invoke(app, ["meshy", "approve-policy", "--ack-cost", "--ack-license", "--ack-privacy", "--ack-provenance"])
     assert result.exit_code == 1

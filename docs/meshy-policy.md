@@ -134,9 +134,15 @@ Every cap starts `null`; `unknown_price_behavior` defaults to `"block"`
 it must not call Meshy). A `credit_policy` sub-object mirrors the same
 null-by-default pattern for credit-based billing
 (`max_credits_per_request/project/day/month`). A policy counts as
-"configured" once at least one real cap (`per_request_cap`/
-`per_project_cap`/`daily_cap`/`monthly_cap`) is set by a human, directly
-in the file.
+"configured" once at least one real cap is set by a human directly in
+the file - either dollar-denominated (`per_request_cap`/
+`per_project_cap`/`daily_cap`/`monthly_cap`) or credit-denominated
+(any `credit_policy.max_credits_per_*` field). Meshy's own billing is
+credit-based (see `docs/meshy-current-research.md`), so a human is
+expected to set real credit caps and leave the dollar fields `null`
+rather than inventing a credit-to-dollar conversion this repo has no
+reliable source for - that is a fully-configured policy, not a partial
+one (Phase 46.6 amendment to `_cost_policy_configured()`).
 
 ## License and commercial-use policy
 
@@ -336,7 +342,7 @@ factory meshy policy [--json]                                           # read-o
 factory meshy approval-status [--json]                                  # read-only, approval only
 factory meshy approval-plan [--json]                                    # read-only, human decision package (Phase 46.5)
 factory meshy approve-policy --ack-cost --ack-license --ack-privacy \
-  --ack-provenance [--approved-by NAME]                                 # explicit write
+  --ack-provenance [--approved-by NAME] [--note TEXT]                   # explicit write
 factory meshy revoke-policy [--reason TEXT]                             # explicit write
 ```
 

@@ -2502,12 +2502,13 @@ def meshy_approve_policy_cmd(
     ack_privacy: bool = typer.Option(False, "--ack-privacy", help="Acknowledge the privacy/data policy"),
     ack_provenance: bool = typer.Option(False, "--ack-provenance", help="Acknowledge the provenance requirements"),
     approved_by: str = typer.Option(None, "--approved-by", help="Name/identifier of the human recording this approval"),
+    note: str = typer.Option(None, "--note", help="Optional free-text note appended to approval.notes (e.g. research date/plan context this approval was based on)"),
 ) -> None:
     """Explicit write: records human approval of the Meshy policy scaffold (approval_scope=policy_only).
     Requires all four --ack-* flags. Requires a cost cap and a reviewed license policy to already be set
     in config/meshy_policy.json. Can NEVER enable Meshy execution - execution_enabled stays false always."""
     try:
-        gate = record_meshy_policy_approval(ack_cost=ack_cost, ack_license=ack_license, ack_privacy=ack_privacy, ack_provenance=ack_provenance, approved_by=approved_by)
+        gate = record_meshy_policy_approval(ack_cost=ack_cost, ack_license=ack_license, ack_privacy=ack_privacy, ack_provenance=ack_provenance, approved_by=approved_by, note=note)
     except MeshyPolicyError as exc:
         console.print(f"[red]error[/red]: {exc}")
         raise typer.Exit(code=1)
