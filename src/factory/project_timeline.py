@@ -46,6 +46,7 @@ See `docs/project-timeline.md`.
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,7 @@ EVENT_CATEGORIES = (
     "printer_change",
     "risk_change",
     "warning_change",
+    "meshy",
 )
 
 EVENT_STATUSES = ("completed", "changed", "recorded", "unavailable")
@@ -392,6 +394,63 @@ def _events_from_slicer_history(project_dir: Path) -> list[dict[str, Any]]:
     return events
 
 
+def _meshy_provider_timestamp_to_iso(value: Any) -> str | None:
+    """Meshy's own task timestamps (`created_at`/`started_at`/`finished_at`)
+    are raw provider epoch-millisecond integers, passed through verbatim
+    into `meshy_receipt.json` by `factory.meshy_live_adapter` - unlike
+    every other receipt in this repo, which already uses this module's
+    ISO8601 convention. Converted here, at the timeline boundary, rather
+    than changing the receipt's own passthrough-of-the-provider-value
+    field (a receipt should record exactly what the provider said)."""
+    if not isinstance(value, (int, float)):
+        return None
+    return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat()
+
+
+def _events_from_meshy_receipt(project_dir: Path) -> list[dict[str, Any]]:
+    """Phase 47B.7: a real (non-mocked) Meshy live receipt becomes exactly
+    one timeline event, per `docs/meshy-live-transport.md` section 19's own
+    deferred design - never emitted for a Phase 47A mocked receipt
+    (`mock_execution: true`), which is architecture-proving only, never a
+    project-timeline-worthy fact."""
+    project_dir = Path(project_dir)
+    receipt_path = project_dir / "generated" / "meshy_receipt.json"
+    if not receipt_path.is_file():
+        return []
+    try:
+        receipt = project_store.load_json(receipt_path)
+    except (OSError, ValueError):
+        return []
+    if not receipt.get("live_api_used") or receipt.get("mock_execution"):
+        return []
+
+    validation_status = receipt.get("validation_status")
+    severity = "ready" if validation_status == "PASS" else "warning"
+
+    fingerprints: dict[str, str] = {}
+    artifact_paths = receipt.get("output_artifact_paths") or []
+    fingerprint = receipt.get("artifact_fingerprint")
+    if artifact_paths and fingerprint:
+        try:
+            rel_path = str(Path(artifact_paths[0]).relative_to(project_dir))
+        except ValueError:
+            rel_path = artifact_paths[0]
+        fingerprints[rel_path] = fingerprint
+
+    return [
+        _make_event(
+            timestamp=_meshy_provider_timestamp_to_iso(receipt.get("finished_at")),
+            category="meshy", status="completed", severity=severity,
+            label="Meshy concept generated", source="meshy_receipt",
+            detail=(
+                f"task_id={receipt.get('meshy_task_id')}, model={receipt.get('ai_model')}, "
+                f"credits={receipt.get('consumed_credits')}, validation={validation_status}"
+            ),
+            fingerprints=fingerprints,
+        )
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Public aggregation
 # ---------------------------------------------------------------------------
@@ -411,6 +470,7 @@ def get_project_timeline(project_dir: Path) -> list[dict[str, Any]]:
     events.extend(_events_from_slicer_readiness_receipt(project_dir))
     events.extend(_events_from_workspace_receipt(project_dir))
     events.extend(_events_from_slicer_history(project_dir))
+    events.extend(_events_from_meshy_receipt(project_dir))
 
     undated = [e for e in events if e["timestamp"] is None]
     dated = sorted((e for e in events if e["timestamp"] is not None), key=lambda e: e["timestamp"])

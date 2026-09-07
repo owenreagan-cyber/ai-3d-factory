@@ -107,6 +107,7 @@ from factory.meshy_live_approval import (
     load_approvals,
     revoke_approval,
 )
+from factory.meshy_ledger import LedgerError, SpendLedger
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -220,6 +221,7 @@ AVAILABLE_COMMANDS = (
     "meshy approve-live-once --prompt TEXT --max-credits N [--model MODEL] [--project PATH] [--expires-in SECONDS] [--json]",
     "meshy revoke-live-approval APPROVAL_ID [--reason TEXT]",
     "meshy live-run --prompt TEXT --confirm-live [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
+    "meshy reconcile-ledger-entry RESERVATION_ID --reason TEXT [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2823,6 +2825,29 @@ def meshy_revoke_live_approval_cmd(
         console.print(f"[red]error[/red]: {exc}")
         raise typer.Exit(code=1)
     console.print(f"[green]revoked[/green]: {record['approval_id']}")
+
+
+@meshy_app.command(name="reconcile-ledger-entry")
+def meshy_reconcile_ledger_entry_cmd(
+    reservation_id: str = typer.Argument(..., help="The ledger reservation_id to reconcile"),
+    reason: str = typer.Option(..., "--reason", help="Why this entry is confirmed to have consumed zero credits"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47B.7: explicit write - reconciles one `"unknown"` spend-ledger entry to
+    `"confirmed_zero_rejected_before_submission"` (state/meshy_spend_ledger.json). Only valid for an
+    entry with no task_id (no evidence a task was ever created) - e.g. an HTTP 401/403 credential
+    rejection, which Meshy's auth layer returns before any task exists. Never contacts Meshy, never
+    deletes ledger history - the original entry's timestamp/unknown_reason are preserved alongside the
+    new reconciled_at/reconciled_reason fields."""
+    try:
+        entry = SpendLedger().reconcile_rejected_before_submission(reservation_id, reason=reason)
+    except LedgerError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    if as_json:
+        print(json.dumps(entry, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    console.print(f"[green]reconciled[/green]: {entry['reservation_id']} -> {entry['status']} (actual_credits=0)")
 
 
 def _render_meshy_live_run_human(result: dict[str, Any]) -> None:

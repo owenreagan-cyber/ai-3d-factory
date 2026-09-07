@@ -89,6 +89,15 @@ def _is_blocked_host(hostname: str) -> bool:
     return ip.is_loopback or ip.is_link_local or ip.is_private or ip.is_reserved or ip.is_multicast
 
 
+def artifact_url_host(url: str) -> str | None:
+    """Returns just the hostname of an artifact URL - safe to persist in a
+    receipt or log (never the full signed URL, which carries a query-string
+    access token). `factory.meshy_live_adapter` records this so a future
+    audit can derive a real artifact-CDN allowlist from actual evidence
+    rather than guessing one (`docs/meshy-live-readiness.md` section 5)."""
+    return urlparse(url).hostname
+
+
 def validate_artifact_url(url: str) -> None:
     """Raises `MeshyHttpError` unless `url` is `https://`-only and not a
     blocked/private/loopback host. Does **not** allowlist a specific CDN

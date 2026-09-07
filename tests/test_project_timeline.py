@@ -541,3 +541,76 @@ def test_no_slicer_execution_no_gcode_no_network(scad_project, monkeypatch):
     monkeypatch.setattr(socket, "socket", _boom_socket)
     get_project_timeline(scad_project)
     summarize_project_timeline(scad_project)
+
+
+# ---------------------------------------------------------------------------
+# Phase 47B.7: a real (non-mocked) Meshy receipt becomes one timeline event
+# ---------------------------------------------------------------------------
+
+
+def _write_meshy_receipt(project_dir: Path, **overrides) -> None:
+    receipt = {
+        "meshy_task_id": "01a07ca5-0c06-7459-b1f4-68f383774fae",
+        "mock_execution": False,
+        "live_api_used": True,
+        "ai_model": "meshy-7",
+        "consumed_credits": 20,
+        "validation_status": "WARN",
+        "preview_status": "PASS",
+        "output_artifact_paths": [str(project_dir / "generated" / "meshy" / "processed" / "01a07ca5.stl")],
+        "artifact_fingerprint": "sha256:deadbeef",
+        "finished_at": 1788797695403,  # real Meshy epoch-millisecond timestamp, not ISO8601
+    }
+    receipt.update(overrides)
+    generated_dir = project_dir / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    project_store.save_json(generated_dir / "meshy_receipt.json", receipt)
+
+
+def test_meshy_category_registered():
+    assert "meshy" in EVENT_CATEGORIES
+
+
+def test_real_meshy_receipt_produces_one_timeline_event(scad_project):
+    _write_meshy_receipt(scad_project)
+    events = get_project_timeline(scad_project)
+    meshy_events = [e for e in events if e["category"] == "meshy"]
+    assert len(meshy_events) == 1
+    event = meshy_events[0]
+    assert event["label"] == "Meshy concept generated"
+    assert event["source"] == "meshy_receipt"
+    assert "01a07ca5-0c06-7459-b1f4-68f383774fae" in event["detail"]
+    assert event["severity"] in HEALTH_SEVERITIES
+
+
+def test_meshy_epoch_ms_timestamp_converted_to_iso(scad_project):
+    _write_meshy_receipt(scad_project)
+    event = next(e for e in get_project_timeline(scad_project) if e["category"] == "meshy")
+    assert event["timestamp"] is not None
+    assert "T" in event["timestamp"]  # ISO8601, not the raw provider epoch-ms integer
+    assert event["date"] == "2026-09-07"
+
+
+def test_meshy_warn_validation_maps_to_warning_severity(scad_project):
+    _write_meshy_receipt(scad_project, validation_status="WARN")
+    event = next(e for e in get_project_timeline(scad_project) if e["category"] == "meshy")
+    assert event["severity"] == "warning"
+
+
+def test_meshy_pass_validation_maps_to_ready_severity(scad_project):
+    _write_meshy_receipt(scad_project, validation_status="PASS")
+    event = next(e for e in get_project_timeline(scad_project) if e["category"] == "meshy")
+    assert event["severity"] == "ready"
+
+
+def test_mocked_meshy_receipt_produces_no_timeline_event(scad_project):
+    """A Phase 47A mocked receipt is architecture-proving only - never a
+    project-timeline-worthy fact."""
+    _write_meshy_receipt(scad_project, mock_execution=True, live_api_used=False)
+    events = get_project_timeline(scad_project)
+    assert not [e for e in events if e["category"] == "meshy"]
+
+
+def test_missing_meshy_receipt_produces_no_event(scad_project):
+    events = get_project_timeline(scad_project)
+    assert not [e for e in events if e["category"] == "meshy"]

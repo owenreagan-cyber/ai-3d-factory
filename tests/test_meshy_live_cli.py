@@ -177,3 +177,48 @@ def test_no_generate_upload_connect_login_commands_added():
     registered = {c.name for c in meshy_app.registered_commands}
     for forbidden in ("generate", "upload", "connect", "login", "live"):
         assert forbidden not in registered
+
+
+# ---------------------------------------------------------------------------
+# Phase 47B.7: reconcile-ledger-entry
+# ---------------------------------------------------------------------------
+
+
+def test_reconcile_ledger_entry_success(env):
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_unknown(entry["reservation_id"], reason="submission failed: Meshy rejected the API key (HTTP 401)")
+
+    result = runner.invoke(app, ["meshy", "reconcile-ledger-entry", entry["reservation_id"], "--reason", "401 before any task existed", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "confirmed_zero_rejected_before_submission"
+    assert payload["actual_credits"] == 0
+
+
+def test_reconcile_ledger_entry_refuses_entry_with_task_id(env):
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_submitted(entry["reservation_id"], task_id="real-task-1")
+    ledger.mark_unknown(entry["reservation_id"], reason="network error mid-poll")
+
+    result = runner.invoke(app, ["meshy", "reconcile-ledger-entry", entry["reservation_id"], "--reason", "should be refused"])
+    assert result.exit_code == 1
+
+
+def test_reconcile_ledger_entry_never_touches_network_or_subprocess(env, monkeypatch):
+    import socket
+    import subprocess
+
+    def _boom(*a, **k):
+        raise AssertionError("reconcile-ledger-entry must never touch network or subprocess")
+
+    monkeypatch.setattr(socket, "socket", _boom)
+    monkeypatch.setattr(subprocess, "run", _boom)
+    monkeypatch.setattr(subprocess, "Popen", _boom)
+
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_unknown(entry["reservation_id"], reason="submission failed: Meshy rejected the API key (HTTP 401)")
+    result = runner.invoke(app, ["meshy", "reconcile-ledger-entry", entry["reservation_id"], "--reason", "x", "--json"])
+    assert result.exit_code == 0

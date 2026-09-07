@@ -40,13 +40,14 @@ through - no Meshy-specific validator or visual-QA subsystem).
 
 from __future__ import annotations
 
+import hashlib
 import time
 from pathlib import Path
 from typing import Any, Callable
 
 from factory import future_cloud_tools, meshy_approval, project_store
 from factory.meshy_adapter import check_budget
-from factory.meshy_http_transport import MESHY_API_BASE, HttpMeshyTransport, LiveMeshyCredentialProvider, MeshyCredentialError
+from factory.meshy_http_transport import MESHY_API_BASE, HttpMeshyTransport, LiveMeshyCredentialProvider, MeshyCredentialError, artifact_url_host
 from factory.meshy_ledger import LedgerError, SpendLedger
 from factory.meshy_live_approval import find_eligible_approval
 from factory.meshy_mock_transport import MeshyTransport, MeshyTransportError
@@ -64,6 +65,18 @@ ENDPOINT = f"{MESHY_API_BASE}/openapi/v2/text-to-3d"
 POLL_INITIAL_DELAY_SECONDS = 5.0
 POLL_INTERVAL_SECONDS = 5.0
 POLL_MAX_ATTEMPTS = 24
+
+
+def _artifact_fingerprint(path: Path) -> str:
+    """`sha256:<hex digest>` - the exact convention `factory.export_pipeline`
+    already established for every other artifact fingerprint in this repo
+    (never re-derived from a provider-supplied checksum, which Meshy's API
+    does not document anyway)."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
 class LiveExecutionBlocked(Exception):
@@ -302,7 +315,9 @@ def run_live_text_to_3d_request(
 
         model_urls = final_task.get("model_urls") or {}
         stl_url = model_urls.get("stl")
+        artifact_cdn_host = artifact_url_host(stl_url) if stl_url else None
         artifact_path: Path | None = None
+        artifact_fingerprint: str | None = None
         validation_status: str | None = None
         preview_status: str | None = None
         download_status = "not_attempted"
@@ -327,6 +342,7 @@ def run_live_text_to_3d_request(
                     processed_dir.mkdir(parents=True, exist_ok=True)
                     processed_path.write_bytes(raw_path.read_bytes())  # identical bytes for this STL-native first call
                     artifact_path = processed_path
+                    artifact_fingerprint = _artifact_fingerprint(artifact_path)
                 except MeshyTransportError as exc:
                     download_status = "failed"
                     errors.append(_map_transport_error(exc))
@@ -356,7 +372,8 @@ def run_live_text_to_3d_request(
                     "final_status": final_task["status"], "download_status": download_status,
                     "created_at": final_task.get("created_at"), "started_at": final_task.get("started_at"),
                     "finished_at": final_task.get("finished_at"), "expires_at": final_task.get("expires_at"),
-                    "output_artifact_paths": [str(artifact_path)], "artifact_fingerprint": None,
+                    "output_artifact_paths": [str(artifact_path)], "artifact_fingerprint": artifact_fingerprint,
+                    "artifact_cdn_host": artifact_cdn_host,
                     "validation_status": validation_status, "preview_status": preview_status,
                     "human_review_state": "required", "commercial_use_verified": False,
                     "kill_switch_state": plan["kill_switch"], "warnings": warnings,

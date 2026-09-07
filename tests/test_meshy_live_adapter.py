@@ -407,3 +407,50 @@ def test_kill_switch_reads_raw_policy_field_not_hardcoded_gate_value(env):
 
     gate = approval.evaluate_meshy_gate()
     assert gate["kill_switch"]["execution_enabled"] is False  # Phase 46's own hardcoded invariant, unchanged
+
+
+# ---------------------------------------------------------------------------
+# Phase 47B.7 post-flight fixes: real artifact fingerprint + sanitized CDN host
+# ---------------------------------------------------------------------------
+
+
+def test_successful_receipt_records_real_artifact_fingerprint(env, tmp_path):
+    """Bug found during Phase 47B.7's post-flight audit of the first real
+    live call: the receipt hardcoded artifact_fingerprint=None even though
+    a real artifact was downloaded and validated. Must now be the real
+    sha256 of the downloaded file."""
+    _enable_kill_switch(env)
+    project = tmp_path / "proj"
+    project.mkdir()
+    _create_approval(project=str(project))
+    result = la.run_live_text_to_3d_request(
+        prompt=PROMPT, project=str(project), confirm_live=True,
+        credential_provider_factory=lambda: _SpyCredentialProvider(),
+        transport_factory=lambda cp: _FakeTransport(cp), sleep_fn=_no_sleep,
+    )
+    fingerprint = result["receipt"]["artifact_fingerprint"]
+    assert fingerprint is not None
+    assert fingerprint.startswith("sha256:")
+
+    import hashlib
+    from pathlib import Path
+
+    actual = hashlib.sha256(Path(result["artifact_path"]).read_bytes()).hexdigest()
+    assert fingerprint == f"sha256:{actual}"
+
+
+def test_successful_receipt_records_sanitized_artifact_cdn_host(env, tmp_path):
+    """The receipt must record only the artifact URL's hostname (safe to
+    persist/log) - never the full signed URL with its query-string token -
+    so a future audit can derive a real CDN allowlist from evidence."""
+    _enable_kill_switch(env)
+    project = tmp_path / "proj"
+    project.mkdir()
+    _create_approval(project=str(project))
+    result = la.run_live_text_to_3d_request(
+        prompt=PROMPT, project=str(project), confirm_live=True,
+        credential_provider_factory=lambda: _SpyCredentialProvider(),
+        transport_factory=lambda cp: _FakeTransport(cp), sleep_fn=_no_sleep,
+    )
+    assert result["receipt"]["artifact_cdn_host"] == "cdn.example.com"
+    assert "?" not in result["receipt"]["artifact_cdn_host"]

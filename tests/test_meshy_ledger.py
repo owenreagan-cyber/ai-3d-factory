@@ -134,3 +134,52 @@ def test_lock_failure_raises_ledger_lock_error(ledger_path, monkeypatch):
     ledger = L.SpendLedger()
     with pytest.raises(L.LedgerLockError):
         ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+
+
+# ---------------------------------------------------------------------------
+# Phase 47B.7: reconciling a pre-submission (e.g. HTTP 401) unknown entry
+# ---------------------------------------------------------------------------
+
+
+def test_reconcile_rejected_before_submission_zeroes_the_total(ledger_path):
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project="proj-a", request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_unknown(entry["reservation_id"], reason="submission failed: Meshy rejected the API key (HTTP 401)")
+    assert ledger.total_for_project("proj-a") == 20  # still conservatively counted before reconciliation
+
+    reconciled = ledger.reconcile_rejected_before_submission(entry["reservation_id"], reason="HTTP 401 before any task was created - no task_id ever assigned")
+    assert reconciled["status"] == "confirmed_zero_rejected_before_submission"
+    assert reconciled["actual_credits"] == 0
+    assert reconciled["reconciled_reason"]
+    assert reconciled["reconciled_at"]
+    # original evidence preserved, never overwritten
+    assert reconciled["unknown_reason"] == "submission failed: Meshy rejected the API key (HTTP 401)"
+
+    assert ledger.total_for_project("proj-a") == 0
+
+
+def test_reconcile_refuses_entry_with_a_task_id(ledger_path):
+    """A task_id is evidence a task may actually have been created and
+    billed - reconciling that as zero-cost would be unsafe."""
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_submitted(entry["reservation_id"], task_id="real-task-1")
+    ledger.mark_unknown(entry["reservation_id"], reason="network error mid-poll")
+    with pytest.raises(L.LedgerError):
+        ledger.reconcile_rejected_before_submission(entry["reservation_id"], reason="attempted unsafe reconciliation")
+    assert ledger.total_today() == 20  # unchanged - refusal must not partially apply
+
+
+def test_reconcile_refuses_non_unknown_entry(ledger_path):
+    ledger = L.SpendLedger()
+    entry = ledger.reserve(request_id="r1", project=None, request_type="text_to_3d", model="meshy-7", estimated_credits=20, policy_version=1, approval_reference="a1")
+    ledger.mark_submitted(entry["reservation_id"], task_id="real-task-1")
+    ledger.mark_succeeded(entry["reservation_id"], actual_credits=20)
+    with pytest.raises(L.LedgerError):
+        ledger.reconcile_rejected_before_submission(entry["reservation_id"], reason="should not apply to a succeeded entry")
+
+
+def test_reconcile_unknown_reservation_id_raises(ledger_path):
+    ledger = L.SpendLedger()
+    with pytest.raises(L.LedgerError):
+        ledger.reconcile_rejected_before_submission("does-not-exist", reason="x")

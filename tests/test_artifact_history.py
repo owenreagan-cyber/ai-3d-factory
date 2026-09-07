@@ -153,7 +153,7 @@ def _fully_approved(project_dir, monkeypatch, **kwargs):
 
 def test_version_event_categories_exclude_non_artifact_categories():
     assert set(VERSION_EVENT_CATEGORIES) == {
-        "cad", "export", "validation", "preview", "approval", "package", "workspace",
+        "cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy",
     }
     # Pipeline-milestone and already-derived-change categories are never
     # versioned - they're reused for diffing instead (see below).
@@ -623,3 +623,35 @@ def test_no_artifact_files_ever_modified_by_any_public_function(scad_project, mo
     build_rollback_plan(scad_project, history[0]["version_id"])
     stl_dir_after = sorted(p.read_bytes() for p in (scad_project / "stl").glob("*.stl"))
     assert stl_dir_before == stl_dir_after
+
+
+# ---------------------------------------------------------------------------
+# Phase 47B.7: a real Meshy receipt becomes one artifact-history version
+# ---------------------------------------------------------------------------
+
+
+def test_meshy_category_is_a_version_event_category():
+    assert "meshy" in VERSION_EVENT_CATEGORIES
+
+
+def test_real_meshy_receipt_produces_a_version_classified_as_stl(scad_project):
+    task_id = "01a07ca5-0c06-7459-b1f4-68f383774fae"
+    artifact_path = scad_project / "generated" / "meshy" / "processed" / f"{task_id}.stl"
+    receipt = {
+        "meshy_task_id": task_id, "mock_execution": False, "live_api_used": True,
+        "ai_model": "meshy-7", "consumed_credits": 20, "validation_status": "WARN", "preview_status": "PASS",
+        "output_artifact_paths": [str(artifact_path)], "artifact_fingerprint": "sha256:deadbeef",
+        "finished_at": 1788797695403,
+    }
+    generated_dir = scad_project / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    project_store.save_json(generated_dir / "meshy_receipt.json", receipt)
+
+    history = get_artifact_history(scad_project)
+    meshy_versions = [v for v in history if v["source_event_category"] == "meshy"]
+    assert len(meshy_versions) == 1
+    version = meshy_versions[0]
+    assert "stl" in version["artifacts"]
+    rel_path = str(artifact_path.relative_to(scad_project))
+    assert rel_path in version["artifacts"]["stl"]
+    assert version["fingerprints"][rel_path] == "sha256:deadbeef"

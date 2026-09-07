@@ -61,7 +61,7 @@ from factory.project_timeline import get_project_timeline
 # excluded - they're either pipeline milestones with no artifact
 # fingerprint of their own, or already-detected *changes* (reused
 # directly in diffs below, not re-versioned).
-VERSION_EVENT_CATEGORIES = ("cad", "export", "validation", "preview", "approval", "package", "workspace")
+VERSION_EVENT_CATEGORIES = ("cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy")
 
 ARTIFACT_CATEGORIES = ("cad", "stl", "validation", "preview", "manifest", "build_plan", "review_package")
 
@@ -100,6 +100,8 @@ def _artifact_category_for_path(rel_path: str) -> str:
         return "cad"
     if rel_path.startswith("stl/"):
         return "stl"
+    if rel_path.startswith("generated/meshy/") and rel_path.endswith(".stl"):
+        return "stl"  # a real Meshy artifact is a genuine STL file - Phase 47B.7 addition
     if rel_path.startswith("validation/"):
         return "validation"
     if rel_path.startswith("renders/"):

@@ -46,7 +46,7 @@ from factory import project_store
 LEDGER_PATH = project_store.STATE_DIR / "meshy_spend_ledger.json"
 _LOCK_PATH = project_store.STATE_DIR / "meshy_spend_ledger.lock"
 
-LEDGER_STATUSES = ("reserved", "submitted", "succeeded", "failed", "unknown")
+LEDGER_STATUSES = ("reserved", "submitted", "succeeded", "failed", "unknown", "confirmed_zero_rejected_before_submission")
 
 
 class LedgerError(Exception):
@@ -213,3 +213,38 @@ class SpendLedger:
         confirmed answer for whether Meshy bills failed tasks - see the
         Phase 46.6/47A.5 "9 unknowns" #1)."""
         return self._update(reservation_id, status="unknown", **{"unknown_reason": reason})
+
+    def reconcile_rejected_before_submission(self, reservation_id: str, *, reason: str) -> dict[str, Any]:
+        """Explicit, human-invoked reconciliation (Phase 47B.7) for an
+        `"unknown"` entry that can be positively confirmed to have consumed
+        zero credits - e.g. an HTTP 401/403 credential rejection, which
+        Meshy's auth layer returns before any task is created
+        (`HttpMeshyTransport.submit_task()` only returns a task id after a
+        2xx response with a `result` field - see `factory.meshy_http_transport`).
+
+        Refuses to reconcile an entry that isn't currently `"unknown"`, or
+        that carries a `task_id` (any evidence a task may actually have
+        been created) - this is a narrow, auditable state transition, never
+        a silent rewrite: the original `timestamp`/`unknown_reason` are
+        preserved untouched, and `reconciled_at`/`reconciled_reason` are
+        added alongside them so the full history remains visible."""
+        entries = self._entries()
+        entry = next((e for e in entries if e.get("reservation_id") == reservation_id), None)
+        if entry is None:
+            raise LedgerError(f"no ledger entry with reservation_id={reservation_id!r}")
+        if entry.get("status") != "unknown":
+            raise LedgerError(
+                f"reservation {reservation_id!r} is not in 'unknown' status (status={entry.get('status')!r}) - refusing to reconcile"
+            )
+        if entry.get("task_id"):
+            raise LedgerError(
+                f"reservation {reservation_id!r} has a task_id ({entry['task_id']!r}) - a task may have been "
+                "created, refusing to reconcile as zero-cost"
+            )
+        return self._update(
+            reservation_id,
+            status="confirmed_zero_rejected_before_submission",
+            actual_credits=0,
+            reconciled_at=project_store.utc_now_iso(),
+            reconciled_reason=reason,
+        )
