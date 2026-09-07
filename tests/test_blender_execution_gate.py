@@ -147,13 +147,16 @@ def test_evaluate_blender_execution_gate_shape(monkeypatch):
     gate = blender_gate.evaluate_blender_execution_gate()
     assert gate["project_execution_approved"] is False
     assert gate["no_automatic_print"] is True
-    assert gate["supported_workflows"] == ["fixture_organic_model"]
+    assert gate["supported_workflows"] == ["fixture_organic_model", "organic_cleanup_workflow"]
     assert isinstance(gate["gate_checklist"], list) and len(gate["gate_checklist"]) == 15
     assert isinstance(gate["unsatisfied_or_partial_gate_items"], list)
 
 
 def test_supported_workflow_ids_is_narrow():
-    assert blender_gate.SUPPORTED_WORKFLOW_IDS == ("fixture_organic_model",)
+    # Phase 49 additively widened this by exactly one real project-artifact
+    # workflow (organic_cleanup_workflow) - see docs/blender-adaptation.md.
+    # Still narrow: exactly two workflow ids, never an open-ended list.
+    assert blender_gate.SUPPORTED_WORKFLOW_IDS == ("fixture_organic_model", "organic_cleanup_workflow")
 
 
 def test_fixture_script_path_points_outside_src():

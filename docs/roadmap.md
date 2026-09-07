@@ -2965,6 +2965,74 @@ unchanged; `factory meshy status`/`policy` gained a small additive
 "mock adapter implemented, live transport not implemented" visibility
 line. See `docs/meshy-adapter.md`.
 
+## Phase 49 — Blender Adaptation Execution Gate & Controlled Organic Cleanup Workflow (complete)
+
+Proves exactly one safe Blender adaptation workflow end to end, against a
+real project artifact - the first real Blender execution against a real
+project artifact anywhere in this repo:
+
+    Meshy artifact -> Blender controlled adaptation -> Factory artifact
+    -> Validation -> Preview -> Human review
+
+Motivated directly by Phase 48's own `blender_organic_adaptation` step,
+which only ever recommended this, never executed it. New module
+`factory.blender_adaptation` reuses every existing system rather than
+duplicating any of them: `factory.hybrid_workflow.assess_scale()` for
+scale plausibility, `factory.blender_gate` for planning/gating (one new
+`plan_organic_cleanup_execution()` function, one new supported workflow
+id), and `factory.blender_adapter` for the one additional bounded
+subprocess call this phase adds (`run_organic_cleanup_workflow()` -
+`blender_adapter.py` remains the sole subprocess-invoking module in this
+repo). A second, fixed, hand-written, repository-reviewed Blender script
+(`blender_fixtures/factory_organic_cleanup_workflow.py`, living outside
+`src/` for the identical reason the Phase 45 fixture script does) imports
+an STL, applies one explicit uniform scale factor, and exports a new
+child STL - nothing else; Blender never writes directly into a project
+directory (it writes to a fresh temp directory first, which is only
+copied into the project after every verification passes).
+
+Every confirmed execution (`factory blender-adapt execute <artifact>
+--target-max-mm N --confirm`) re-checks, fresh, on that exact call:
+Blender detected, a **full Phase 45 fixture-qualification proof**
+(`factory.blender_adapter.qualify_blender_adapter(confirm_fixture=True)`
+reaching `"qualified"` - deliberately re-run every single time, proving
+the pipeline works right now rather than trusting any prior run),
+explicit `--confirm`, and a deterministic, Factory-computed, collision-
+protected output path. Scale is never silently applied - `--target-max-mm`
+is required and never inferred from `design_intent`. `factory
+blender-adapt plan <artifact> [--target-max-mm N]` is fully read-only.
+
+Writes `<project>/generated/blender/adapted/<stem>_adapted.stl` (never
+overwriting the input artifact) and
+`generated/blender_adaptation_receipt.json` only on success - both
+collision-protected, refusing to overwrite an existing file. The receipt
+enters `factory.project_timeline` (one new `blender_adaptation` event
+category, mirroring Meshy's own receipt -> event pattern exactly) and
+`factory.artifact_history` (one new additive path-classification rule,
+`generated/blender/*.stl` -> `"stl"`) - no second lineage/version model.
+The adapted output is re-validated and re-previewed through the existing
+Factory validator/renderer, never a Blender-specific implementation; a
+Blender-reported success never overrides a Factory `FAIL`.
+
+**`config/future_local_tools.json`'s `tools.blender.enabled`/
+`allows_automation`/`allows_background_execution` all stay `false`** -
+this phase's own dated spec (2026-09-07) is the narrow, explicit human
+authorization for exactly `organic_cleanup_workflow`, the identical
+precedent Phase 45's own spec set for its one-shot fixture pipeline,
+never a standing "automation is on" state (every execution requires a
+fresh, per-invocation `--confirm`; nothing is cached between calls).
+`factory.project_health`'s `health_score` stays untouched;
+`blender_adaptation_summary` is wired into
+`factory.preview_board.gather_board_data()` at the aggregation point
+only, mirroring `hybrid_workflow_summary`'s own placement, with no new
+HTML card. `factory blender-adapt plan`/`execute` is a new, separate
+Typer group - `factory workflow` stays planning-only, per Phase 48's own
+documented "deliberately no `workflow execute` command" invariant. Never
+mesh repair, remeshing, decimation, or smoothing; never GUI, add-on,
+network, slicer, or printer contact; never sets `human_approved`/
+`print_ready`; automatic printing remains impossible. See
+`docs/blender-adaptation.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -3056,7 +3124,35 @@ permanently unless explicitly removed by a future approved phase:
   `factory.preview_board.gather_board_data()` at the aggregation point
   only, never touching `project_health`'s score. See
   `docs/hybrid-workflow.md`.
-- **Phase 49** - Advanced Manufacturing Intelligence.
+- **Phase 49** - Blender Adaptation Execution Gate & Controlled Organic
+  Cleanup Workflow (complete). The first real Blender execution against a
+  real project artifact in this repo - narrowly, for exactly one workflow
+  (`organic_cleanup_workflow`: import a Meshy/CAD-origin STL, apply one
+  explicit uniform scale factor, export a new child STL - never mesh
+  repair, remeshing, decimation, or smoothing). Motivated directly by
+  Phase 48's own recommendation of a Blender adaptation step it never
+  executed. New module `factory.blender_adaptation` orchestrates the gate
+  (reusing `factory.blender_gate.evaluate_blender_execution_gate()`,
+  never a second permission system) and executes via one additional
+  bounded subprocess call in `factory.blender_adapter` (still the only
+  module in this repo that ever passes Blender to `subprocess`). Every
+  confirmed execution re-checks Blender detection and re-runs a **fresh**
+  full Phase 45 fixture-qualification proof on that exact call - nothing
+  cached or trusted from a prior run. Scale is never silently applied: a
+  human-supplied `--target-max-mm` and explicit `--confirm` are both
+  required. Writes `<project>/generated/blender/adapted/<stem>_adapted.stl`
+  (never overwriting the input artifact) and
+  `generated/blender_adaptation_receipt.json`, which enters
+  `factory.project_timeline`/`factory.artifact_history` additively (one
+  new event category, one new path-classification rule) - no second
+  lineage model. `config/future_local_tools.json`'s `blender.enabled`/
+  `allows_automation`/`allows_background_execution` stay `false` -
+  this phase's own dated spec is the narrow, explicit human authorization
+  for exactly this one workflow, the same precedent Phase 45's own spec
+  set for its fixture pipeline, never a standing "automation is on"
+  state. `factory blender-adapt plan`/`execute` - kept separate from
+  `factory workflow`, which stays planning-only per Phase 48's own
+  documented invariant. See `docs/blender-adaptation.md`.
 
 ## Future tracks, not yet phase-numbered
 
@@ -3156,6 +3252,21 @@ into both future-gate docs' review checklists (`docs/meshy-approval-gate.md`'s
 "Design-quality gate", `docs/blender-local-track.md`'s "Design-quality
 review for Blender outputs") - still planning only, still no
 implementation.
+
+### Advanced Manufacturing Intelligence track
+
+Richer, still-unscoped manufacturing-intelligence work beyond what Phases
+34-49 already built (deeper print-risk modeling, cross-project learning,
+etc.) - has no scheduled start and no concrete design yet.
+`docs/roadmap.md` had previously pre-reserved this as "Phase 49" in the
+"Near-term roadmap, locked in" list below; per this document's own
+"Roadmap numbering policy" above (rule 3: "future work that has no
+scheduled start does not get a phase number at all... only promoted to a
+numbered phase once someone actually starts it"), that pre-reservation
+was corrected when Phase 49 was actually needed for (and assigned to) the
+Blender Adaptation Execution Gate & Controlled Organic Cleanup Workflow
+instead. This track remains unnumbered until it is actually started, at
+which point it takes the next available number per rule 2.
 
 ### Mac launcher/dashboard track
 

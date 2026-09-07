@@ -210,26 +210,35 @@ plan `build_adaptation_plan()` proposes, gated on Blender's own
 project-execution approval (still unreached) and a future, separately-
 approved CAD augmentation phase.
 
-## Artifact lineage (future)
+## Artifact lineage (future) - implemented for one workflow in Phase 49
 
 A future real adaptation chain enters `factory.project_timeline`/
 `factory.artifact_history` exactly like every other artifact-relevant
 event already does (Meshy's own receipt -> timeline event, Phase 47B.7) -
 never a second lineage/version model. Phase 48 itself adds no new
 timeline adapter, because it writes no new artifact or receipt; there is
-nothing yet to enter the timeline. When a future phase actually executes
-a Blender/CAD adaptation step, its receipt should follow the same
-`project_timeline`/`artifact_history` reuse pattern as
-`factory.hybrid_workflow`'s own design already anticipates: parent
-artifact, child artifact, tool, version, timestamp, fingerprint, and
-human approval state, each just another timeline event these two
-existing systems already know how to version and diff.
+nothing yet to enter the timeline.
+
+**Phase 49 implements exactly this, narrowly, for one workflow:**
+`factory.blender_adaptation.run_organic_cleanup_workflow()` executes the
+Blender adaptation step this module only ever recommended, and its
+receipt (`generated/blender_adaptation_receipt.json`) follows the exact
+reuse pattern anticipated above - parent artifact, child artifact, tool,
+timestamp, fingerprint, and human-confirmation state, entering
+`factory.project_timeline` as one new `blender_adaptation` event
+category and `factory.artifact_history` via one additive path-
+classification rule. See `docs/blender-adaptation.md`. CAD augmentation
+execution remains unimplemented - still a future, separately-approved
+phase.
 
 ## Receipts
 
-No `hybrid_workflow_receipt` exists yet - there is nothing to persist
-until real adaptation execution exists. Meshy's own receipt, the
-generation receipt, and the export receipt are all read (never
+No `hybrid_workflow_receipt` exists - this module itself still writes
+nothing; it remains planning-only. **Phase 49's `factory.blender_adaptation`
+does write a receipt** (`generated/blender_adaptation_receipt.json`), but
+that is a distinct module with its own gated execution path, not a
+change to `factory.hybrid_workflow`'s own behavior. Meshy's own receipt,
+the generation receipt, and the export receipt are all read (never
 replaced) as this module's only inputs.
 
 ## Project Health
@@ -285,11 +294,15 @@ disk merely from calling `build_adaptation_plan()`.
   heuristic against whatever expected size is available; it is a
   sanity check, not a rigorous statistical model.
 - No real Blender or CAD augmentation step has ever been executed by
-  this module - `adaptation_steps` are recommendations, not proof any
-  tool chain actually works end-to-end for a given artifact.
-- No `hybrid_workflow_receipt`/timeline/artifact-history writer exists
-  yet, since nothing here executes; this is a documented, deliberate gap
-  for a future execution phase to fill.
+  *this module* - `adaptation_steps` are recommendations, not proof any
+  tool chain actually works end-to-end for a given artifact. (Phase 49's
+  separate `factory.blender_adaptation` module does now execute the
+  Blender half of this for `organic_cleanup_workflow`; CAD augmentation
+  execution remains unimplemented.)
+- No `hybrid_workflow_receipt`/timeline/artifact-history writer exists in
+  *this* module, since nothing here executes; Phase 49's
+  `factory.blender_adaptation` fills exactly this gap for its own one
+  workflow, via its own receipt.
 
 See `docs/architecture.md`, `docs/meshy-adapter.md`,
 `docs/meshy-live-transport.md`, `docs/blender-local-track.md`,

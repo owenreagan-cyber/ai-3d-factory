@@ -259,6 +259,15 @@ receipt shape (`docs/file-lifecycle.md`) - never a new, unrelated receipt
 model, and never destructively changing the existing OpenSCAD/CadQuery
 receipt shape.
 
+**Phase 49 writes exactly this receipt** for its one workflow -
+`generated/blender_adaptation_receipt.json`, a sibling of
+`generated/meshy_receipt.json`/`generated/export_receipt.json`, carrying
+every field listed above (engine/version/path, workflow name, source
+input and output artifact with fingerprints, timestamp, warnings,
+validation state, and an explicit `no_automatic_print: true` /
+`automatic_print_allowed: false` declaration). See
+`docs/blender-adaptation.md`.
+
 ## Receipt and output-directory mapping for a future phase
 
 A future real Blender workflow's output should land in
@@ -272,6 +281,12 @@ same way every other Phase 40/41-tracked artifact does - never a special
 case that pollutes either with fixture-only noise. **None of this is
 implemented in Phase 45** - qualification fixtures never touch a
 project, so neither system is ever invoked by this phase.
+
+**Phase 49 implements exactly this mapping**, for exactly one workflow
+(`organic_cleanup_workflow`): `generated/blender/adapted/<stem>_adapted.stl`,
+refuse-to-overwrite (no `--force` flag exists), and additive
+`project_timeline`/`artifact_history` wiring. See
+`docs/blender-adaptation.md`.
 
 ## Registry / qualification integration
 

@@ -150,6 +150,7 @@ from factory.project_timeline import summarize_project_timeline
 from factory.artifact_history import summarize_artifact_history
 from factory.project_health import summarize_project_health
 from factory.hybrid_workflow import summarize_hybrid_workflow
+from factory.blender_adaptation import summarize_blender_adaptation
 from factory.engine_registry import summarize_tool_environment
 from factory.meshy_approval import summarize_meshy_policy_for_board
 
@@ -190,8 +191,9 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     `manual_review_summary` (Phase 37), `slicer_intelligence_summary`
     (Phase 38), `slicer_history_summary` (Phase 39), `timeline_summary`
     (Phase 40), `artifact_history_summary` (Phase 41), and
-    `project_health_summary` (Phase 42), and `hybrid_workflow_summary`
-    (Phase 48) into each project's dict here, at
+    `project_health_summary` (Phase 42), `hybrid_workflow_summary`
+    (Phase 48), and `blender_adaptation_summary` (Phase 49) into each
+    project's dict here, at
     the aggregation point, rather than inside
     `factory.project_inspection.summarize_project()` itself - see the
     standing "Aggregation Layer Convention" in `docs/architecture.md` (and
@@ -220,6 +222,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["artifact_history_summary"] = summarize_artifact_history(project_dir)
         project["project_health_summary"] = summarize_project_health(project_dir)
         project["hybrid_workflow_summary"] = summarize_hybrid_workflow(project_dir)
+        project["blender_adaptation_summary"] = summarize_blender_adaptation(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:

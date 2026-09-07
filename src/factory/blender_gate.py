@@ -42,6 +42,19 @@ See `docs/blender-adapter.md` for the full gate-checklist reconciliation
 and `docs/blender-local-track.md` for the original (still standing,
 now-amended) required-gates checklist this phase's own checklist is
 mapped against.
+
+**Phase 49 addendum:** this module is additively extended with exactly
+one more supported workflow, `organic_cleanup_workflow` - the first, and
+this phase's only, real *project*-artifact Blender workflow (Meshy/CAD-
+origin STL in, uniform-scale-adapted STL out). `plan_organic_cleanup_execution()`
+below is pure planning - like `plan_blender_fixture_execution()`, it never
+launches Blender. The real, gated execution path lives in
+`factory.blender_adaptation` (which reuses `evaluate_blender_execution_gate()`
+verbatim rather than inventing a second permission system) and
+`factory.blender_adapter.run_organic_cleanup_workflow()` (the one
+additional bounded subprocess call this phase adds - `blender_adapter.py`
+remains the only module in this repo that ever passes Blender to
+`subprocess`). See `docs/blender-adaptation.md`.
 """
 
 from __future__ import annotations
@@ -57,15 +70,33 @@ from factory import engine_registry, future_local_tools, project_store
 
 GATE_STATUSES = ("blocked", "not_detected", "ready_for_fixture_qualification", "fixture_qualified")
 
-# The one, deliberately narrow, workflow this phase's adapter supports.
-# See docs/blender-adapter.md "Supported workflow scope" - explicitly
+# The workflows this phase's adapter supports. `fixture_organic_model`
+# (Phase 45) is a one-shot, throwaway, never-persisted proof pipeline.
+# `organic_cleanup_workflow` (Phase 49) is the first - and, this phase,
+# only - real *project*-artifact workflow: import a Meshy/CAD-origin STL,
+# apply one explicit uniform scale factor, export a new child STL. See
+# docs/blender-adaptation.md "Supported workflow scope" - explicitly
 # excludes character generation, Geometry Nodes automation, sculpting,
-# texture generation, asset downloads, add-ons, retopology,
-# prompt-to-Blender, and every other broader Blender use.
-SUPPORTED_WORKFLOW_IDS = ("fixture_organic_model",)
+# texture generation, asset downloads, add-ons, retopology, mesh repair,
+# remeshing, decimation, smoothing, prompt-to-Blender, and every other
+# broader Blender use.
+SUPPORTED_WORKFLOW_IDS = ("fixture_organic_model", "organic_cleanup_workflow")
 
 FIXTURE_SCRIPT_PATH = project_store.REPO_ROOT / "blender_fixtures" / "factory_qualification_fixture.py"
 FIXTURE_OUTPUT_FILENAME = "qualification_fixture.stl"
+
+# Phase 49: the one Factory-owned script for the one real project-artifact
+# workflow this phase implements. Lives outside src/ for the identical
+# reason FIXTURE_SCRIPT_PATH does - see that script's own docstring and
+# blender_fixtures/factory_organic_cleanup_workflow.py's.
+ORGANIC_CLEANUP_SCRIPT_PATH = project_store.REPO_ROOT / "blender_fixtures" / "factory_organic_cleanup_workflow.py"
+
+# Fixed, deterministic operation sequence for organic_cleanup_workflow -
+# never repair/remesh/decimate/smooth (see docs/blender-adaptation.md).
+# Rendered verbatim in every adaptation plan's `adaptation_operations`
+# field so a human reviewing a plan sees exactly what would run, in order,
+# before ever confirming it.
+ORGANIC_CLEANUP_OPERATIONS = ("import_stl", "apply_scale_factor", "export_stl")
 
 # The pre-existing 10-item checklist from docs/blender-local-track.md's
 # "Required future gates before implementation" - preserved verbatim
@@ -317,6 +348,68 @@ def plan_blender_fixture_execution() -> dict[str, Any]:
             f"config/future_local_tools.json gate status: {future_local.get('status', 'unknown')!r}, "
             f"enabled={future_local.get('enabled', False)} - unchanged by this phase; still governs real "
             "project automation, never this narrow fixture-qualification pipeline.",
+        ],
+    }
+
+
+def plan_organic_cleanup_execution(
+    *, input_stl_path: Path, output_stl_path: Path, scale_factor: float | None
+) -> dict[str, Any]:
+    """Dry-run plan for the one supported project-artifact workflow,
+    `organic_cleanup_workflow` - never launches Blender, never reads the
+    input mesh's own bytes (that's `factory.blender_adaptation`'s job, via
+    the existing `factory.validators.mesh_validate.validate_mesh()`).
+    Mirrors `plan_blender_fixture_execution()`'s shape/spirit, extended
+    with the two paths and the one explicit scale factor a real
+    project-artifact run additionally needs. See docs/blender-adaptation.md.
+    """
+    resolved = resolve_blender_binary()
+    future_local = future_local_tools.get_future_local_tool("blender")
+    input_stl_path = Path(input_stl_path)
+    output_stl_path = Path(output_stl_path)
+
+    blockers: list[str] = []
+    warnings: list[str] = list(resolved["warnings"])
+    if not resolved["detected"]:
+        blockers.append("Blender not detected locally (no Contents/MacOS/Blender executable found under the detected .app bundle).")
+    if not input_stl_path.is_file():
+        blockers.append(f"input artifact does not exist: {input_stl_path}")
+    if output_stl_path.exists():
+        blockers.append(f"refusing to overwrite an existing file at the planned output path: {output_stl_path}")
+    if scale_factor is None:
+        blockers.append("no target dimension given - a human must supply --target-max-mm before this plan can be executed.")
+    elif scale_factor <= 0:
+        blockers.append(f"computed scale_factor must be positive, got {scale_factor}")
+
+    gate_status = "not_detected" if not resolved["detected"] else ("blocked" if blockers else "ready_for_project_execution")
+
+    return {
+        "workflow": "organic_cleanup_workflow",
+        "engine": "blender",
+        "blender_path": resolved["binary_path"],
+        "blender_version": resolved["detected_version"],
+        "input_artifact": str(input_stl_path),
+        "output_artifact": str(output_stl_path),
+        "scale_factor": scale_factor,
+        "operations": list(ORGANIC_CLEANUP_OPERATIONS),
+        "execution_mode": "headless",
+        "gate_status": gate_status,
+        "blockers": blockers,
+        "warnings": warnings,
+        "validation_plan": {"validator": "factory.validators.mesh_validate.validate_mesh", "reused": True},
+        "preview_plan": {"renderer": "factory.previews.render_preview.render_preview", "reused": True},
+        "confirmation_required": True,
+        "execution_allowed": gate_status == "ready_for_project_execution",
+        "dry_run": True,
+        "project_execution_approved": False,
+        "automatic_execution_allowed": False,
+        "no_automatic_print": True,
+        "notes": [
+            f"config/future_local_tools.json gate status: {future_local.get('status', 'unknown')!r}, "
+            f"enabled={future_local.get('enabled', False)} - unchanged by this phase. Real execution for "
+            "this one workflow is authorized narrowly by this phase's own dated spec (the same pattern "
+            "Phase 45's fixture pipeline used), never by flipping this repo-wide config flag - see "
+            "docs/blender-adaptation.md.",
         ],
     }
 

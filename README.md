@@ -547,6 +547,24 @@ existing engine registry/Blender gate rather than a second selector.
 never launches Blender, a CAD backend, a slicer, or a printer. See
 `docs/hybrid-workflow.md`.
 
+`factory blender-adapt plan <artifact> [--target-max-mm N] [--json]` /
+`factory blender-adapt execute <artifact> --target-max-mm N --confirm
+[--json]` (Phase 49, `factory.blender_adaptation`) execute the one
+Blender adaptation step Phase 48 only ever recommended - narrowly, for
+exactly one workflow (`organic_cleanup_workflow`: import a Meshy/CAD-
+origin STL, apply one explicit uniform scale factor, export a new child
+STL). `plan` is fully read-only; `execute` re-checks Blender detection,
+re-runs a **fresh** full fixture-qualification proof, and requires
+explicit `--confirm` on every single call - nothing cached between
+calls. Writes `generated/blender/adapted/<stem>_adapted.stl` (never
+overwriting the input artifact) and
+`generated/blender_adaptation_receipt.json` only on success, both
+collision-protected, feeding `factory.project_timeline`/
+`factory.artifact_history` additively. `config/future_local_tools.json`'s
+Blender automation flags stay `false`. Never mesh repair, remeshing,
+decimation, smoothing, a slicer, a printer, or a network call. See
+`docs/blender-adaptation.md`.
+
 ## Workflow
 
 idea/brief -> build plan -> part manifest -> CAD/assets later phase

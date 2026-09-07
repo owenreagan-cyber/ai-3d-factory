@@ -21,7 +21,8 @@ This module reaches, at most, "Adapter Qualified" - never further.
 `project_execution_approved` is hardcoded `False` on every result this
 module returns, with no code path that ever sets it `True`.
 
-Two, and only two, real Blender invocations exist in this module:
+Three real Blender invocations exist in this module (two through Phase
+45, one added by Phase 49):
 
 1. `verify_headless_runtime()` - `blender --background --factory-startup
    -Y --offline-mode --version`. No `-P`/`--python`/`--python-expr` flag
@@ -37,6 +38,22 @@ Two, and only two, real Blender invocations exist in this module:
    can override, never anything derived from project or user input. See
    that file's own docstring and `tests/test_blender_adapter_safety.py`
    for the static safety contract it is held to.
+3. **Phase 49:** `run_organic_cleanup_workflow()` - the same flags, plus
+   `--python blender_fixtures/factory_organic_cleanup_workflow.py --
+   <input_stl_path> <tmp_output_stl_path> <scale_factor>` and
+   `--python-exit-code 1`. The script is the one, fixed, Factory-owned,
+   repository-reviewed file at
+   `factory.blender_gate.ORGANIC_CLEANUP_SCRIPT_PATH` - same non-
+   overridable-path guarantee as the fixture script. Blender only ever
+   *reads* the caller-supplied input path and writes to a fresh
+   `tempfile.TemporaryDirectory()`-contained output path this function
+   itself constructs; the verified temp output is only copied to the
+   caller's real, already safety-checked `final_output_path` *after*
+   every check below has passed - Blender itself never writes directly
+   into a project directory. Called only by `factory.blender_adaptation`
+   (never directly by the CLI), and only after that module's own
+   fixture-qualification-plus-confirmation gate has passed. See
+   `docs/blender-adaptation.md`.
 
 Reuses rather than duplicates:
 
@@ -59,6 +76,7 @@ See `docs/blender-adapter.md`.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import tempfile
 import time
@@ -80,6 +98,11 @@ CHECK_STATUSES = ("pass", "warn", "fail", "skip")
 
 _HEADLESS_PROBE_TIMEOUT_SECONDS = 60
 _FIXTURE_TIMEOUT_SECONDS = 180
+# Phase 49: a real project artifact can be larger/more complex than the
+# Phase 45 fixture sphere - a longer bound, still hard, still real.
+_ORGANIC_CLEANUP_TIMEOUT_SECONDS = 300
+
+ORGANIC_CLEANUP_STATUSES = ("not_run", "succeeded", "failed", "skipped")
 
 _SAFETY_BLOCK: dict[str, bool] = {
     "software_installed": False,
@@ -383,6 +406,174 @@ def qualify_blender_adapter(*, confirm_fixture: bool = False) -> dict[str, Any]:
         "project_execution_approved": False,
         "duration_ms": _elapsed_ms(start),
     }
+
+
+def run_organic_cleanup_workflow(
+    binary_path: str, *, input_stl_path: Path, final_output_path: Path, scale_factor: float
+) -> dict[str, Any]:
+    """Phase 49: the one bounded, real Blender invocation for
+    `organic_cleanup_workflow`. Only ever called by
+    `factory.blender_adaptation.run_organic_cleanup_workflow()` - never
+    called directly by the CLI - and only after that caller's own gate
+    (fresh fixture-qualification proof + explicit human confirmation) has
+    already passed. This function itself does not re-check that gate; it
+    trusts its caller the same way `run_fixture_qualification()` trusts
+    `qualify_blender_adapter()` to have already checked
+    `verify_headless_runtime()`.
+
+    Blender writes to a fresh `tempfile.TemporaryDirectory()`-contained
+    path only - never directly to `final_output_path`. Only after the
+    temp output is verified to exist, be non-empty, and be the only
+    unexpected file in that temp directory is it copied to
+    `final_output_path` (which must not already exist - checked again
+    here, defensively, even though `factory.blender_adaptation` already
+    checked it while building the plan). `input_stl_path` is only ever
+    read, never written.
+    """
+    checks: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+    unexpected_files: list[str] = []
+    output_hash: str | None = None
+
+    if final_output_path.exists():
+        errors.append(f"refusing to overwrite an existing file at {final_output_path}")
+        return {
+            "organic_cleanup_status": "skipped",
+            "checks": checks,
+            "warnings": warnings,
+            "errors": errors,
+            "temporary_artifacts_created": False,
+            "temporary_artifacts_cleaned": True,
+            "unexpected_files": unexpected_files,
+            "output_path": None,
+        }
+
+    headless_check = verify_headless_runtime(binary_path)
+    checks.append(headless_check)
+    if headless_check["status"] != "pass":
+        errors.append("Headless runtime check failed - organic cleanup execution skipped.")
+        return {
+            "organic_cleanup_status": "skipped",
+            "checks": checks,
+            "warnings": warnings,
+            "errors": errors,
+            "temporary_artifacts_created": False,
+            "temporary_artifacts_cleaned": True,
+            "unexpected_files": unexpected_files,
+            "output_path": None,
+        }
+
+    export_ok = False
+    temporary_artifacts_created = False
+    temporary_artifacts_cleaned = True
+    tmp_dir_path: str | None = None
+    copied_output_path: str | None = None
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="factory-blender-organic-cleanup-") as tmp_dir:
+            tmp_dir_path = tmp_dir
+            temporary_artifacts_created = True
+            tmp_dir_obj = Path(tmp_dir)
+            before = _inventory(tmp_dir_obj)
+            tmp_output_path = tmp_dir_obj / "adapted.stl"
+
+            command = [
+                binary_path,
+                *_COMMON_SAFETY_FLAGS,
+                "--python-exit-code",
+                "1",
+                "--python",
+                str(blender_gate.ORGANIC_CLEANUP_SCRIPT_PATH),
+                "--",
+                str(input_stl_path),
+                str(tmp_output_path),
+                str(scale_factor),
+            ]
+            try:
+                completed = subprocess.run(command, capture_output=True, text=True, timeout=_ORGANIC_CLEANUP_TIMEOUT_SECONDS, shell=False)
+            except subprocess.TimeoutExpired:
+                checks.append(_check("blender_organic_cleanup_executed", "Organic cleanup executed", "fail", f"timed out after {_ORGANIC_CLEANUP_TIMEOUT_SECONDS}s"))
+                errors.append("Blender organic cleanup execution timed out")
+            except OSError as exc:
+                checks.append(_check("blender_organic_cleanup_executed", "Organic cleanup executed", "fail", f"failed to launch: {exc}"))
+                errors.append("failed to launch Blender for organic cleanup execution")
+            else:
+                if completed.returncode == 0:
+                    checks.append(_check("blender_organic_cleanup_executed", "Organic cleanup executed", "pass", "exit code 0"))
+                else:
+                    checks.append(
+                        _check(
+                            "blender_organic_cleanup_executed",
+                            "Organic cleanup executed",
+                            "fail",
+                            f"exit code {completed.returncode}: {(completed.stderr or '')[:300]}",
+                        )
+                    )
+                    errors.append(f"Blender organic cleanup execution exited with code {completed.returncode}")
+
+                after = _inventory(tmp_dir_obj)
+                expected_relative = tmp_output_path.relative_to(tmp_dir_obj).as_posix()
+                unexpected_files = sorted((after - before) - {expected_relative})
+                if unexpected_files:
+                    warnings.append(f"Blender created unexpected file(s) in the temp directory: {unexpected_files}")
+
+                stl_exists = tmp_output_path.is_file()
+                stl_nonempty = stl_exists and tmp_output_path.stat().st_size > 0
+                if stl_exists and stl_nonempty:
+                    checks.append(_check("blender_stl_output_valid", "STL exists and is non-empty", "pass", f"{tmp_output_path.stat().st_size} bytes"))
+                    export_ok = True
+                else:
+                    reason = "missing" if not stl_exists else "empty"
+                    checks.append(_check("blender_stl_output_valid", "STL exists and is non-empty", "fail", reason))
+                    errors.append(f"exported STL {reason}")
+
+                if export_ok:
+                    if final_output_path.exists():
+                        # Defensive re-check: something created final_output_path while Blender ran.
+                        checks.append(_check("blender_output_copied", "Output copied to final path", "fail", f"{final_output_path} appeared during execution"))
+                        errors.append(f"refusing to overwrite {final_output_path} - it appeared during execution")
+                    else:
+                        final_output_path.parent.mkdir(parents=True, exist_ok=True)
+                        final_output_path.write_bytes(tmp_output_path.read_bytes())
+                        copy_ok = final_output_path.is_file() and final_output_path.stat().st_size == tmp_output_path.stat().st_size
+                        checks.append(_check("blender_output_copied", "Output copied to final path", "pass" if copy_ok else "fail", str(final_output_path)))
+                        if copy_ok:
+                            copied_output_path = str(final_output_path)
+                            output_hash = _sha256_fingerprint(final_output_path)
+                        else:
+                            errors.append(f"copy to {final_output_path} did not verify (size mismatch)")
+
+        temporary_artifacts_cleaned = not Path(tmp_dir_path).exists()
+        checks.append(_check("blender_cleanup", "Temporary artifacts cleaned", "pass" if temporary_artifacts_cleaned else "fail", tmp_dir_path or ""))
+    except Exception as exc:  # never let an execution/cleanup surprise leave a half-written result unreported
+        temporary_artifacts_cleaned = not Path(tmp_dir_path).exists() if tmp_dir_path else True
+        checks.append(_check("blender_cleanup", "Temporary artifacts cleaned", "pass" if temporary_artifacts_cleaned else "fail", str(exc)))
+        errors.append(f"unexpected error during organic cleanup execution: {exc}")
+
+    status = "succeeded" if (export_ok and copied_output_path) else "failed"
+    return {
+        "organic_cleanup_status": status,
+        "checks": checks,
+        "warnings": warnings,
+        "errors": errors,
+        "temporary_artifacts_created": temporary_artifacts_created,
+        "temporary_artifacts_cleaned": temporary_artifacts_cleaned,
+        "unexpected_files": unexpected_files,
+        "output_path": copied_output_path,
+        "output_hash": output_hash,
+    }
+
+
+def _sha256_fingerprint(path: Path) -> str:
+    """`sha256:<hex digest>` - the exact convention already established by
+    `factory.export_pipeline`/`factory.meshy_live_adapter` for every other
+    artifact fingerprint in this repo. Never re-derived differently here."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
 BLENDER_ADAPTER_VERSION = 1

@@ -42,6 +42,8 @@ projects/<slug>/
   documented in `docs/blender-adapter.md`, not implemented yet. Phase 45
   itself never writes anywhere under `projects/` at all; its one
   qualification fixture lives entirely in a `tempfile.TemporaryDirectory()`.
+  **Phase 49 implements exactly this**, narrowly, for one workflow - see
+  the Phase 49 addendum below.
 - **`stl/` → `validation/` + `renders/`**: `factory validate` and
   `factory render` write their outputs into these folders automatically
   when the input mesh lives under a project's `stl/` directory (or
@@ -88,9 +90,10 @@ classifies a fingerprinted relative path into an artifact category using
 exactly the directory/filename conventions above - `cad/` → `cad`,
 `stl/` → `stl`, `validation/` → `validation`, `renders/` → `preview`,
 `part_manifest.json` → `manifest`, `build_plan.json` → `build_plan`,
-`slicer_review/`/`manual_review/` → `review_package` - never a second
-classification scheme. It introduces no new folder or file of its own;
-it is entirely read-only.
+`slicer_review/`/`manual_review/` → `review_package`, `generated/meshy/*.stl`
+→ `stl` (Phase 47B.7), and `generated/blender/*.stl` → `stl` (Phase 49) -
+never a second classification scheme. It introduces no new folder or
+file of its own; it is entirely read-only.
 
 ## Reused by Phase 42's project health dashboard
 
@@ -146,6 +149,20 @@ receipt. `factory.hybrid_workflow` only reads existing receipts
 already in `brief.json`. There is no `hybrid_workflow_receipt` yet -
 nothing here executes, so there is nothing to persist. See
 `docs/hybrid-workflow.md`.
+
+**Phase 49 addendum:** `factory blender-adapt plan <artifact>` writes
+**nothing at all**, ever - same dry-run-by-default convention as every
+planning-only command in this repo. `factory blender-adapt execute
+<artifact> --target-max-mm N --confirm` writes a real project artifact
+only when every gate passes (Blender detected, a fresh fixture-
+qualification proof, and explicit human confirmation on that exact
+call): `generated/blender/adapted/<stem>_adapted.stl` (the child
+artifact - the original input artifact is never modified, moved, or
+overwritten) and `generated/blender_adaptation_receipt.json` (a sibling
+of `generated/meshy_receipt.json`/`generated/export_receipt.json`,
+collision-protected - refuses to overwrite an existing receipt or output
+file). Without every gate passing, nothing is written at all. See
+`docs/blender-adaptation.md`.
 
 ## What never happens automatically
 

@@ -492,6 +492,36 @@ that actually invokes Blender) or `factory.cad.backend` (CAD execution);
 a recommended step's readiness is always the real gate's own status,
 never re-asserted independently. See `docs/hybrid-workflow.md`.
 
+**Phase 49 addendum:** `factory/blender_adaptation.py` is the first
+module in this repo that executes real Blender automation against a real
+project artifact - narrowly, for exactly one workflow
+(`organic_cleanup_workflow`). It sits *between* `factory.hybrid_workflow`
+(which only recommends a Blender adaptation step) and
+`factory.blender_adapter` (the sole subprocess-invoking module), never
+duplicating either:
+
+```
+factory/hybrid_workflow.py (assess_scale, reused)   --->
+factory/blender_gate.py (plan, reused)              --->  factory/blender_adaptation.py
+factory/blender_adapter.py (execution, reused)      --->        |
+factory/design_intent_check.py (reused)             --->        |
+factory/validators/mesh_validate.py (reused)                    |
+factory/previews/render_preview.py (reused)                     |
+                                                                  v
+                          factory/cli.py (`factory blender-adapt plan`/`execute`)
+                          factory/project_timeline.py (`blender_adaptation` event, additive)
+                          factory/artifact_history.py (`generated/blender/` classified as `stl`, additive)
+                          factory/preview_board.py (`blender_adaptation_summary`, aggregation point only)
+```
+
+Every real execution re-checks Blender detection and runs a fresh
+fixture-qualification proof (`factory.blender_adapter.qualify_blender_adapter(confirm_fixture=True)`)
+on that exact call - nothing about a prior qualification or a prior
+execution is ever cached or trusted. The original input artifact is
+never modified; a new child artifact is always written to
+`generated/blender/adapted/`, never overwriting an existing file. See
+`docs/blender-adaptation.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
@@ -546,8 +576,9 @@ point, never inside `project_inspection.py`. This is why
 `slicer_readiness_summary`, `manual_review_summary`,
 `slicer_intelligence_summary`, `slicer_history_summary`,
 `timeline_summary`, `artifact_history_summary`,
-`project_health_summary`, and (Phase 48) `hybrid_workflow_summary` all
-live on the board's per-project dict without ever touching
+`project_health_summary`, (Phase 48) `hybrid_workflow_summary`, and
+(Phase 49) `blender_adaptation_summary` all live on the board's
+per-project dict without ever touching
 `project_inspection.summarize_project()`'s own return shape.
 
 **Applies to every future phase**, not just the seven above - any new

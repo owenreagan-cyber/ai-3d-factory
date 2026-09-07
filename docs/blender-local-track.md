@@ -297,9 +297,58 @@ imports `factory.blender_adapter` (the only module that actually invokes
 Blender). A recommended step is a plan a human reviews, not a bypass of
 anything above. See `docs/hybrid-workflow.md`.
 
+## Phase 49 amendment - one real, gated project-artifact workflow, `config/future_local_tools.json` still untouched
+
+Phase 45 authorized exactly two real Blender invocations, both against a
+throwaway fixture, never a project file. **Phase 49 is the "future,
+later, explicit decision" this document's checklist item 1 and Phase
+45's own gate-checklist item 1 both named** - the first real Blender
+execution against a real project artifact in this repo. Its answer is
+just as narrow as Phase 45's: **exactly one workflow
+(`organic_cleanup_workflow`: import a Meshy/CAD-origin STL, apply one
+explicit uniform scale factor, export a new child STL), never mesh
+repair, remeshing, decimation, smoothing, or any other broader
+automation.**
+
+Consistent with every hard rule above, still in force for this narrower
+real-project use:
+
+- **`config/future_local_tools.json`'s `tools.blender.enabled`/
+  `allows_automation`/`allows_background_execution` stay `false`** -
+  this phase's own dated spec is the explicit human instruction that
+  narrowly authorizes `organic_cleanup_workflow`, the same pattern
+  Phase 45's spec used for its fixture pipeline, never a standing
+  "automation is on" state. Every real execution requires a fresh
+  `--confirm` on that exact call; nothing is cached or persisted between
+  calls, and no code path flips this config.
+- **Output directory isolation, no overwrite** - a real adapted artifact
+  writes to `<project>/generated/blender/adapted/`, never `stl/`/
+  `renders/`, and never overwrites the original input artifact or an
+  existing output file.
+- **Provenance recorded** - `generated/blender_adaptation_receipt.json`
+  records engine/version, workflow, source input and output artifacts
+  with fingerprints, and human-confirmation state.
+- **Before/after validation and preview** - the adapted output is
+  re-validated (`factory.validators.mesh_validate.validate_mesh()`) and
+  re-previewed (`factory.previews.render_preview.render_preview()`) -
+  both reused, never a Blender-specific implementation.
+- **`factory review-gate` remains required, no slicer/printer contact** -
+  unchanged; a Blender-adapted artifact is exactly as "not print-ready"
+  as any other mesh until it passes the same pipeline.
+- **No repair acceptance, no automatic `human_approved`/`print_ready`** -
+  unchanged; scale/orientation adaptation is not a design-quality
+  judgment, and this phase makes none.
+
+See `docs/blender-adaptation.md` for the full gate design (the fresh,
+never-cached fixture-qualification-proof-before-real-execution model),
+the exact subprocess/safety policy for the second Factory-owned Blender
+script, and why `config/future_local_tools.json` is deliberately left
+unchanged.
+
 See also `config/future_local_tools.json`, `docs/roadmap.md`'s "Blender
 local repair/render track", `docs/design-quality-standard.md`,
 `docs/meshy-approval-gate.md`, `docs/tool-routing.md`,
 `docs/cad-backends.md`, `docs/safety-gates.md`, `config/agent_policy.json`,
 `docs/engine-registry.md`, `docs/tool-qualification.md`,
-`docs/blender-adapter.md`, `docs/hybrid-workflow.md`, and `AGENT.md`.
+`docs/blender-adapter.md`, `docs/hybrid-workflow.md`,
+`docs/blender-adaptation.md`, and `AGENT.md`.

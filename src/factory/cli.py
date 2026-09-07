@@ -85,6 +85,11 @@ from factory.engine_registry import summarize_engine_registry
 from factory.tool_qualification import build_qualification_report, UnknownToolError
 from factory.blender_adapter import build_blender_report
 from factory.blender_gate import evaluate_blender_execution_gate
+from factory.blender_adaptation import (
+    build_adaptation_execution_plan,
+    build_safety_block as build_blender_adaptation_safety_block,
+    run_organic_cleanup_workflow as run_blender_organic_cleanup_workflow,
+)
 from factory.hybrid_workflow import assess_artifact_file, build_adaptation_plan
 from factory.meshy_approval import (
     MeshyPolicyError,
@@ -225,6 +230,8 @@ AVAILABLE_COMMANDS = (
     "meshy reconcile-ledger-entry RESERVATION_ID --reason TEXT [--json]",
     "workflow plan <project_dir> [--json]",
     "workflow assess <artifact_path> [--json]",
+    "blender-adapt plan <artifact_path> [--target-max-mm N] [--json]",
+    "blender-adapt execute <artifact_path> --target-max-mm N --confirm [--confirmed-by NAME] [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2464,6 +2471,111 @@ def workflow_assess_cmd(
     console.print(f"[bold]Current dimensions (mm):[/bold] {scale['current_dimensions_mm']}")
     console.print(f"[bold]Scale confidence:[/bold] {scale['confidence']} - {scale['reason']}")
     console.print("\nA human must confirm any target dimensions before scaling. Automatic execution is impossible.")
+
+
+_BLENDER_ADAPT_SAFETY_TRAILER = (
+    "This is a Blender adaptation execution gate, not manufacturing approval.",
+    "AI output != manufacturing ready. Blender output != approved product. Validation != human approval.",
+    "Human approval != print approval. Automatic printing remains impossible.",
+)
+
+
+blender_adapt_app = typer.Typer(
+    name="blender-adapt",
+    help=(
+        "Blender Adaptation Execution Gate & Controlled Organic Cleanup Workflow (Phase 49) - the first "
+        "real Blender execution against a real project artifact in this repo, narrowly scoped to exactly "
+        "one workflow (`organic_cleanup_workflow`: import a Meshy/CAD-origin STL, apply one explicit "
+        "uniform scale factor, export a new child STL - never mesh repair, remeshing, decimation, or "
+        "smoothing). `factory blender-adapt plan` is fully read-only. `factory blender-adapt execute "
+        "--confirm` re-checks Blender detection, runs a FRESH full fixture-qualification proof, and "
+        "requires explicit human confirmation on every single call - nothing is cached or persisted "
+        "between calls. Never overwrites the input artifact or an existing output; never contacts a "
+        "slicer, printer, or network. See docs/blender-adaptation.md."
+    ),
+)
+app.add_typer(blender_adapt_app, name="blender-adapt")
+
+
+def _render_blender_adapt_plan_human(plan: dict[str, Any]) -> None:
+    console.print("[bold]BLENDER ADAPTATION PLAN[/bold]\n")
+    console.print(f"[bold]Input artifact:[/bold] {plan['input_artifact']}")
+    console.print(f"[bold]Project:[/bold] {plan['project'] or '(none - not under projects/<slug>/)'}")
+    console.print(f"[bold]Source engine:[/bold] {plan['source_engine']}")
+    console.print(f"[bold]Workflow:[/bold] {plan['workflow_type']}")
+    console.print(f"[bold]Blender gate status:[/bold] {plan['blender_gate_status']}")
+    console.print(f"[bold]Operations (planned, not executed):[/bold] {', '.join(plan['adaptation_operations'])}")
+    console.print(f"[bold]Current dimensions (mm):[/bold] {plan['current_dimensions_mm']}")
+    console.print(f"[bold]Proposed scale factor:[/bold] {plan['proposed_scale_factor']}")
+    console.print(f"[bold]Output artifact (would create):[/bold] {plan['output_artifact']}")
+    console.print(f"[bold]Execution allowed:[/bold] {plan['execution_allowed']}\n")
+    if plan["issues_found"]:
+        console.print("[bold]Issues found:[/bold]")
+        for issue in plan["issues_found"]:
+            console.print(f"  - {_rich_escape(issue)}")
+        console.print()
+    for line in _BLENDER_ADAPT_SAFETY_TRAILER:
+        console.print(line)
+
+
+@blender_adapt_app.command(name="plan")
+def blender_adapt_plan_cmd(
+    artifact_path: Path = typer.Argument(..., help="Path to a mesh file (.stl) - typically an existing generated/meshy/processed/<id>.stl artifact"),
+    target_max_mm: float = typer.Option(None, "--target-max-mm", help="Optional: the desired largest bounding-box dimension (mm) after adaptation"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 49: a fully read-only dry-run plan for adapting one artifact via `organic_cleanup_workflow`
+    - never launches Blender, never writes anything. Reuses `factory.hybrid_workflow.assess_scale()` and
+    `factory.blender_gate.plan_organic_cleanup_execution()` rather than a second scale/gate model."""
+    plan = build_adaptation_execution_plan(artifact_path, target_max_dimension_mm=target_max_mm)
+
+    if as_json:
+        payload = {"plan": plan, "safety": build_blender_adaptation_safety_block()}
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_blender_adapt_plan_human(plan)
+
+
+@blender_adapt_app.command(name="execute")
+def blender_adapt_execute_cmd(
+    artifact_path: Path = typer.Argument(..., help="Path to a mesh file (.stl) under an existing projects/<slug>/ directory"),
+    target_max_mm: float = typer.Option(..., "--target-max-mm", help="Required: the desired largest bounding-box dimension (mm) after adaptation - never inferred automatically"),
+    confirm: bool = typer.Option(False, "--confirm", help="Explicit, per-invocation human confirmation - required to actually execute"),
+    confirmed_by: str = typer.Option(None, "--confirmed-by", help="Optional: who confirmed this execution, recorded in the receipt"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 49: the gated, real execution of `organic_cleanup_workflow` against one project artifact.
+    Without --confirm, always blocked (same dry-run-by-default convention as every other confirmed-write
+    command in this repo). With --confirm, re-verifies Blender detection, runs a FRESH full
+    fixture-qualification proof (never trusts a prior run), then imports the input STL, applies one
+    explicit uniform scale factor, and exports a new child STL under generated/blender/adapted/ - never
+    overwriting the input artifact or an existing output. Writes generated/blender_adaptation_receipt.json
+    only on success. See docs/blender-adaptation.md."""
+    result = run_blender_organic_cleanup_workflow(
+        artifact_path, target_max_dimension_mm=target_max_mm, confirm=confirm, confirmed_by=confirmed_by
+    )
+
+    if as_json:
+        payload = {"result": result, "safety": build_blender_adaptation_safety_block()}
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        if result["organic_cleanup_status"] != "succeeded":
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]BLENDER ADAPTATION EXECUTION[/bold]\n")
+    console.print(f"[bold]Status:[/bold] {result['organic_cleanup_status']}")
+    if result.get("errors"):
+        console.print("[bold]Errors:[/bold]")
+        for error in result["errors"]:
+            console.print(f"  - {_rich_escape(error)}")
+    if result["organic_cleanup_status"] == "succeeded":
+        console.print(f"[bold]Output artifact:[/bold] {result['output_artifact']}")
+        console.print(f"[bold]Receipt:[/bold] {result['receipt_path']}")
+    console.print()
+    for line in _BLENDER_ADAPT_SAFETY_TRAILER:
+        console.print(line)
+    if result["organic_cleanup_status"] != "succeeded":
+        raise typer.Exit(code=1)
 
 
 _MESHY_SAFETY_TRAILER = (
