@@ -409,3 +409,9 @@ See also `docs/export-pipeline.md` (Phase 35), `docs/generation-gate.md`
 (Phase 34), `docs/review-gate.md`, `docs/preview-board.md`,
 `docs/slicer-review-workflow.md`, `docs/file-lifecycle.md`, and
 `docs/roadmap.md` Phase 36.
+
+**Consumed by Phase 52:** `factory.manufacturing_readiness` reads
+`readiness_status`/`approval_status` (via `factory.project_health`'s own
+passthrough) as the canonical `slicer_status`/`human_review_status`
+signals in its final aggregation - never recomputed. See
+`docs/manufacturing-readiness.md`.

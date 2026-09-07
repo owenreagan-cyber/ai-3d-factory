@@ -391,3 +391,11 @@ See also `docs/manual-review-workspace.md` (Phase 37),
 `docs/slicer-review-workflow.md`, `docs/slicer-profiles.md` (Phase 39),
 `docs/slicer-analysis-history.md` (Phase 39), and `docs/roadmap.md`
 Phase 38/39.
+
+**Consumed by Phase 52:** `factory.manufacturing_readiness` calls
+`evaluate_slicer_intelligence()` directly, once, only for
+`build_volume_analysis["fit_status"]` - the one field neither
+`factory.design_review` nor `factory.project_health` surfaces on its own
+- and escalates `"does_not_fit"` to blocker severity at that outer
+aggregation layer. It never re-runs the analysis itself. See
+`docs/manufacturing-readiness.md`.

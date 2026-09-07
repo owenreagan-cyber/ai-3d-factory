@@ -388,3 +388,9 @@ See also `docs/slicer-readiness.md` (Phase 36), `docs/export-pipeline.md`
 `docs/slicer-intelligence.md` (Phase 38, the next pipeline step),
 `docs/slicer-profiles.md` / `docs/slicer-analysis-history.md` (Phase 39),
 `docs/file-lifecycle.md`, and `docs/roadmap.md` Phase 37.
+
+**Consumed by Phase 52:** `factory.manufacturing_readiness` reads this
+module's `printer_summary`/`material_summary` (passed through verbatim
+by `factory.design_review`) as its own `printer_status`/`material_status`
+evidence - never a second printer/material lookup. See
+`docs/manufacturing-readiness.md`.

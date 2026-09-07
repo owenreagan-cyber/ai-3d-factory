@@ -3206,6 +3206,74 @@ card's own template/CSS classes verbatim - no new CSS, no JavaScript.
 `factory.project_health` stays entirely untouched. See
 `docs/design-review.md`.
 
+## Phase 52 — Manufacturing Readiness Intelligence & Final Production Gate (complete)
+
+A pure aggregation layer over every readiness signal this repo has ever
+computed - answers "is this project ready to enter manufacturing
+preparation," never "should the printer automatically start."
+
+    Manufacturing readiness  !=  printing approval.
+    Automatic printing remains impossible.
+
+New module `factory.manufacturing_readiness` reuses rather than
+duplicates: `factory.design_review.evaluate_design_review()` (Phase 51's
+complete hybrid-pipeline readiness ladder) and
+`factory.project_health.evaluate_project_health()` (Phase 42's complete
+traditional-pipeline ladder) - by explicit design neither reads the
+other, and this phase does not change that; it only reads both. A
+`_is_hybrid_pipeline()` check (the identical artifact-chain-presence
+test `design_review.summarize_design_review()` already makes) decides
+which pipeline's evidence is active for a given project - both
+aggregators are always evaluated, since each already honestly reports
+near-empty categories for the pipeline it wasn't built for. Also reuses
+`factory.slicer_intelligence.evaluate_slicer_intelligence()` (read once,
+only for `build_volume_analysis.fit_status` - a field neither aggregator
+above surfaces), `factory.artifact_history.summarize_artifact_history()`,
+and `factory.project_timeline.summarize_project_timeline()`.
+
+Adds no new timeline event category or artifact-history classification
+rule. Adds exactly one genuinely new blocker rule: an impossible
+build-volume fit, which today neither `design_review` nor
+`project_health` escalates to blocker severity even though it's a
+genuine manufacturing obstruction. Replaces three previously-overlapping
+human-confirmation checklists with one flat seven-item checklist
+(`design_intent_confirmed`, `dimensions_confirmed`,
+`manufacturing_purpose_confirmed`, `material_selected`,
+`printer_selected`, `slicer_review_complete`,
+`final_artifact_approved`) - every item read straight off already-
+computed evidence, never inferred; unresolved printer/material/nozzle/
+layer-height/process settings are always reported `"needs_information"`,
+never guessed.
+
+Closed readiness-state vocabulary (`not_ready`, `needs_information`,
+`design_review_complete`, `manufacturing_review_ready`,
+`human_approval_required`, `slicer_preparation_ready`, `blocked`)
+deliberately excludes `approved_for_print`/`automatic_manufacture_ready`,
+matching `config/agent_policy.json`'s standing
+`status_gates.max_automatic_status` ceiling;
+`manufacturing_review_ready` is reused with the identical meaning
+`factory.design_review` already gives it (printer + material both
+confirmed) - not a second, conflicting definition of the same name.
+`readiness_score` is never independently computed - it is always
+whichever pipeline's own already-weighted, already-documented score
+applies, and it **never overrides a blocker**: `blocked` is decided
+first, before the score is even read, so a 95% score with a missing
+printer still reports a lower rung, never `slicer_preparation_ready`,
+and any hard blocker always reports `blocked` regardless of score.
+
+`factory manufacturing-readiness <project> [--json] [--verbose]` - a
+single, flat, fully read-only command; no `plan`/`execute` subcommands
+and no `approve`/`print`/`manufacture`/`send` verb anywhere. Never
+writes a file. `manufacturing_readiness_summary` is wired into
+`factory.preview_board.gather_board_data()` at the aggregation point,
+with one new compact "Manufacturing Readiness" HTML card placed as the
+very first card-section (ahead of "Project Health" - the outermost
+aggregation layer, spanning both "Project Health" and "Hybrid Design
+Review" beneath it) reusing existing badge CSS classes verbatim - no new
+CSS, no JavaScript. Neither `factory.design_review` nor
+`factory.project_health` is modified by this phase. See
+`docs/manufacturing-readiness.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -3391,6 +3459,41 @@ permanently unless explicitly removed by a future approved phase:
   `design_review_summary` wired into `factory.preview_board.gather_board_data()`
   with one new compact "Hybrid Design Review" HTML card, reusing existing
   badge CSS verbatim. See `docs/design-review.md`.
+- **Phase 52** - Manufacturing Readiness Intelligence & Final Production
+  Gate (complete). A pure aggregation layer over every readiness signal
+  this repo has ever computed - answers "is this project ready to enter
+  manufacturing preparation," never "should the printer automatically
+  start." New module `factory.manufacturing_readiness` reuses
+  `factory.design_review.evaluate_design_review()` (hybrid pipeline) and
+  `factory.project_health.evaluate_project_health()` (traditional
+  pipeline) - by design neither reads the other; a pipeline-lens check
+  (the same artifact-chain-presence test `design_review` already makes)
+  decides which is active. Also reuses `factory.slicer_intelligence`
+  (build-volume fit only), `factory.artifact_history`, and
+  `factory.project_timeline`. Adds no new timeline/artifact-history
+  category. Adds exactly one new blocker rule (impossible build-volume
+  fit, not previously escalated to blocker severity). One flat
+  seven-item human-confirmation checklist replaces three previously
+  overlapping ones - every item read from already-computed evidence,
+  never inferred. Closed readiness-state vocabulary (`not_ready`,
+  `needs_information`, `design_review_complete`,
+  `manufacturing_review_ready`, `human_approval_required`,
+  `slicer_preparation_ready`, `blocked`) deliberately excludes
+  `approved_for_print`/`automatic_manufacture_ready`, matching
+  `config/agent_policy.json`'s standing ceiling.
+  `manufacturing_review_ready` is reused with the identical meaning
+  `factory.design_review` already gives it. `readiness_score` is always
+  whichever pipeline's own already-weighted score and **never overrides
+  a blocker** - `blocked` is decided before the score is even read.
+  `factory manufacturing-readiness <project> [--json] [--verbose]` -
+  fully read-only, no `plan`/`execute`/`approve`/`print`/`manufacture`/
+  `send` verb, never writes a file.
+  `manufacturing_readiness_summary` wired into
+  `factory.preview_board.gather_board_data()` with one new compact
+  "Manufacturing Readiness" HTML card placed as the very first
+  card-section, reusing existing badge CSS verbatim. Neither
+  `factory.design_review` nor `factory.project_health` is modified. See
+  `docs/manufacturing-readiness.md`.
 
 ## Future tracks, not yet phase-numbered
 

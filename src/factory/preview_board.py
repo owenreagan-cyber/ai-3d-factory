@@ -153,6 +153,7 @@ from factory.hybrid_workflow import summarize_hybrid_workflow
 from factory.blender_adaptation import summarize_blender_adaptation
 from factory.cad_augmentation import summarize_cad_augmentation
 from factory.design_review import summarize_design_review
+from factory.manufacturing_readiness import summarize_manufacturing_readiness
 from factory.engine_registry import summarize_tool_environment
 from factory.meshy_approval import summarize_meshy_policy_for_board
 
@@ -195,8 +196,8 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
     (Phase 40), `artifact_history_summary` (Phase 41), and
     `project_health_summary` (Phase 42), `hybrid_workflow_summary`
     (Phase 48), `blender_adaptation_summary` (Phase 49),
-    `cad_augmentation_summary` (Phase 50), and `design_review_summary`
-    (Phase 51) into each
+    `cad_augmentation_summary` (Phase 50), `design_review_summary`
+    (Phase 51), and `manufacturing_readiness_summary` (Phase 52) into each
     project's dict here, at
     the aggregation point, rather than inside
     `factory.project_inspection.summarize_project()` itself - see the
@@ -229,6 +230,7 @@ def gather_board_data(projects_root: Path) -> dict[str, Any]:
         project["blender_adaptation_summary"] = summarize_blender_adaptation(project_dir)
         project["cad_augmentation_summary"] = summarize_cad_augmentation(project_dir)
         project["design_review_summary"] = summarize_design_review(project_dir)
+        project["manufacturing_readiness_summary"] = summarize_manufacturing_readiness(project_dir)
 
     state_counts: dict[str, int] = {state: 0 for state in VISUAL_READINESS_STATES}
     for project in projects:
@@ -503,6 +505,62 @@ _DESIGN_REVIEW_STATE_BADGE_CLASSES = {
     "approved_for_slicer_review": "badge-review-ready",
     "blocked": "health-blocked",
 }
+
+
+_MANUFACTURING_READINESS_STATE_BADGE_CLASSES = {
+    "not_ready": "badge-missing",
+    "needs_information": "health-warning",
+    "design_review_complete": "badge-present",
+    "manufacturing_review_ready": "badge-present",
+    "human_approval_required": "health-warning",
+    "slicer_preparation_ready": "badge-review-ready",
+    "blocked": "health-blocked",
+}
+
+
+def _build_manufacturing_readiness_section_html(summary: dict[str, Any] | None) -> str:
+    """Render one project's `manufacturing_readiness_summary` (Phase 52)
+    into a compact static 'Manufacturing Readiness' dashboard section -
+    the final production-gate readiness state, score, and top
+    blockers/warnings. This section never recalculates anything - it only
+    shows what `factory.manufacturing_readiness.summarize_manufacturing_readiness()`
+    already computed read-only from `factory.design_review`/
+    `factory.project_health`/`factory.slicer_intelligence`/
+    `factory.artifact_history`/`factory.project_timeline`.
+    `automatic_print_allowed` is always `False` - manufacturing readiness
+    is never printing approval.
+    """
+    if not summary:
+        return '<div class="manufacturing-readiness"><p class="none">No manufacturing readiness evaluation available for this project.</p></div>'
+
+    state = summary.get("readiness_state") or "unknown"
+    badge_class = _MANUFACTURING_READINESS_STATE_BADGE_CLASSES.get(state, "badge-missing")
+    score = summary.get("readiness_score")
+    score_html = f"{score}%" if isinstance(score, (int, float)) else "Unknown"
+
+    rows = "".join(
+        _di_row(label, value_html)
+        for label, value_html in (
+            ("State", f'<span class="badge {badge_class}">{_escape_html(state.replace("_", " ").title())}</span>'),
+            ("Score", _escape_html(score_html)),
+        )
+    )
+
+    top_blockers = summary.get("top_blockers") or []
+    if top_blockers:
+        items_html = "".join(f"<li>{_escape_html(b)}</li>" for b in top_blockers)
+        rows += f'<div class="di-row"><span class="di-label">Blockers:</span></div><ul class="di-warnings">{items_html}</ul>'
+    else:
+        rows += _di_row("Blockers", '<span class="none">None</span>')
+
+    top_warnings = summary.get("top_warnings") or []
+    if top_warnings:
+        items_html = "".join(f"<li>{_escape_html(w)}</li>" for w in top_warnings)
+        rows += f'<div class="di-row"><span class="di-label">Warnings:</span></div><ul class="di-warnings">{items_html}</ul>'
+    else:
+        rows += _di_row("Warnings", '<span class="none">None</span>')
+
+    return f'<div class="manufacturing-readiness">{rows}</div>'
 
 
 def _build_design_review_section_html(summary: dict[str, Any] | None) -> str:
@@ -1451,6 +1509,9 @@ def _build_project_card_html(project: dict[str, Any]) -> str:
     return (
         '<div class="project-card">'
         f'<h3 class="card-title">{_escape_html(project_name)} <code>{_escape_html(project_dir)}</code></h3>'
+        '<div class="card-section"><h4>Manufacturing Readiness</h4>'
+        + _build_manufacturing_readiness_section_html(project.get("manufacturing_readiness_summary"))
+        + "</div>"
         '<div class="card-section"><h4>Project Health</h4>'
         + _build_project_health_section_html(project.get("project_health_summary"))
         + "</div>"

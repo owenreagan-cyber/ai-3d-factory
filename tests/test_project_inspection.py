@@ -169,7 +169,7 @@ def test_preview_board_json_shape_unchanged_after_refactor(isolated_projects_dir
         "slicer_readiness_summary", "manual_review_summary", "slicer_intelligence_summary",
         "slicer_history_summary", "timeline_summary", "artifact_history_summary",
         "project_health_summary", "hybrid_workflow_summary", "blender_adaptation_summary",
-        "cad_augmentation_summary", "design_review_summary",
+        "cad_augmentation_summary", "design_review_summary", "manufacturing_readiness_summary",
     }
     assert set(project.keys()) == expected_keys
 

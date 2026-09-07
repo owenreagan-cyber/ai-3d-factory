@@ -189,6 +189,14 @@ computes a fresh, read-only analysis on every call. Only
 from every `*_receipt.json` in this repo), always safely overwritable on
 the next `--save`. See `docs/design-review.md`.
 
+**Phase 52 addendum:** `factory manufacturing-readiness <project>`
+writes **nothing at all** - unlike Phase 51's `design-review`, there is
+no `--save` option and no snapshot file of any kind. Every call
+recomputes fresh from whatever `factory.design_review`/
+`factory.project_health`/`factory.slicer_intelligence`/
+`factory.artifact_history`/`factory.project_timeline` already report at
+that moment. See `docs/manufacturing-readiness.md`.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

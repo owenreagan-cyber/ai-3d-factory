@@ -166,15 +166,20 @@ def test_html_project_health_is_the_first_card_section(isolated_projects_dir, sc
     board = gather_board_data(isolated_projects_dir)
     html = build_board_html(board)
 
+    manufacturing_readiness_index = html.find("<h4>Manufacturing Readiness</h4>")
     health_index = html.find("<h4>Project Health</h4>")
     readiness_index = html.find("<h4>Project Readiness</h4>")
     card_start = html.find('<div class="project-card">')
     assert card_start != -1
+    assert manufacturing_readiness_index != -1
     assert health_index != -1
     assert readiness_index != -1
-    # Project Health is the very first card-section after the card opens.
-    assert 0 <= health_index - card_start < 200
-    assert health_index < readiness_index
+    # Manufacturing Readiness (Phase 52) is now the very first card-section
+    # after the card opens - the outermost aggregation layer, spanning both
+    # Project Health and Hybrid Design Review. Project Health remains the
+    # very next section, unchanged and still ahead of Project Readiness.
+    assert 0 <= manufacturing_readiness_index - card_start < 200
+    assert manufacturing_readiness_index < health_index < readiness_index
 
 
 def test_html_project_health_shows_status_and_score(isolated_projects_dir, scad_project):

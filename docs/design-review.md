@@ -341,6 +341,14 @@ never go stale relative to the current artifacts on disk.
 `factory.project_health`'s `health_score` computation is untouched by
 this phase - see "Why this is not `factory.project_health`" above.
 
+## Consumed by Phase 52
+
+`factory.manufacturing_readiness` (Phase 52) reads this module's
+`evaluate_design_review()` directly as its hybrid-pipeline lens - the
+first module to sit above both this one and `factory.project_health` at
+once. It never modifies this module's scoring, states, or reuse targets;
+see `docs/manufacturing-readiness.md`.
+
 ## Testing
 
 `tests/test_design_review.py` (chain resolution for every combination -

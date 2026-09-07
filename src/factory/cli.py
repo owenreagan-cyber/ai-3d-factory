@@ -101,6 +101,10 @@ from factory.design_review import (
     evaluate_design_review,
     save_design_review_report,
 )
+from factory.manufacturing_readiness import (
+    build_safety_block as build_manufacturing_readiness_safety_block,
+    evaluate_manufacturing_readiness,
+)
 from factory.meshy_approval import (
     MeshyPolicyError,
     build_meshy_approval_plan,
@@ -251,6 +255,7 @@ AVAILABLE_COMMANDS = (
     "[--coin-slot-position-x-mm N] [--coin-slot-position-y-mm N] "
     "[--mounting-hole-diameter-mm N] [--mounting-hole-margin-mm N] --confirm [--confirmed-by NAME] [--json]",
     "design-review <project_dir> [--json] [--save]",
+    "manufacturing-readiness <project_dir> [--json] [--verbose]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2841,6 +2846,95 @@ def design_review_cmd(
     _render_design_review_human(review)
     if report_path:
         console.print(f"\nSaved snapshot: {report_path}")
+
+
+_MANUFACTURING_READINESS_SAFETY_TRAILER = (
+    "Manufacturing readiness is not printing approval. Automatic printing remains impossible.",
+    "This report never contacts Meshy/Blender/CAD/a slicer/a printer/a network, and never modifies geometry.",
+)
+
+_MANUFACTURING_READINESS_STATE_ICON = {
+    "not_ready": "[dim]NOT READY[/dim]",
+    "needs_information": "[yellow]NEEDS INFORMATION[/yellow]",
+    "design_review_complete": "[cyan]DESIGN REVIEW COMPLETE[/cyan]",
+    "manufacturing_review_ready": "[cyan]MANUFACTURING REVIEW READY[/cyan]",
+    "human_approval_required": "[yellow]HUMAN APPROVAL REQUIRED[/yellow]",
+    "slicer_preparation_ready": "[green]SLICER PREPARATION READY[/green]",
+    "blocked": "[red]BLOCKED[/red]",
+}
+
+
+def _render_manufacturing_readiness_human(report: dict[str, Any], *, verbose: bool) -> None:
+    console.print("[bold]MANUFACTURING READINESS[/bold]\n")
+    console.print(f"[bold]Project:[/bold] {report['project']}")
+    console.print(f"[bold]Pipeline:[/bold] {report['pipeline']}")
+    state = report["readiness_state"]
+    console.print(f"[bold]Readiness state:[/bold] {_MANUFACTURING_READINESS_STATE_ICON.get(state, state)}")
+    console.print(f"[bold]Readiness score:[/bold] {report['readiness_score']}% (source: {report['readiness_score_source']})")
+    console.print(f"[bold]Confidence:[/bold] {report['confidence']}\n")
+
+    console.print("[bold]Status by category:[/bold]")
+    for label in (
+        "artifact_status", "design_status", "geometry_status", "scale_status",
+        "manufacturing_status", "printer_status", "material_status", "slicer_status", "human_review_status",
+    ):
+        console.print(f"  {label}: {report[label]}")
+    console.print()
+
+    if report["blockers"]:
+        console.print("[bold red]Blockers:[/bold red]")
+        for b in report["blockers"]:
+            console.print(f"  - [{b['pipeline']}/{b['source']}] {_rich_escape(b['message'])}")
+        console.print()
+
+    if verbose and report["warnings"]:
+        console.print("[bold yellow]Warnings:[/bold yellow]")
+        for w in report["warnings"]:
+            console.print(f"  - [{w['pipeline']}/{w['source']}] {_rich_escape(w['message'])}")
+        console.print()
+
+    console.print("[bold]Human confirmation checklist:[/bold]")
+    for c in report["human_confirmation_checklist"]:
+        mark = "[green]OK[/green]" if c["confirmed"] else "[yellow]MISSING[/yellow]"
+        console.print(f"  {mark}  {c['item']}")
+    console.print()
+
+    if report["recommended_next_steps"]:
+        console.print("[bold]Recommended next steps:[/bold]")
+        for step in report["recommended_next_steps"]:
+            console.print(f"  - {_rich_escape(step)}")
+        console.print()
+
+    for line in _MANUFACTURING_READINESS_SAFETY_TRAILER:
+        console.print(line)
+
+
+@app.command(name="manufacturing-readiness")
+def manufacturing_readiness_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    verbose: bool = typer.Option(False, "--verbose", help="Also print warnings in the human-readable report (JSON output always includes them)"),
+) -> None:
+    """Phase 52: the Manufacturing Readiness Intelligence & Final Production Gate - a pipeline-agnostic
+    aggregation over factory.design_review (hybrid pipeline) and factory.project_health (traditional
+    pipeline), plus factory.slicer_intelligence/factory.artifact_history/factory.project_timeline. Answers
+    "is this project ready to enter manufacturing preparation" - never "should the printer automatically
+    start." Fully read-only: never calls Meshy, never launches Blender, never executes CAD, never invokes a
+    slicer, never contacts a printer or network, never modifies geometry. Reuses every existing readiness
+    signal directly - never a second scoring/validation system. `readiness_state` never reaches
+    `approved_for_print`/`automatic_manufacture_ready` - automatic printing remains impossible."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    report = evaluate_manufacturing_readiness(project_dir)
+
+    if as_json:
+        payload = {"report": report, "safety": build_manufacturing_readiness_safety_block()}
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_manufacturing_readiness_human(report, verbose=verbose)
 
 
 _MESHY_SAFETY_TRAILER = (

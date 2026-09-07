@@ -569,6 +569,29 @@ factory/validators/mesh_validate.py (reused)                     |
                           factory/preview_board.py (`design_review_summary` + a compact card, aggregation point only)
 ```
 
+**Phase 52 addendum:** `factory/manufacturing_readiness.py` is the final
+aggregation layer over *both* readiness ladders - the hybrid one
+(`design_review`) and the traditional one (`project_health`), which by
+explicit design never read each other. Never executing, never modifying
+geometry, only reading:
+
+```
+factory/design_review.py (evaluate_design_review, reused)       --->
+factory/project_health.py (evaluate_project_health, reused)      --->  factory/manufacturing_readiness.py
+factory/slicer_intelligence.py (build_volume_analysis only, reused) --->      |
+factory/artifact_history.py (summarize_artifact_history, reused) --->        |
+factory/project_timeline.py (summarize_project_timeline, reused) --->        |
+                                                                              v
+                          factory/cli.py (`factory manufacturing-readiness <project>`)
+                          factory/preview_board.py (`manufacturing_readiness_summary` + a compact card, aggregation point only)
+```
+
+This is the first module to sit *above* both `design_review.py` and
+`project_health.py` in the dependency graph at once - it calls both
+directly (the same "top-level consumer" relationship `preview_board.py`
+already has to every summary module) and neither is modified by this
+phase. See `docs/manufacturing-readiness.md`.
+
 Unlike Phases 49/50, this phase adds **no new timeline event category
 and no new artifact-history classification rule** - a design review is
 never itself a persisted "artifact-relevant event"; it behaves exactly
@@ -632,8 +655,9 @@ point, never inside `project_inspection.py`. This is why
 `timeline_summary`, `artifact_history_summary`,
 `project_health_summary`, (Phase 48) `hybrid_workflow_summary`, (Phase
 49) `blender_adaptation_summary`, (Phase 50)
-`cad_augmentation_summary`, and (Phase 51) `design_review_summary` all
-live on the board's per-project dict without ever touching
+`cad_augmentation_summary`, (Phase 51) `design_review_summary`, and
+(Phase 52) `manufacturing_readiness_summary` all live on the board's
+per-project dict without ever touching
 `project_inspection.summarize_project()`'s own return shape.
 
 **Applies to every future phase**, not just the seven above - any new

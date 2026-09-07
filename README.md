@@ -606,6 +606,21 @@ never reach `approved_for_print`. Writes nothing by default; `--save`
 writes a versioned, fingerprinted analysis snapshot, never an execution
 receipt. See `docs/design-review.md`.
 
+`factory manufacturing-readiness <project> [--json] [--verbose]` (Phase
+52, `factory.manufacturing_readiness`) is a pure aggregation layer over
+every readiness signal this repo has ever computed - answers "is this
+project ready to enter manufacturing preparation?", never "should the
+printer automatically start." Reuses `factory.design_review`'s complete
+hybrid-pipeline ladder and `factory.project_health`'s complete
+traditional-pipeline ladder (which by design never read each other),
+plus `factory.slicer_intelligence`/`factory.artifact_history`/
+`factory.project_timeline` - never a second scoring/validation system.
+One flat, seven-item human-confirmation checklist; closed readiness-
+state vocabulary that never reaches `approved_for_print`/
+`automatic_manufacture_ready`; `readiness_score` never overrides a
+blocker. Fully read-only - writes nothing, ever. See
+`docs/manufacturing-readiness.md`.
+
 ## Workflow
 
 idea/brief -> build plan -> part manifest -> CAD/assets later phase

@@ -371,6 +371,16 @@ partially-populated project.
   status, score, or blocker ever disagrees with the module that produced
   it, that module is correct.
 
+## Consumed by Phase 52
+
+`factory.manufacturing_readiness` (Phase 52) reads this module's
+`evaluate_project_health()` directly as its traditional-pipeline lens,
+alongside `factory.design_review`'s hybrid-pipeline lens - the two
+ladders this module explicitly does not read (see "Why this is not
+`factory.design_review`" precedent set in reverse). Phase 52 never
+modifies `HEALTH_CATEGORY_WEIGHTS` or any other scoring here; see
+`docs/manufacturing-readiness.md`.
+
 See also `docs/artifact-history.md` (Phase 41),
 `docs/project-timeline.md` (Phase 40),
 `docs/slicer-analysis-history.md` (Phase 39),
