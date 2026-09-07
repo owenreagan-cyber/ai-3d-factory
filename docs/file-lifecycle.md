@@ -124,6 +124,20 @@ explicitly targets an `examples/...` path themselves. Without
 `tempfile.TemporaryDirectory()`, verified cleaned after the command
 returns.
 
+**Phase 47B addendum:** two new machine-local, gitignored state files -
+`state/meshy_spend_ledger.json` (persistent credit spend, never a
+project or a config file) and `state/meshy_live_approvals.json`
+(one-shot live-call approval records) - live alongside `config/`/
+`projects/`, added via `.gitignore`'s `state/*` / `!state/.gitkeep`
+pattern (matching `projects/*` / `!projects/.gitkeep`'s existing
+convention). Neither ever contains a secret. `factory meshy live-run
+--confirm-live` writes a real project artifact only when every gate
+passes and `--project <dir>` is given: `generated/meshy/raw/<task_id>.stl`
+(the preserved provider artifact), `generated/meshy/processed/<task_id>.stl`
+(the Factory-facing copy), and `generated/meshy_receipt.json` -
+collision-protected, never overwriting an existing artifact. Without
+every gate passing, nothing is written at all.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

@@ -3021,15 +3021,20 @@ permanently unless explicitly removed by a future approved phase:
   three separately-approved sub-phases (per the Phase 46.6 research
   checkpoint's recommendation): **47A - Mocked Meshy Adapter & API
   Contract** (complete - see above; the full architecture, zero
-  network/credential/money use). **47B - First Controlled Meshy Call**
-  (a separate, later, explicit approval; one bounded, human-confirmed
-  real request; no automatic retry, no batch, no repair chain). **47C -
-  Additional Meshy Capabilities** (only after 47B succeeds; candidate
-  capabilities include Image-to-3D, Smart Topology, Auto Split,
-  Analyze/Repair Printability). Meshy output always enters: provenance ->
-  artifact receipt -> cleanup/manufacturing adaptation -> Factory
-  validation -> preview -> human review -> slicer review -> never
-  automatic printing.
+  network/credential/money use). **47B - Live Meshy Transport
+  Implementation, No Live Call** (complete - see above; the real
+  `HttpMeshyTransport`/`LiveMeshyCredentialProvider`/persistent
+  ledger/one-shot approval model all now exist and are fully tested
+  against a fake transport, but the first real live call remains a
+  **separate, still-not-recorded** approval - `--confirm-live` alone is
+  not enough; every gate up through the one-shot approval must also
+  pass, and `config/meshy_policy.json`/`config/future_cloud_tools.json`
+  stay untouched). **47C - Additional Meshy Capabilities** (only after a
+  real first live call succeeds; candidate capabilities include
+  Image-to-3D, Smart Topology, Auto Split, Analyze/Repair Printability).
+  Meshy output always enters: provenance -> artifact receipt ->
+  cleanup/manufacturing adaptation -> Factory validation -> preview ->
+  human review -> slicer review -> never automatic printing.
 - **Phase 48** - Hybrid Design Workflow Manager.
 - **Phase 49** - Advanced Manufacturing Intelligence.
 
@@ -3049,11 +3054,19 @@ section's own numbering policy.
 
 **Phase 47A update:** the *mocked* architecture for this track (request
 planning, budget/policy gating, task lifecycle, provenance, receipt -
-`factory.meshy_adapter`) is now complete and started - see "Phase 47A"
-above. What remains genuinely unstarted is the *real* implementation
-below: any actual Meshy-calling code, credential loading, or live network
-transport. This paragraph's requirements still gate that real
-implementation (Phase 47B) in full.
+`factory.meshy_adapter`) is complete - see "Phase 47A" above.
+
+**Phase 47B update:** the *real* transport/credential/ledger/approval
+architecture (`factory.meshy_http_transport`/`factory.meshy_ledger`/
+`factory.meshy_live_approval`/`factory.meshy_live_adapter`) is now also
+complete - see "Phase 47B" above - but zero real Meshy contact has
+occurred: every test exercises a fake transport/fake credential
+provider, and the first real live call still requires a separate,
+explicit approval this phase does not grant (an armed one-shot approval
+record, both kill-switch flags flipped by a human, and `--confirm-live`
+all together - none of which any code path in this repo can do by
+itself). This paragraph's requirements still gate that first real call
+in full.
 
 The actual Meshy-calling implementation - uploads, generation calls,
 mesh acceptance - gated behind everything `docs/meshy-approval-gate.md`

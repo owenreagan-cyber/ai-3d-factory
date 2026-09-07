@@ -222,7 +222,10 @@ def test_meshy_help_never_offers_generate_upload_connect_login_subcommands():
     from factory.cli import meshy_app
 
     registered = {command.name for command in meshy_app.registered_commands}
-    assert registered == {"status", "policy", "approval-status", "approve-policy", "revoke-policy", "approval-plan", "plan", "mock-run"}
+    assert registered == {
+        "status", "policy", "approval-status", "approve-policy", "revoke-policy", "approval-plan", "plan", "mock-run",
+        "live-plan", "approve-live-once", "revoke-live-approval", "live-run",
+    }
     for forbidden in ("generate", "upload", "connect", "login", "live"):
         assert forbidden not in registered
 

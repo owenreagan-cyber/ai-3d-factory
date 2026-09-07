@@ -498,6 +498,18 @@ pipeline - proven, by a dedicated test, that a mocked provider's own
 `live_execution_allowed` is hardcoded `false` on every result; zero
 network calls, zero credential reads, zero credits/money spent.
 
+Phase 47B (`docs/meshy-live-transport.md`) built the real
+`HttpMeshyTransport`/credential provider/persistent spend ledger/one-shot
+approval model - `factory meshy live-plan --prompt TEXT [--json]` is
+fully offline; `factory meshy approve-live-once --prompt TEXT
+--max-credits N` records one local, single-use approval; `factory meshy
+live-run --prompt TEXT --confirm-live [--json]` is blocked unless
+policy/budget/kill-switch/one-shot-approval/`--confirm-live` all pass, in
+that locked order - only then is `MESHY_API_KEY` ever read. Zero real
+Meshy contact occurred while building this: every test uses a fake
+transport. The first real live call is still a separate, unrecorded
+approval.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.

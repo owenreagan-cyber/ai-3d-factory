@@ -323,14 +323,20 @@ output.
 
 Nothing in this phase authorizes a real API call. `live_execution_allowed`
 is hardcoded `False` everywhere; `config/future_cloud_tools.json`'s
-Meshy kill switch stays `false`, untouched by this phase. A future,
-separately-approved Phase 47B would need, at minimum: a real
-`HttpMeshyTransport` (built new, not derived from `MockMeshyTransport`),
-a `LiveMeshyCredentialProvider` reading `MESHY_API_KEY` from an
-environment variable only, a persistent credit ledger, the kill switch
-explicitly flipped by a human, and one bounded, explicitly confirmed
-request - reviewed on its own merits, never inherited from this phase's
-mocked-only approval.
+Meshy kill switch stays `false`, untouched by this phase.
+
+**Update - Phase 47B is now complete:** `factory.meshy_http_transport.HttpMeshyTransport`
+(built new, never derived from `MockMeshyTransport`), a real
+`LiveMeshyCredentialProvider`, a persistent credit ledger
+(`factory.meshy_ledger`), and a one-shot approval model
+(`factory.meshy_live_approval`) all now exist - see
+`docs/meshy-live-transport.md`. This does **not** mean a real call has
+happened or is authorized: every Phase 47B test uses a fake transport,
+`config/meshy_policy.json`/`config/future_cloud_tools.json` remain
+byte-identical, and the first real live call still requires a separate,
+explicit human approval (an armed one-shot approval record, both
+kill-switch flags flipped, and `--confirm-live`) that no code path in
+this repo can grant by itself.
 
 ## Limitations
 

@@ -479,9 +479,13 @@ def test_receipt_never_marks_commercial_ready(approved_policy_path):
 
 
 def test_summarize_mock_adapter_state():
+    """Phase 47B added factory.meshy_http_transport.HttpMeshyTransport,
+    so live_transport_implemented correctly flips to True here - this
+    tracks *implementation*, never *authorization*: live_execution_enabled
+    stays False regardless."""
     state = adapter.summarize_mock_adapter_state()
     assert state["mock_adapter_implemented"] is True
-    assert state["live_transport_implemented"] is False
+    assert state["live_transport_implemented"] is True
     assert state["live_execution_enabled"] is False
 
 

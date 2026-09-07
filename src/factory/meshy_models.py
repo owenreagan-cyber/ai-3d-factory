@@ -87,6 +87,12 @@ ERROR_CODES = (
     "validation_failed",
     "preview_failed",
     "receipt_failed",
+    # Phase 47B additions - the mocked transport never needed a distinct
+    # "the server rejected our credential" or "the connection itself
+    # failed" code (it never contacts a network); a real HTTP transport
+    # does. Additive only - every Phase 47A code above is unchanged.
+    "credential_rejected",
+    "network_error",
 )
 
 # Text-to-3D's own documented, fixed credit cost table

@@ -562,7 +562,11 @@ def summarize_mock_adapter_state() -> dict[str, Any]:
     live execution disabled."""
     return {
         "mock_adapter_implemented": True,
-        "live_transport_implemented": False,
+        # Phase 47B added factory.meshy_http_transport.HttpMeshyTransport -
+        # the code exists, but is never constructed unless every gate in
+        # factory.meshy_live_adapter's locked order has already passed.
+        # This flag is honest about *implementation*, never *authorization*.
+        "live_transport_implemented": True,
         "live_execution_enabled": False,
         "supported_request_types": ["text_to_3d"],
     }

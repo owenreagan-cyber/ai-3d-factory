@@ -99,7 +99,14 @@ from factory.meshy_adapter import (
     run_mock_text_to_3d_request,
     summarize_mock_adapter_state,
 )
-from factory.meshy_models import DEFAULT_AI_MODEL, KNOWN_AI_MODELS, REQUEST_MODES
+from factory.meshy_models import DEFAULT_AI_MODEL, KNOWN_AI_MODELS, REQUEST_MODES, compute_prompt_hash
+from factory.meshy_live_adapter import plan_live_text_to_3d_request, run_live_text_to_3d_request
+from factory.meshy_live_approval import (
+    ApprovalError,
+    create_one_shot_approval,
+    load_approvals,
+    revoke_approval,
+)
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -209,6 +216,10 @@ AVAILABLE_COMMANDS = (
     "meshy approval-plan [--json]",
     "meshy plan --prompt TEXT [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
     "meshy mock-run --prompt TEXT --confirm-mock [--model MODEL] [--scenario NAME] [--project PATH] [--json]",
+    "meshy live-plan --prompt TEXT [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
+    "meshy approve-live-once --prompt TEXT --max-credits N [--model MODEL] [--project PATH] [--expires-in SECONDS] [--json]",
+    "meshy revoke-live-approval APPROVAL_ID [--reason TEXT]",
+    "meshy live-run --prompt TEXT --confirm-live [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2728,6 +2739,129 @@ def meshy_mock_run_cmd(
         print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_meshy_mock_run_human(result)
+
+
+_MESHY_LIVE_SAFETY_TRAILER = (
+    "No credential is read unless every local gate (policy, budget, kill switch, one-shot approval, "
+    "--confirm-live) has already passed - see docs/meshy-live-transport.md.",
+)
+
+
+def _render_meshy_live_plan_human(plan: dict[str, Any]) -> None:
+    console.print("[bold]MESHY LIVE PLAN[/bold]\n")
+    console.print(f"[bold]Request:[/bold]\nText-to-3D ({plan['model']}, {plan['mode']})\n")
+    console.print(f"[bold]Estimated credits:[/bold]\n{plan['estimated_credits'] if plan['estimated_credits'] is not None else 'unknown'}\n")
+    credit_policy = plan["budget_check"]
+    console.print(f"[bold]Budget:[/bold]\n{'Allowed' if credit_policy['allowed'] else 'Blocked - ' + (credit_policy['reason'] or '')}\n")
+    console.print(f"[bold]Policy:[/bold]\n{'Approved' if plan['policy_approved'] else 'Not approved'}\n")
+    console.print(f"[bold]Execution kill switch:[/bold]\n{'Enabled (both flags)' if plan['kill_switch']['both_enabled'] else 'Disabled'}\n")
+    console.print(f"[bold]One-shot approval:[/bold]\n{'Eligible (' + plan['approval_id'] + ')' if plan['approval_id'] else 'Missing'}\n")
+    console.print("[bold]Credential:[/bold]\nNot checked\n")
+    console.print("[bold]Network:[/bold]\nNot used\n")
+    console.print(f"[bold]Live execution:[/bold]\n{'Ready (pending --confirm-live)' if plan['every_gate_satisfied'] else 'Blocked'}\n")
+    if plan["blockers"]:
+        console.print("[bold]Blockers:[/bold]")
+        for item in plan["blockers"]:
+            console.print(f"- {_rich_escape(item)}")
+        console.print()
+    for line in _MESHY_LIVE_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="live-plan")
+def meshy_live_plan_cmd(
+    prompt: str = typer.Option(..., "--prompt", help="Text-to-3D prompt"),
+    model: str = typer.Option(DEFAULT_AI_MODEL, "--model", help=f"Meshy ai_model - one of {KNOWN_AI_MODELS!r}"),
+    mode: str = typer.Option("preview", "--mode", help=f"Text-to-3D mode - one of {REQUEST_MODES!r}"),
+    project: Path = typer.Option(None, "--project", help="Disposable project directory this live call would target"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47B: fully offline live-call readiness plan. Never reads a credential, never reserves
+    budget, never consumes a one-shot approval - only reports whether each local gate (policy, budget,
+    kill switch, one-shot approval) currently passes. See docs/meshy-live-transport.md."""
+    plan = plan_live_text_to_3d_request(prompt=prompt, model=model, mode=mode, project=str(project) if project else None)
+    if as_json:
+        print(json.dumps(plan, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_live_plan_human(plan)
+
+
+@meshy_app.command(name="approve-live-once")
+def meshy_approve_live_once_cmd(
+    prompt: str = typer.Option(..., "--prompt", help="The exact prompt this one-shot approval is pinned to"),
+    model: str = typer.Option(DEFAULT_AI_MODEL, "--model", help="Meshy ai_model this approval is pinned to"),
+    max_credits: int = typer.Option(..., "--max-credits", help="Maximum credits this one-shot approval permits (must be a positive integer)"),
+    project: Path = typer.Option(None, "--project", help="Optional disposable project this approval is pinned to"),
+    expires_in: int = typer.Option(3600, "--expires-in", help="Seconds until this approval expires unused (max 86400 = 24h)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47B: explicit write - creates ONE local, single-use, short-lived live-call approval record
+    (state/meshy_live_approvals.json). This is NOT blanket execution permission: it is scoped to this
+    exact prompt/model/credit-cap/project, and is consumed automatically the first time `factory meshy
+    live-run --confirm-live` reaches it. Never contacts Meshy, never enables the kill switch."""
+    try:
+        record = create_one_shot_approval(prompt_hash=compute_prompt_hash(prompt), model=model, max_credits=max_credits, project=str(project) if project else None, expires_in_seconds=expires_in)
+    except ApprovalError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    if as_json:
+        print(json.dumps(record, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    console.print(f"[green]recorded[/green]: one-shot approval {record['approval_id']} (expires {record['expires_at']})")
+    console.print("This approval is single-use and does not itself enable Meshy execution.")
+
+
+@meshy_app.command(name="revoke-live-approval")
+def meshy_revoke_live_approval_cmd(
+    approval_id: str = typer.Argument(..., help="The approval_id to revoke"),
+    reason: str = typer.Option(None, "--reason", help="Optional reason recorded with the revocation"),
+) -> None:
+    """Phase 47B: explicit write - revokes one local one-shot approval record. Local file only."""
+    try:
+        record = revoke_approval(approval_id, reason=reason)
+    except ApprovalError as exc:
+        console.print(f"[red]error[/red]: {exc}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]revoked[/green]: {record['approval_id']}")
+
+
+def _render_meshy_live_run_human(result: dict[str, Any]) -> None:
+    console.print("[bold]MESHY LIVE EXECUTION[/bold]\n")
+    console.print(f"[bold]Task:[/bold]\n{result['task_id'] or '(none - blocked before submission)'}\n")
+    console.print(f"[bold]Final status:[/bold]\n{result['final_status'] or '(none)'}\n")
+    console.print(f"[bold]Artifact:[/bold]\n{result['artifact_path'] or '(none)'}\n")
+    console.print(f"[bold]Validation:[/bold]\n{result['validation_status'] or 'not run'}\n")
+    console.print(f"[bold]Preview:[/bold]\n{result['preview_status'] or 'not run'}\n")
+    console.print(f"[bold]Credits spent:[/bold]\n{result['credits_spent']}\n")
+    if result.get("receipt_path"):
+        console.print(f"Receipt written to: {result['receipt_path']}\n")
+    if result["errors"]:
+        console.print("[bold]Errors:[/bold]")
+        for item in result["errors"]:
+            console.print(f"- ({item['error_code']}) {_rich_escape(item['message'])}")
+        console.print()
+    console.print("Human review required. Automatic printing remains impossible.")
+
+
+@meshy_app.command(name="live-run")
+def meshy_live_run_cmd(
+    prompt: str = typer.Option(..., "--prompt", help="Text-to-3D prompt - must match an eligible one-shot approval's pinned prompt"),
+    model: str = typer.Option(DEFAULT_AI_MODEL, "--model", help="Meshy ai_model"),
+    mode: str = typer.Option("preview", "--mode", help="Text-to-3D mode"),
+    project: Path = typer.Option(None, "--project", help="Disposable project directory to persist the artifact/receipt into (required for a real download)"),
+    confirm_live: bool = typer.Option(False, "--confirm-live", help="Explicit confirmation to actually make one real, budget-checked, approved live Meshy call"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47B: the gated live Meshy Text-to-3D call. Blocked unless policy is approved, budget is
+    available, BOTH kill-switch flags are enabled, an eligible one-shot approval exists, and
+    --confirm-live is passed - in that order. Only then is MESHY_API_KEY read and a real network call
+    made. Exactly one submission, ever, per approval - no automatic retry. See
+    docs/meshy-live-transport.md."""
+    result = run_live_text_to_3d_request(prompt=prompt, model=model, mode=mode, project=str(project) if project else None, confirm_live=confirm_live)
+    if as_json:
+        print(json.dumps(result, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_live_run_human(result)
 
 
 @app.command(name="review-gate")

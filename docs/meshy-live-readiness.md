@@ -679,3 +679,12 @@ introduced no regressions.
 
 No command above was executed by this checkpoint. **Phase 47B remains
 NOT APPROVED.**
+
+## Post-implementation note (Phase 47B)
+
+Phase 47B (`docs/meshy-live-transport.md`) implemented every design in
+this document - `HttpMeshyTransport`, `LiveMeshyCredentialProvider`, the
+persistent ledger, and the one-shot approval model all now exist. This
+note does not change any finding above; it records that "designed, not
+implemented" for each of those items is now "implemented, not called."
+The first real live call is still a separate, unrecorded approval.

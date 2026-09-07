@@ -435,10 +435,36 @@ factory/meshy_models.py  --->  factory/meshy_mock_transport.py  --->  factory/me
                                               factory/cli.py (`factory meshy plan`/`mock-run`)
 ```
 
-No `HttpMeshyTransport` exists in this repo, and none is planned until a
-future, separately-approved Phase 47B - `MockMeshyTransport` is not a
-placeholder for one, it is the only transport this architecture needs to
-prove itself against. See `docs/meshy-adapter.md`.
+No `HttpMeshyTransport` existed until Phase 47B - `MockMeshyTransport`
+was never a placeholder for one, it was the only transport the mocked
+architecture needed to prove itself against. See `docs/meshy-adapter.md`.
+
+**Phase 47B addendum:** `factory/meshy_http_transport.py` (the only
+module in this repo allowed to open a real network connection) sits
+alongside `meshy_mock_transport.py`, both satisfying the same
+`MeshyTransport` interface; `factory/meshy_ledger.py`/
+`factory/meshy_live_approval.py` (persistent, gitignored local state) and
+`factory/meshy_live_adapter.py` (the gated orchestrator enforcing the
+locked live-execution order) sit above them, in the same
+above-`meshy_approval` direction:
+
+```
+factory/meshy_http_transport.py  --->  factory/meshy_live_adapter.py
+factory/meshy_ledger.py           --->        |
+factory/meshy_live_approval.py    --->        |
+                                               |
+                             factory/meshy_approval.py (Phase 46, read-only)
+                             factory/validators/mesh_validate.py (reused)
+                             factory/previews/render_preview.py (reused)
+                                               |
+                                               v
+                       factory/cli.py (`factory meshy live-plan`/`live-run`)
+```
+
+`meshy_live_adapter.py` never imports `urllib`/network code directly - it
+only ever constructs `HttpMeshyTransport`/`LiveMeshyCredentialProvider`
+after every gate in the locked order has passed, and accepts them as
+injectable factories for testing. See `docs/meshy-live-transport.md`.
 
 ## Aggregation Layer Convention
 

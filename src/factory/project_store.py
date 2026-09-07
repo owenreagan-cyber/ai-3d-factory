@@ -17,6 +17,11 @@ CONFIG_DIR = REPO_ROOT / "config"
 MANUFACTURING_CONFIG_DIR = CONFIG_DIR / "manufacturing"
 SCHEMAS_DIR = REPO_ROOT / "schemas"
 PROJECTS_DIR = REPO_ROOT / "projects"
+# Machine-local, gitignored runtime state (spend ledgers, one-shot approval
+# records, ...) - never committed, never containing secrets. Distinct from
+# CONFIG_DIR (committed, non-secret policy) and PROJECTS_DIR (per-project
+# user data). See docs/meshy-live-transport.md "Persistent spend ledger".
+STATE_DIR = REPO_ROOT / "state"
 
 PROJECT_SUBDIRS = (
     "cad",

@@ -201,7 +201,8 @@ def test_meshy_status_json_includes_adapter_state(approved_policy_path):
     result = runner.invoke(app, ["meshy", "status", "--json"])
     payload = json.loads(result.stdout)
     assert payload["adapter"]["mock_adapter_implemented"] is True
-    assert payload["adapter"]["live_transport_implemented"] is False
+    assert payload["adapter"]["live_transport_implemented"] is True
+    assert payload["adapter"]["live_execution_enabled"] is False
 
 
 # ---------------------------------------------------------------------------

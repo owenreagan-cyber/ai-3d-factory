@@ -25,6 +25,12 @@ htmlcov/
 .vscode/
 .idea/
 
+# Machine-local runtime state (Meshy spend ledger, one-shot live-call
+# approvals, ...) - never secrets, never committed. See
+# docs/meshy-live-transport.md.
+state/*
+!state/.gitkeep
+
 # User project data (each project can be large: renders, STLs, etc.)
 projects/*
 !projects/.gitkeep
