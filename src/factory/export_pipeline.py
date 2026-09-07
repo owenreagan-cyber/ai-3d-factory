@@ -35,6 +35,14 @@ command surfaced as an advisory, never executed here.
 **Never sends anything to a printer or slicer.** This module's job ends at
 STL export + validation + preview render - exactly where `factory
 validate`/`factory render` already stopped. See `docs/export-pipeline.md`.
+
+**Phase 50 addendum:** `run_scad_source_to_stl()` reuses this module's own
+OpenSCAD executable resolution/subprocess-safety pattern for
+`factory.cad_augmentation`'s one CAD-augmentation workflow - a bounded
+export of a Factory-constructed `.scad` file to an arbitrary output path,
+outside the `cad/` -> `stl/` project-layout convention every other
+function in this module assumes. CadQuery is never executed anywhere in
+that phase either - see `docs/cad-augmentation.md`.
 """
 
 from __future__ import annotations
@@ -712,6 +720,104 @@ def run_export(project_dir: Path, plan: dict[str, Any], source_rel: str) -> dict
     result["output_size_bytes"] = size_bytes
     result["output_fingerprint"] = _file_fingerprint(stl_path)
     result["source_fingerprint"] = pre_export_fingerprint
+    result["export_tool_version"] = _probe_tool_version(executable)
+    return result
+
+
+def run_scad_source_to_stl(scad_path: Path, stl_path: Path) -> dict[str, Any]:
+    """Phase 50: a bounded, real OpenSCAD CLI export of an arbitrary,
+    Factory-constructed `.scad` source file to an arbitrary output STL
+    path - reused by `factory.cad_augmentation` (never re-implemented
+    there) for the one CAD-augmentation workflow this repo executes.
+
+    Unlike `run_export()`, this takes explicit paths rather than a
+    project/plan pair - `factory.cad_augmentation`'s output convention
+    (`<project>/generated/cad_augmentation/`) is not the `cad/` -> `stl/`
+    project layout `run_export()`/`plan_export()` are scoped to. Same
+    safety posture regardless: resolved executable, argument list,
+    `shell=False`, hard timeout, output existence/non-emptiness verified
+    before success is ever reported - a zero exit code alone is never
+    treated as success. Never overwrites an existing file at `stl_path`
+    (checked here too, defensively, even though callers are expected to
+    have already checked) and never touches `scad_path` beyond reading it.
+    """
+    result: dict[str, Any] = {
+        "scad_source": str(scad_path),
+        "output_stl": str(stl_path),
+        "command": None,
+        "started_at": project_store.utc_now_iso(),
+        "completed_at": None,
+        "duration_seconds": None,
+        "exit_code": None,
+        "stdout_summary": "",
+        "stderr_summary": "",
+        "success": False,
+        "errors": [],
+    }
+
+    if not Path(scad_path).is_file():
+        result["errors"].append(f"SCAD source file does not exist: {scad_path}")
+        result["completed_at"] = project_store.utc_now_iso()
+        return result
+
+    if Path(stl_path).exists():
+        result["errors"].append(f"refusing to overwrite an existing file at {stl_path}")
+        result["completed_at"] = project_store.utc_now_iso()
+        return result
+
+    executable = resolve_openscad_executable()
+    if not executable:
+        result["errors"].append("no local `openscad` executable found")
+        result["completed_at"] = project_store.utc_now_iso()
+        return result
+
+    command = [executable, "-o", str(stl_path), str(scad_path)]
+    result["command"] = command
+
+    start = time.monotonic()
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=EXPORT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        result["duration_seconds"] = round(time.monotonic() - start, 3)
+        result["errors"].append(f"export timed out after {EXPORT_TIMEOUT_SECONDS}s")
+        result["stdout_summary"] = (exc.stdout or "")[:2000] if isinstance(exc.stdout, str) else ""
+        result["stderr_summary"] = (exc.stderr or "")[:2000] if isinstance(exc.stderr, str) else ""
+        result["completed_at"] = project_store.utc_now_iso()
+        return result
+    except OSError as exc:
+        result["duration_seconds"] = round(time.monotonic() - start, 3)
+        result["errors"].append(f"failed to launch exporter: {exc}")
+        result["completed_at"] = project_store.utc_now_iso()
+        return result
+
+    duration = round(time.monotonic() - start, 3)
+    result["duration_seconds"] = duration
+    result["exit_code"] = completed.returncode
+    result["stdout_summary"] = (completed.stdout or "")[:2000]
+    result["stderr_summary"] = (completed.stderr or "")[:2000]
+    result["completed_at"] = project_store.utc_now_iso()
+
+    if completed.returncode != 0:
+        result["errors"].append(f"exporter exited with code {completed.returncode}")
+        return result
+
+    stl_path = Path(stl_path)
+    if not stl_path.is_file():
+        result["errors"].append("exporter exited 0 but the expected output file was not created")
+        return result
+
+    size_bytes = stl_path.stat().st_size
+    if size_bytes == 0:
+        result["errors"].append("exported STL is empty (0 bytes)")
+        return result
+
+    if stl_path.suffix.lower() != ".stl":
+        result["errors"].append(f"unexpected output extension: {stl_path.suffix!r}")
+        return result
+
+    result["success"] = True
+    result["output_size_bytes"] = size_bytes
+    result["output_fingerprint"] = _file_fingerprint(stl_path)
     result["export_tool_version"] = _probe_tool_version(executable)
     return result
 

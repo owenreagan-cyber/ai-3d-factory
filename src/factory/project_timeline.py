@@ -75,6 +75,7 @@ EVENT_CATEGORIES = (
     "warning_change",
     "meshy",
     "blender_adaptation",
+    "cad_augmentation",
 )
 
 EVENT_STATUSES = ("completed", "changed", "recorded", "unavailable")
@@ -496,6 +497,51 @@ def _events_from_blender_adaptation_receipt(project_dir: Path) -> list[dict[str,
     ]
 
 
+def _events_from_cad_augmentation_receipt(project_dir: Path) -> list[dict[str, Any]]:
+    """Phase 50: a real (executed, never blocked/planned-only)
+    `organic_mechanical_augmentation` receipt becomes exactly one timeline
+    event - the same "receipt -> one timeline event" pattern
+    `_events_from_blender_adaptation_receipt()` already established. Never
+    emitted for a project with no
+    `generated/cad_augmentation_receipt.json` (nothing executed yet -
+    planning alone writes no receipt)."""
+    project_dir = Path(project_dir)
+    receipt_path = project_dir / "generated" / "cad_augmentation_receipt.json"
+    if not receipt_path.is_file():
+        return []
+    try:
+        receipt = project_store.load_json(receipt_path)
+    except (OSError, ValueError):
+        return []
+
+    validation_status = receipt.get("validation_status")
+    severity = "ready" if validation_status == "PASS" else "warning"
+
+    fingerprints: dict[str, str] = {}
+    input_rel = receipt.get("input_artifact")
+    input_hash = receipt.get("input_hash")
+    if input_rel and input_hash:
+        fingerprints[input_rel] = input_hash
+    output_rel = receipt.get("output_artifact")
+    output_hash = receipt.get("output_hash")
+    if output_rel and output_hash:
+        fingerprints[output_rel] = output_hash
+
+    return [
+        _make_event(
+            timestamp=receipt.get("finished_at"),
+            category="cad_augmentation", status="completed", severity=severity,
+            label=f"CAD augmentation completed ({receipt.get('workflow', 'organic_mechanical_augmentation')})",
+            source="cad_augmentation_receipt",
+            detail=(
+                f"input={input_rel}, output={output_rel}, cad_engine={receipt.get('cad_engine')}, "
+                f"validation={validation_status}, preview={receipt.get('preview_status')}"
+            ),
+            fingerprints=fingerprints,
+        )
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Public aggregation
 # ---------------------------------------------------------------------------
@@ -517,6 +563,7 @@ def get_project_timeline(project_dir: Path) -> list[dict[str, Any]]:
     events.extend(_events_from_slicer_history(project_dir))
     events.extend(_events_from_meshy_receipt(project_dir))
     events.extend(_events_from_blender_adaptation_receipt(project_dir))
+    events.extend(_events_from_cad_augmentation_receipt(project_dir))
 
     undated = [e for e in events if e["timestamp"] is None]
     dated = sorted((e for e in events if e["timestamp"] is not None), key=lambda e: e["timestamp"])

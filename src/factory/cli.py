@@ -91,6 +91,11 @@ from factory.blender_adaptation import (
     run_organic_cleanup_workflow as run_blender_organic_cleanup_workflow,
 )
 from factory.hybrid_workflow import assess_artifact_file, build_adaptation_plan
+from factory.cad_augmentation import (
+    build_augmentation_plan,
+    build_safety_block as build_cad_augmentation_safety_block,
+    run_organic_mechanical_augmentation,
+)
 from factory.meshy_approval import (
     MeshyPolicyError,
     build_meshy_approval_plan,
@@ -232,6 +237,14 @@ AVAILABLE_COMMANDS = (
     "workflow assess <artifact_path> [--json]",
     "blender-adapt plan <artifact_path> [--target-max-mm N] [--json]",
     "blender-adapt execute <artifact_path> --target-max-mm N --confirm [--confirmed-by NAME] [--json]",
+    "cad-augment plan <artifact_path> [--base-width-mm N] [--base-length-mm N] [--base-height-mm N] "
+    "[--coin-slot-width-mm N] [--coin-slot-length-mm N] [--coin-slot-depth-mm N] "
+    "[--coin-slot-position-x-mm N] [--coin-slot-position-y-mm N] "
+    "[--mounting-hole-diameter-mm N] [--mounting-hole-margin-mm N] [--json]",
+    "cad-augment execute <artifact_path> --base-width-mm N --base-length-mm N --base-height-mm N "
+    "[--coin-slot-width-mm N] [--coin-slot-length-mm N] [--coin-slot-depth-mm N] "
+    "[--coin-slot-position-x-mm N] [--coin-slot-position-y-mm N] "
+    "[--mounting-hole-diameter-mm N] [--mounting-hole-margin-mm N] --confirm [--confirmed-by NAME] [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2575,6 +2588,165 @@ def blender_adapt_execute_cmd(
     for line in _BLENDER_ADAPT_SAFETY_TRAILER:
         console.print(line)
     if result["organic_cleanup_status"] != "succeeded":
+        raise typer.Exit(code=1)
+
+
+_CAD_AUGMENT_SAFETY_TRAILER = (
+    "This is a CAD augmentation execution gate, not engineering approval.",
+    "AI concept != engineering design. CAD output != manufacturing approved. Validation != human approval.",
+    "Human approval != print approval. Automatic printing remains impossible.",
+)
+
+
+def _cad_augment_params(
+    base_width_mm, base_length_mm, base_height_mm,
+    coin_slot_width_mm, coin_slot_length_mm, coin_slot_depth_mm,
+    coin_slot_position_x_mm, coin_slot_position_y_mm,
+    mounting_hole_diameter_mm, mounting_hole_margin_mm,
+) -> dict[str, float | None]:
+    return {
+        "base_width_mm": base_width_mm,
+        "base_length_mm": base_length_mm,
+        "base_height_mm": base_height_mm,
+        "coin_slot_width_mm": coin_slot_width_mm,
+        "coin_slot_length_mm": coin_slot_length_mm,
+        "coin_slot_depth_mm": coin_slot_depth_mm,
+        "coin_slot_position_x_mm": coin_slot_position_x_mm,
+        "coin_slot_position_y_mm": coin_slot_position_y_mm,
+        "mounting_hole_diameter_mm": mounting_hole_diameter_mm,
+        "mounting_hole_margin_mm": mounting_hole_margin_mm,
+    }
+
+
+cad_augment_app = typer.Typer(
+    name="cad-augment",
+    help=(
+        "CAD Augmentation Execution Gate & Organic-Mechanical Hybrid Workflow (Phase 50) - the "
+        "controlled bridge from an already-adapted organic artifact to a manufacturing-ready hybrid "
+        "product, narrowly scoped to exactly one workflow (`organic_mechanical_augmentation`: generate "
+        "a parametric functional-feature part - a coin slot, mounting holes, a base plate - and export "
+        "it as a new, separate STL, never a boolean-merge with the organic mesh). `factory cad-augment "
+        "plan` is fully read-only. `factory cad-augment execute --confirm` requires every critical "
+        "dimension explicitly, re-checks routing, and requires explicit human confirmation on every "
+        "single call - nothing is cached or persisted between calls. Executes OpenSCAD only (the one "
+        "engine in this repo with an existing, bounded, already-tested local execution path) - never "
+        "executes CadQuery (this repo's standing policy) or FreeCAD (no execution path exists). Never "
+        "overwrites the input artifact or an existing output; never contacts a slicer, printer, or "
+        "network. See docs/cad-augmentation.md."
+    ),
+)
+app.add_typer(cad_augment_app, name="cad-augment")
+
+
+def _render_cad_augment_plan_human(plan: dict[str, Any]) -> None:
+    console.print("[bold]CAD AUGMENTATION PLAN[/bold]\n")
+    console.print(f"[bold]Input (organic) artifact:[/bold] {plan['input_artifact']}")
+    console.print(f"[bold]Project:[/bold] {plan['project'] or '(none - not under projects/<slug>/)'}")
+    console.print(f"[bold]Workflow:[/bold] {plan['workflow_type']}")
+    console.print(f"[bold]Recommended CAD engine:[/bold] {plan['recommended_cad_engine'] or '(none)'}")
+    console.print(f"[bold]Candidate engines:[/bold] {', '.join(plan['candidate_engines']) or '(none)'}")
+    console.print(f"[bold]Operations (planned, not executed):[/bold] {', '.join(plan['cad_operations'])}")
+    console.print(f"[bold]Output artifact (would create):[/bold] {plan['output_artifact']}")
+    console.print(f"[bold]Execution allowed:[/bold] {plan['execution_allowed']}\n")
+    if plan["requires_human_input"]:
+        console.print("[bold]Missing required parameter(s):[/bold]")
+        for name in plan["requires_human_input"]:
+            console.print(f"  - {name}")
+        console.print()
+    if plan["issues_found"]:
+        console.print("[bold]Issues found:[/bold]")
+        for issue in plan["issues_found"]:
+            console.print(f"  - {_rich_escape(issue)}")
+        console.print()
+    for line in _CAD_AUGMENT_SAFETY_TRAILER:
+        console.print(line)
+
+
+@cad_augment_app.command(name="plan")
+def cad_augment_plan_cmd(
+    artifact_path: Path = typer.Argument(..., help="Path to a mesh file (.stl) - typically an existing generated/blender/adapted/<name>_adapted.stl artifact"),
+    base_width_mm: float = typer.Option(None, "--base-width-mm", help="Critical dimension: functional base plate width (mm)"),
+    base_length_mm: float = typer.Option(None, "--base-length-mm", help="Critical dimension: functional base plate length (mm)"),
+    base_height_mm: float = typer.Option(None, "--base-height-mm", help="Critical dimension: functional base plate height (mm)"),
+    coin_slot_width_mm: float = typer.Option(None, "--coin-slot-width-mm", help="Optional coin slot: width (mm) - required together with length/depth if any is given"),
+    coin_slot_length_mm: float = typer.Option(None, "--coin-slot-length-mm", help="Optional coin slot: length (mm)"),
+    coin_slot_depth_mm: float = typer.Option(None, "--coin-slot-depth-mm", help="Optional coin slot: depth (mm) - >= base height cuts fully through"),
+    coin_slot_position_x_mm: float = typer.Option(None, "--coin-slot-position-x-mm", help="Optional coin slot center X position (mm) - defaults to centered"),
+    coin_slot_position_y_mm: float = typer.Option(None, "--coin-slot-position-y-mm", help="Optional coin slot center Y position (mm) - defaults to centered"),
+    mounting_hole_diameter_mm: float = typer.Option(None, "--mounting-hole-diameter-mm", help="Optional: add 4 corner mounting holes of this diameter (mm)"),
+    mounting_hole_margin_mm: float = typer.Option(8.0, "--mounting-hole-margin-mm", help="Distance of mounting hole centers from each edge (mm) - a placement convenience, not a critical dimension"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 50: a fully read-only dry-run plan for augmenting one artifact via `organic_mechanical_augmentation`
+    - never generates CAD source, never invokes OpenSCAD, never writes anything. Reuses
+    `factory.engine_registry` for CAD routing rather than a second selector. Never guesses a critical
+    dimension - any missing required parameter is reported in requires_human_input."""
+    params = _cad_augment_params(
+        base_width_mm, base_length_mm, base_height_mm,
+        coin_slot_width_mm, coin_slot_length_mm, coin_slot_depth_mm,
+        coin_slot_position_x_mm, coin_slot_position_y_mm,
+        mounting_hole_diameter_mm, mounting_hole_margin_mm,
+    )
+    plan = build_augmentation_plan(artifact_path, **params)
+
+    if as_json:
+        payload = {"plan": plan, "safety": build_cad_augmentation_safety_block()}
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_cad_augment_plan_human(plan)
+
+
+@cad_augment_app.command(name="execute")
+def cad_augment_execute_cmd(
+    artifact_path: Path = typer.Argument(..., help="Path to a mesh file (.stl) under an existing projects/<slug>/ directory"),
+    base_width_mm: float = typer.Option(..., "--base-width-mm", help="Required: functional base plate width (mm) - never inferred automatically"),
+    base_length_mm: float = typer.Option(..., "--base-length-mm", help="Required: functional base plate length (mm) - never inferred automatically"),
+    base_height_mm: float = typer.Option(..., "--base-height-mm", help="Required: functional base plate height (mm) - never inferred automatically"),
+    coin_slot_width_mm: float = typer.Option(None, "--coin-slot-width-mm", help="Optional coin slot: width (mm) - required together with length/depth if any is given"),
+    coin_slot_length_mm: float = typer.Option(None, "--coin-slot-length-mm", help="Optional coin slot: length (mm)"),
+    coin_slot_depth_mm: float = typer.Option(None, "--coin-slot-depth-mm", help="Optional coin slot: depth (mm) - >= base height cuts fully through"),
+    coin_slot_position_x_mm: float = typer.Option(None, "--coin-slot-position-x-mm", help="Optional coin slot center X position (mm) - defaults to centered"),
+    coin_slot_position_y_mm: float = typer.Option(None, "--coin-slot-position-y-mm", help="Optional coin slot center Y position (mm) - defaults to centered"),
+    mounting_hole_diameter_mm: float = typer.Option(None, "--mounting-hole-diameter-mm", help="Optional: add 4 corner mounting holes of this diameter (mm)"),
+    mounting_hole_margin_mm: float = typer.Option(8.0, "--mounting-hole-margin-mm", help="Distance of mounting hole centers from each edge (mm)"),
+    confirm: bool = typer.Option(False, "--confirm", help="Explicit, per-invocation human confirmation - required to actually execute"),
+    confirmed_by: str = typer.Option(None, "--confirmed-by", help="Optional: who confirmed this execution, recorded in the receipt"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 50: the gated, real execution of `organic_mechanical_augmentation` against one project
+    artifact. Without --confirm, always blocked. With --confirm, generates parametric OpenSCAD source
+    for the requested functional feature, exports it via the existing, bounded
+    factory.export_pipeline.run_scad_source_to_stl() (never a second subprocess mechanism), validates
+    and previews the result, and writes generated/cad_augmentation_receipt.json only on success - never
+    overwriting the organic input artifact or an existing output. See docs/cad-augmentation.md."""
+    params = _cad_augment_params(
+        base_width_mm, base_length_mm, base_height_mm,
+        coin_slot_width_mm, coin_slot_length_mm, coin_slot_depth_mm,
+        coin_slot_position_x_mm, coin_slot_position_y_mm,
+        mounting_hole_diameter_mm, mounting_hole_margin_mm,
+    )
+    result = run_organic_mechanical_augmentation(artifact_path, confirm=confirm, confirmed_by=confirmed_by, **params)
+
+    if as_json:
+        payload = {"result": result, "safety": build_cad_augmentation_safety_block()}
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        if result["augmentation_status"] != "succeeded":
+            raise typer.Exit(code=1)
+        return
+
+    console.print("[bold]CAD AUGMENTATION EXECUTION[/bold]\n")
+    console.print(f"[bold]Status:[/bold] {result['augmentation_status']}")
+    if result.get("errors"):
+        console.print("[bold]Errors:[/bold]")
+        for error in result["errors"]:
+            console.print(f"  - {_rich_escape(error)}")
+    if result["augmentation_status"] == "succeeded":
+        console.print(f"[bold]Output artifact:[/bold] {result['output_artifact']}")
+        console.print(f"[bold]Receipt:[/bold] {result['receipt_path']}")
+    console.print()
+    for line in _CAD_AUGMENT_SAFETY_TRAILER:
+        console.print(line)
+    if result["augmentation_status"] != "succeeded":
         raise typer.Exit(code=1)
 
 

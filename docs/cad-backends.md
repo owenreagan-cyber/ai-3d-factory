@@ -163,6 +163,25 @@ covers more than a 2-part base+text pair. See `docs/examples-library.md`,
 `docs/slicer-review-workflow.md`, and
 `examples/multipart-classroom-sign/README.md`.
 
+## Phase 50 addendum: CAD augmentation of an already-adapted artifact
+
+`factory.cad_augmentation` (`factory cad-augment plan|execute`, see
+`docs/cad-augmentation.md`) is a *different* concern from everything
+above - it never generates a new project's CAD source from a text
+description (that remains `factory generate-openscad`/`generate-cadquery`/
+`route-cad`'s job). Instead it attaches a parametric functional feature
+(a coin slot, mounting holes, a base plate) to an artifact that already
+exists (typically a Blender-adapted organic mesh, Phase 49), producing a
+new, independent STL under `generated/cad_augmentation/` - never a fused
+mesh, never mixed into `cad/`/`stl/`.
+
+**This phase does not relax the CadQuery policy above.** The one real
+execution this phase performs routes through OpenSCAD only, reusing
+`factory.export_pipeline`'s existing bounded execution path
+(`run_scad_source_to_stl()`); CadQuery and FreeCAD remain reported
+candidate engines (via the same `mechanical_design_suitability` registry
+field this doc's routing section describes) but are never executed.
+
 ## Example: `examples/storage-bin-lid/`
 
 `examples/storage-bin-lid/cad/{lid_panel.scad,raised_label.scad,

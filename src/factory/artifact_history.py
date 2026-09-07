@@ -61,7 +61,7 @@ from factory.project_timeline import get_project_timeline
 # excluded - they're either pipeline milestones with no artifact
 # fingerprint of their own, or already-detected *changes* (reused
 # directly in diffs below, not re-versioned).
-VERSION_EVENT_CATEGORIES = ("cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy", "blender_adaptation")
+VERSION_EVENT_CATEGORIES = ("cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy", "blender_adaptation", "cad_augmentation")
 
 ARTIFACT_CATEGORIES = ("cad", "stl", "validation", "preview", "manifest", "build_plan", "review_package")
 
@@ -104,6 +104,8 @@ def _artifact_category_for_path(rel_path: str) -> str:
         return "stl"  # a real Meshy artifact is a genuine STL file - Phase 47B.7 addition
     if rel_path.startswith("generated/blender/") and rel_path.endswith(".stl"):
         return "stl"  # a real Blender-adapted child artifact is a genuine STL file - Phase 49 addition
+    if rel_path.startswith("generated/cad_augmentation/") and rel_path.endswith(".stl"):
+        return "stl"  # a real CAD-augmentation feature artifact is a genuine STL file - Phase 50 addition
     if rel_path.startswith("validation/"):
         return "validation"
     if rel_path.startswith("renders/"):

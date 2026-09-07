@@ -187,7 +187,7 @@ reserved for organic concept generation in this repo - see
 `docs/meshy-approval-gate.md`), explicitly labeled low-confidence and
 always subject to human confirmation.
 
-## Blender -> CAD handoff (future)
+## Blender -> CAD handoff - implemented for one workflow in Phase 50
 
 ```
 Meshy organic concept
@@ -202,13 +202,25 @@ Validation                 (final object)
 ```
 
 For the piggy-bank motivating example: Meshy supplies the body shape,
-Blender adaptation would clean geometry/scale/orientation, and CAD
-augmentation would add the functional coin slot, flat base, and any
-mounting/access features a sculpted mesh alone doesn't guarantee at
-dimensional precision. None of this is executed by Phase 48 - it is the
-plan `build_adaptation_plan()` proposes, gated on Blender's own
-project-execution approval (still unreached) and a future, separately-
-approved CAD augmentation phase.
+Blender adaptation cleans geometry/scale/orientation (Phase 49), and CAD
+augmentation adds the functional coin slot, flat base, and mounting
+features a sculpted mesh alone doesn't guarantee at dimensional
+precision (Phase 50). None of this is executed by *this module* - it is
+the plan `build_adaptation_plan()` proposes, gated on Blender's own
+project-execution approval and a separately-approved CAD augmentation
+step.
+
+**Phase 50 implements the CAD half, narrowly, for one workflow:**
+`factory.cad_augmentation.run_organic_mechanical_augmentation()`
+generates a parametric functional-feature part (never a boolean-merge
+with the organic mesh - see `docs/cad-augmentation.md`'s "Never a fused
+mesh") and exports it via OpenSCAD - the only CAD engine this repo ever
+executes for real (CadQuery remains never-executed, per
+`docs/cad-backends.md`'s own standing policy). Verified live, end to
+end, against the real piggy-bank artifact: a real 120x80x10mm base plate
+with a 30x6x12mm coin slot and four 4mm mounting holes, producing a
+genuine three-stage lineage (`meshy -> blender_adaptation ->
+cad_augmentation`). See `docs/cad-augmentation.md`.
 
 ## Artifact lineage (future) - implemented for one workflow in Phase 49
 
@@ -227,9 +239,15 @@ reuse pattern anticipated above - parent artifact, child artifact, tool,
 timestamp, fingerprint, and human-confirmation state, entering
 `factory.project_timeline` as one new `blender_adaptation` event
 category and `factory.artifact_history` via one additive path-
-classification rule. See `docs/blender-adaptation.md`. CAD augmentation
-execution remains unimplemented - still a future, separately-approved
-phase.
+classification rule. See `docs/blender-adaptation.md`.
+
+**Phase 50 extends the same chain one more link:**
+`factory.cad_augmentation.run_organic_mechanical_augmentation()`
+executes the CAD augmentation step this module only ever recommended,
+following the identical receipt -> timeline-event -> artifact-history
+reuse pattern (`generated/cad_augmentation_receipt.json` -> one new
+`cad_augmentation` event category -> one additive path-classification
+rule). See `docs/cad-augmentation.md`.
 
 ## Receipts
 
@@ -296,9 +314,12 @@ disk merely from calling `build_adaptation_plan()`.
 - No real Blender or CAD augmentation step has ever been executed by
   *this module* - `adaptation_steps` are recommendations, not proof any
   tool chain actually works end-to-end for a given artifact. (Phase 49's
-  separate `factory.blender_adaptation` module does now execute the
-  Blender half of this for `organic_cleanup_workflow`; CAD augmentation
-  execution remains unimplemented.)
+  separate `factory.blender_adaptation` module executes the Blender half
+  for `organic_cleanup_workflow`; Phase 50's separate
+  `factory.cad_augmentation` module executes the CAD half for
+  `organic_mechanical_augmentation` - both real, gated, verified live.
+  Complex multi-feature CAD augmentation, and mechanical-only workflow
+  types like `mechanical_part_refinement`, remain unimplemented.)
 - No `hybrid_workflow_receipt`/timeline/artifact-history writer exists in
   *this* module, since nothing here executes; Phase 49's
   `factory.blender_adaptation` fills exactly this gap for its own one

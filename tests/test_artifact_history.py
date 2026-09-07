@@ -153,7 +153,8 @@ def _fully_approved(project_dir, monkeypatch, **kwargs):
 
 def test_version_event_categories_exclude_non_artifact_categories():
     assert set(VERSION_EVENT_CATEGORIES) == {
-        "cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy", "blender_adaptation",
+        "cad", "export", "validation", "preview", "approval", "package", "workspace", "meshy",
+        "blender_adaptation", "cad_augmentation",
     }
     # Pipeline-milestone and already-derived-change categories are never
     # versioned - they're reused for diffing instead (see below).

@@ -522,6 +522,35 @@ never modified; a new child artifact is always written to
 `generated/blender/adapted/`, never overwriting an existing file. See
 `docs/blender-adaptation.md`.
 
+**Phase 50 addendum:** `factory/cad_augmentation.py` extends the same
+chain one more link - the controlled bridge from an already-adapted
+organic artifact to a manufacturing-ready hybrid product. It reuses
+`factory.engine_registry` for CAD routing (never a second selector) and
+`factory.export_pipeline` for the one bounded OpenSCAD execution this
+phase adds (never a second subprocess mechanism; CadQuery is never
+executed - see `docs/cad-backends.md`/`docs/cad-augmentation.md`):
+
+```
+factory/engine_registry.py (suitability, reused)      --->
+factory/export_pipeline.py (OpenSCAD execution, reused) --->  factory/cad_augmentation.py
+factory/blender_adaptation.py (lineage read, reused)  --->        |
+factory/validators/mesh_validate.py (reused)                      |
+factory/previews/render_preview.py (reused)                       |
+                                                                    v
+                          factory/cli.py (`factory cad-augment plan`/`execute`)
+                          factory/project_timeline.py (`cad_augmentation` event, additive)
+                          factory/artifact_history.py (`generated/cad_augmentation/` classified as `stl`, additive)
+                          factory/preview_board.py (`cad_augmentation_summary`, aggregation point only)
+```
+
+The generated CAD feature is always a new, independent STL - never a
+boolean-merge with the organic mesh (`factory.validators.multipart_check`'s
+own standing "separate STLs over a fused mesh" policy). Verified live,
+end to end, against `projects/meshy-live-smoke-test`'s real piggy-bank
+artifact, producing a genuine three-stage lineage
+(`meshy -> blender_adaptation -> cad_augmentation`). See
+`docs/cad-augmentation.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
@@ -576,10 +605,11 @@ point, never inside `project_inspection.py`. This is why
 `slicer_readiness_summary`, `manual_review_summary`,
 `slicer_intelligence_summary`, `slicer_history_summary`,
 `timeline_summary`, `artifact_history_summary`,
-`project_health_summary`, (Phase 48) `hybrid_workflow_summary`, and
-(Phase 49) `blender_adaptation_summary` all live on the board's
-per-project dict without ever touching
-`project_inspection.summarize_project()`'s own return shape.
+`project_health_summary`, (Phase 48) `hybrid_workflow_summary`, (Phase
+49) `blender_adaptation_summary`, and (Phase 50)
+`cad_augmentation_summary` all live on the board's per-project dict
+without ever touching `project_inspection.summarize_project()`'s own
+return shape.
 
 **Applies to every future phase**, not just the seven above - any new
 aggregation/dashboard/summary module must sit *above* `project_inspection.py`

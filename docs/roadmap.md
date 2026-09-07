@@ -2639,6 +2639,13 @@ Engine Registry. This phase's own locked-in near-term roadmap (below)
 restores the Engine Registry to its originally-scoped position as Phase
 43 and schedules Advanced Manufacturing Intelligence later, as Phase 49 -
 see "Near-term roadmap, locked in" below for the full, current sequence.
+**Phase 49 correction:** per this document's own "Roadmap numbering
+policy," a phase number reserved in advance for unstarted future work is
+not binding - Phase 49 was actually needed for (and assigned to) the
+Blender Adaptation Execution Gate & Controlled Organic Cleanup Workflow
+instead; Advanced Manufacturing Intelligence remains unstarted and
+unnumbered - see "Advanced Manufacturing Intelligence track" under
+"Future tracks, not yet phase-numbered" below.
 
 The Factory's canonical registry for local design engines, cloud design
 engines, slicers, review tools, and manufacturing-adjacent tools -
@@ -3033,6 +3040,85 @@ network, slicer, or printer contact; never sets `human_approved`/
 `print_ready`; automatic printing remains impossible. See
 `docs/blender-adaptation.md`.
 
+## Phase 50 — CAD Augmentation Execution Gate & Organic-Mechanical Hybrid Workflow (complete)
+
+The controlled bridge from an already-adapted organic artifact to a
+manufacturing-ready hybrid product - the second real-execution gate this
+repo has built, and the first that combines an AI-adapted organic body
+with an engineered functional feature:
+
+    Blender adapted organic artifact -> CAD augmentation -> Factory
+    validation -> Preview -> Human review
+
+Motivated directly by Phase 49's own successful proof that a narrow,
+gated, real-execution phase is safe to add, and by the piggy-bank
+motivating example's own missing half - a coin slot, a mounting/base
+interface. New module `factory.cad_augmentation` reuses every existing
+system rather than duplicating any of them: `factory.engine_registry.get_tool_registry()`
+for CAD routing (the exact same fixed candidate list and
+`mechanical_design_suitability` field `factory.hybrid_workflow._mechanical_augmentation_step()`
+already uses - never re-scored here), `factory.export_pipeline.resolve_openscad_executable()`
+and one new `run_scad_source_to_stl()` function for the one bounded
+subprocess call this phase adds (OpenSCAD only), `factory.validators.mesh_validate.validate_mesh()`/
+`factory.previews.render_preview.render_preview()` for validation/
+preview, and `factory.blender_adaptation.read_blender_adaptation_receipt()`
+to describe the organic component's own lineage when applicable.
+
+**CadQuery is never executed by this phase.** `docs/cad-backends.md`
+states, repeatedly and unconditionally, that this repo does not import
+or execute the CadQuery source it writes - unlike Blender, no CadQuery
+doc anywhere in this repo ever staged a future real-execution phase the
+way `docs/blender-adapter.md` explicitly did before Phase 49 became it.
+This phase preserves that standing policy in full: CadQuery (and
+FreeCAD, which has no execution path at all - `cli_available=False`)
+remain reported candidate engines only, never executed; OpenSCAD is the
+only engine this phase's `execute` command ever runs, reusing the fully
+proven, already-tested `factory.export_pipeline` execution path rather
+than inventing a second subprocess mechanism.
+
+**Never a fused mesh.** `factory.validators.multipart_check`'s own
+standing policy (Phase 0/1) - prefer separate aligned STL files sharing
+one origin over a single fused mesh for multi-part work - is followed
+exactly: the generated CAD feature is always a new, independent STL,
+never a boolean-merge with the organic mesh's own triangle data. This
+also sidesteps a real, unresolved technical risk (booleaning a CAD
+kernel solid against an arbitrary multi-million-triangle organic mesh)
+that this phase's own spec explicitly excludes as "complex assembly"/
+"automatic parametric reconstruction."
+
+Critical dimensions (base width/length/height; coin slot width/length/
+depth once any one is requested) are never guessed -
+`requires_human_input` lists exactly what's missing, both in the plan
+and as CLI-required options on `execute`. `factory cad-augment plan
+<artifact> [--base-width-mm N] ...` is fully read-only; `factory
+cad-augment execute ... --confirm` generates the parametric `.scad`
+source, exports it, validates/previews the *new* output (a Blender/
+OpenSCAD-reported success never overrides a Factory `FAIL`), and writes
+`<project>/generated/cad_augmentation/<stem>_feature.{scad,stl}` (never
+overwriting the organic input artifact) and
+`generated/cad_augmentation_receipt.json` only on success, both
+collision-protected. The receipt enters `factory.project_timeline` (one
+new `cad_augmentation` event category) and `factory.artifact_history`
+(one new additive path-classification rule) - **verified live,
+end-to-end, against `projects/meshy-live-smoke-test`'s real piggy-bank
+artifact**: the real Meshy concept, scaled by the real Phase 49 Blender
+execution, augmented by a real Phase 50 OpenSCAD execution (a
+120x80x10mm base plate with a 30x6x12mm coin slot and four 4mm mounting
+holes), producing a genuine three-stage lineage chain
+(`meshy -> blender_adaptation -> cad_augmentation`) `factory timeline`/
+`factory artifact-history` both render correctly.
+
+`factory.project_health`'s `health_score` stays untouched;
+`cad_augmentation_summary` is wired into
+`factory.preview_board.gather_board_data()` at the aggregation point
+only, mirroring `blender_adaptation_summary`'s own placement, with no
+new HTML card. `factory cad-augment plan`/`execute` is a new, separate
+Typer group - `factory workflow` and `factory blender-adapt` are
+unchanged. Never mesh repair, remeshing, decimation, or reverse
+engineering; never a GUI, add-on, network, slicer, or printer contact;
+never sets `human_approved`/`print_ready`; automatic printing remains
+impossible. See `docs/cad-augmentation.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -3153,6 +3239,38 @@ permanently unless explicitly removed by a future approved phase:
   state. `factory blender-adapt plan`/`execute` - kept separate from
   `factory workflow`, which stays planning-only per Phase 48's own
   documented invariant. See `docs/blender-adaptation.md`.
+- **Phase 50** - CAD Augmentation Execution Gate & Organic-Mechanical
+  Hybrid Workflow (complete). The controlled bridge from an already-
+  adapted organic artifact to a manufacturing-ready hybrid product -
+  narrowly, for exactly one workflow (`organic_mechanical_augmentation`:
+  generate a parametric functional-feature part - a coin slot, mounting
+  holes, a base plate - and export it as a new, separate STL). Motivated
+  directly by Phase 49's own proof that a real execution gate can be
+  built safely, and by the piggy-bank motivating example's own missing
+  half (a coin slot/mounting interface). New module
+  `factory.cad_augmentation` routes via `factory.engine_registry`'s
+  existing `mechanical_design_suitability` data (the same fixed candidate
+  list `factory.hybrid_workflow` already used) and executes via one
+  additional bounded call to `factory.export_pipeline`'s OpenSCAD
+  export path - **CadQuery is never executed** (`docs/cad-backends.md`'s
+  standing, unconditional policy against running the CadQuery source it
+  writes is preserved in full; unlike Blender, no CadQuery doc ever
+  staged a future execution phase); FreeCAD has no execution path either.
+  Never a boolean-merge with the organic mesh - `factory.validators.multipart_check`'s
+  own "separate STLs over a fused mesh" policy is followed exactly, so
+  the hybrid artifact is always two independent, aligned parts. Critical
+  dimensions are never guessed - `requires_human_input` lists exactly
+  what's missing, and `--confirm` requires them as CLI-required options.
+  Writes `<project>/generated/cad_augmentation/<stem>_feature.{scad,stl}`
+  (never overwriting the organic input artifact) and
+  `generated/cad_augmentation_receipt.json`, extending the proven Meshy
+  -> Blender -> CAD lineage chain into `factory.project_timeline`/
+  `factory.artifact_history` additively - verified live end-to-end
+  against `projects/meshy-live-smoke-test`'s real piggy-bank artifact
+  (real Blender adaptation output, real OpenSCAD execution, real
+  three-stage lineage). `factory cad-augment plan`/`execute` - kept
+  separate from `factory workflow`/`factory blender-adapt`. See
+  `docs/cad-augmentation.md`.
 
 ## Future tracks, not yet phase-numbered
 

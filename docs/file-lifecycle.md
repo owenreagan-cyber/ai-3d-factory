@@ -91,7 +91,8 @@ exactly the directory/filename conventions above - `cad/` → `cad`,
 `stl/` → `stl`, `validation/` → `validation`, `renders/` → `preview`,
 `part_manifest.json` → `manifest`, `build_plan.json` → `build_plan`,
 `slicer_review/`/`manual_review/` → `review_package`, `generated/meshy/*.stl`
-→ `stl` (Phase 47B.7), and `generated/blender/*.stl` → `stl` (Phase 49) -
+→ `stl` (Phase 47B.7), `generated/blender/*.stl` → `stl` (Phase 49), and
+`generated/cad_augmentation/*.stl` → `stl` (Phase 50) -
 never a second classification scheme. It introduces no new folder or
 file of its own; it is entirely read-only.
 
@@ -163,6 +164,21 @@ of `generated/meshy_receipt.json`/`generated/export_receipt.json`,
 collision-protected - refuses to overwrite an existing receipt or output
 file). Without every gate passing, nothing is written at all. See
 `docs/blender-adaptation.md`.
+
+**Phase 50 addendum:** `factory cad-augment plan <artifact>` writes
+**nothing at all**, ever - same convention. `factory cad-augment execute
+<artifact> --base-width-mm N --base-length-mm N --base-height-mm N
+--confirm` writes a real project artifact only when every gate passes
+(a valid plan with every required parameter provided, an executable CAD
+engine, and explicit human confirmation on that exact call):
+`generated/cad_augmentation/<stem>_feature.scad` and `.stl` (the new,
+separate mechanical-feature part - the organic input artifact is never
+modified, moved, or overwritten, and never boolean-merged with the new
+part) and `generated/cad_augmentation_receipt.json` (a sibling of
+`generated/blender_adaptation_receipt.json`, collision-protected -
+refuses to overwrite an existing receipt, feature source, or output
+file). Without every gate passing, nothing is written at all. See
+`docs/cad-augmentation.md`.
 
 ## What never happens automatically
 

@@ -565,6 +565,26 @@ Blender automation flags stay `false`. Never mesh repair, remeshing,
 decimation, smoothing, a slicer, a printer, or a network call. See
 `docs/blender-adaptation.md`.
 
+`factory cad-augment plan <artifact> [--base-width-mm N] ... [--json]` /
+`factory cad-augment execute <artifact> --base-width-mm N
+--base-length-mm N --base-height-mm N --confirm [--json]` (Phase 50,
+`factory.cad_augmentation`) execute the CAD half of the same bridge -
+narrowly, for exactly one workflow (`organic_mechanical_augmentation`:
+generate a parametric functional-feature part - a coin slot, mounting
+holes, a base plate - and export it as a new, separate STL, never a
+boolean-merge with the organic mesh). Routes via
+`factory.engine_registry`'s existing suitability data; executes OpenSCAD
+only - **CadQuery is never executed** (`docs/cad-backends.md`'s standing
+policy) and FreeCAD has no execution path. Critical dimensions are never
+guessed - missing ones are reported in `requires_human_input` and are
+required CLI options on `execute`. Writes
+`generated/cad_augmentation/<stem>_feature.{scad,stl}` (never
+overwriting the organic input artifact) and
+`generated/cad_augmentation_receipt.json` only on success, extending the
+Meshy -> Blender -> CAD lineage into `factory.project_timeline`/
+`factory.artifact_history` additively - verified live end-to-end against
+a real piggy-bank artifact. See `docs/cad-augmentation.md`.
+
 ## Workflow
 
 idea/brief -> build plan -> part manifest -> CAD/assets later phase
