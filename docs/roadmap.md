@@ -3119,6 +3119,93 @@ engineering; never a GUI, add-on, network, slicer, or printer contact;
 never sets `human_approved`/`print_ready`; automatic printing remains
 impossible. See `docs/cad-augmentation.md`.
 
+## Phase 51 — Hybrid Design Quality Review & Manufacturing Readiness Gate (complete)
+
+The final intelligence layer over the Meshy -> Blender -> CAD pipeline
+(Phases 47-50) - answers "is this hybrid artifact chain actually ready
+for human manufacturing review?", never "is it ready to print." This is
+review only: no code path calls Meshy, launches Blender, executes CAD,
+invokes a slicer, or contacts a printer/network, and no geometry is ever
+modified.
+
+New module `factory.design_review` reuses every existing system rather
+than duplicating any of them:
+`factory.blender_adaptation.read_blender_adaptation_receipt()`/
+`factory.cad_augmentation.read_cad_augmentation_receipt()` for the
+artifact chain, `factory.hybrid_workflow.assess_scale()`/
+`assess_manufacturing_intent()` applied to whichever artifact is
+*actually current* (a determination `factory.hybrid_workflow` alone
+cannot make, having no Blender/CAD-augmentation receipt awareness),
+`factory.design_intent_check.summarize_design_intent()`,
+`factory.validators.mesh_validate.validate_mesh()`, and
+`factory.manual_review_workspace`/`factory.slicer_readiness`/
+`factory.slicer_intelligence` for print-readiness - which honestly
+report "unresolved" for a hybrid project with no `part_manifest.json`,
+a real signal (matching the phase's own "printer not configured"
+example), never a bug this module routes around.
+
+**Deliberately does not touch `factory.project_health`.** That module's
+every input is scoped to the traditional, CAD-first pipeline
+(`export_receipt.json`/`part_manifest.json`) and has no field that reads
+a Meshy/Blender-adaptation/CAD-augmentation receipt - for a hybrid
+project most of its categories score `0`, not because the project is
+unhealthy but because it took a path `project_health` was never taught
+to look for. `factory.design_review` is a parallel, narrower lens, never
+an extension of that scoring - "AI generation" never inflates health
+automatically, by construction.
+
+**Deliberately does not claim to measure `docs/design-quality-standard.md`'s
+"Etsy-worthy" bar** - that document itself states "a mesh that passes
+`factory validate` ... has cleared a geometry sanity check - it has not
+cleared this standard," and nothing in this module can judge silhouette,
+proportion, or polish (that requires an actual human eye, or a
+vision-capable AI this repo does not invoke). `design_quality_score`
+measures pipeline readiness and evidentiary completeness only - every
+category carries its own traceable `reasoning`/`inputs`, never a magic
+number, precisely so a high score is never mistaken for "this looks
+good."
+
+Verifies genuine lineage *consistency* (re-fingerprints each recorded
+parent artifact against its own receipt's `input_hash`, flagging a
+broken link if a source file changed or vanished after adaptation/
+augmentation ran) as a distinct concern from lineage *completeness* (an
+incomplete-but-consistent chain, e.g. Meshy-only with nothing further
+yet, is never treated as broken). Six explicit, weighted quality
+categories (design intent 20%, geometry 20%, scale 15%, manufacturing
+20%, lineage 10%, review readiness 15%) plus a seventh
+(functional completeness) reported but deliberately excluded from the
+score itself - a binary "does the expected mechanical feature exist"
+gate, already fully captured as a hard blocker when it fails, never
+averaged away by high scores elsewhere. Closed readiness-state
+vocabulary (`not_reviewed`, `needs_information`, `design_review_ready`,
+`manufacturing_review_ready`, `approved_for_slicer_review`, `blocked`)
+deliberately excludes `approved_for_print` or anything beyond
+`approved_for_slicer_review`, matching `config/agent_policy.json`'s
+standing `status_gates.max_automatic_status` ceiling. Five explicit,
+never-inferred human checkpoints (design intent, dimensions,
+manufacturing purpose, material, printer - each read straight off
+existing evidence) drive concrete, grounded `recommended_actions` -
+never vague warnings, never a fabricated mesh-analysis capability this
+repo doesn't have.
+
+`factory design-review <project> [--json] [--save]` - a single, flat
+command; no `plan`/`execute` subcommands (nothing to execute) and no
+`approve`/`print`/`manufacture` verb anywhere. Writes nothing by
+default, exactly like `factory health`; only `--save` additionally
+writes a versioned, fingerprinted `generated/design_review_report.json`
+**analysis snapshot** - never an execution receipt, always safely
+overwritable. Adds no new `factory.project_timeline` event category and
+no new `factory.artifact_history` classification rule - reuses their
+existing receipt readers as input only, never a second lineage system;
+a design review behaves exactly like `factory health`/`factory report`,
+computed fresh on demand. `design_review_summary` is wired into
+`factory.preview_board.gather_board_data()` at the aggregation point,
+with one new compact "Hybrid Design Review" HTML card (status badge,
+score, up to two top risks) reusing the existing "Project Health"
+card's own template/CSS classes verbatim - no new CSS, no JavaScript.
+`factory.project_health` stays entirely untouched. See
+`docs/design-review.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -3271,6 +3358,39 @@ permanently unless explicitly removed by a future approved phase:
   three-stage lineage). `factory cad-augment plan`/`execute` - kept
   separate from `factory workflow`/`factory blender-adapt`. See
   `docs/cad-augmentation.md`.
+- **Phase 51** - Hybrid Design Quality Review & Manufacturing Readiness
+  Gate (complete). The final intelligence layer over the Meshy ->
+  Blender -> CAD pipeline - review only, never execution, never geometry
+  modification. New module `factory.design_review` reuses
+  `factory.blender_adaptation`/`factory.cad_augmentation`'s receipt
+  readers for artifact-chain lineage (verifying fingerprint
+  *consistency*, not just completeness), `factory.hybrid_workflow.assess_scale()`/
+  `assess_manufacturing_intent()` applied to whichever artifact is
+  actually current, `factory.design_intent_check`, `factory.validators.mesh_validate`,
+  and `factory.manual_review_workspace`/`factory.slicer_readiness`/
+  `factory.slicer_intelligence` for print-readiness. **Deliberately does
+  not touch `factory.project_health`** (a parallel, narrower lens
+  specific to the hybrid pipeline - that module's every input is scoped
+  to the traditional CAD-first pipeline and knows nothing of Meshy/
+  Blender/CAD-augmentation receipts) **and deliberately does not claim
+  to measure `docs/design-quality-standard.md`'s "Etsy-worthy" bar**
+  (aesthetic/artistic quality requires a human eye or vision-AI this
+  repo does not invoke - `design_quality_score` measures pipeline
+  readiness/evidentiary completeness only). Six weighted quality
+  categories (design intent, geometry, scale, manufacturing, lineage,
+  review readiness - 20/20/15/20/10/15%) plus a seventh (functional
+  completeness) reported but excluded from the score - every category
+  carries traceable `reasoning`/`inputs`, never a magic number. Closed
+  readiness-state vocabulary deliberately excludes `approved_for_print`,
+  matching `config/agent_policy.json`'s standing ceiling. Five explicit,
+  never-inferred human checkpoints drive concrete `recommended_actions`.
+  `factory design-review <project> [--json] [--save]` - writes nothing
+  by default; `--save` writes a versioned, fingerprinted analysis
+  snapshot (never an execution receipt). Adds no new timeline/artifact-
+  history category - reuses their receipt readers as input only.
+  `design_review_summary` wired into `factory.preview_board.gather_board_data()`
+  with one new compact "Hybrid Design Review" HTML card, reusing existing
+  badge CSS verbatim. See `docs/design-review.md`.
 
 ## Future tracks, not yet phase-numbered
 

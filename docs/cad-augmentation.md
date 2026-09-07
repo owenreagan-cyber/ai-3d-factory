@@ -465,6 +465,13 @@ afterward, and every output correctly contained under
   how Phase 49 itself became Blender's authorization), never an
   incidental side effect of this phase.
 
+**Phase 51 addendum:** `factory.design_review` (`factory design-review
+<project>`) reads this module's own `read_cad_augmentation_receipt()`
+directly to verify lineage consistency and functional-completeness
+(does the expected mechanical feature actually exist) - never a second
+receipt reader, never a re-derivation of this module's own execution
+gate. See `docs/design-review.md`.
+
 ## No-authority rule
 
 Never launches a GUI (OpenSCAD, FreeCAD, or otherwise), installs an

@@ -551,6 +551,31 @@ artifact, producing a genuine three-stage lineage
 (`meshy -> blender_adaptation -> cad_augmentation`). See
 `docs/cad-augmentation.md`.
 
+**Phase 51 addendum:** `factory/design_review.py` is the final
+intelligence layer over the whole chain - never executing, never
+modifying geometry, only reading:
+
+```
+factory/blender_adaptation.py (receipt read, reused)   --->
+factory/cad_augmentation.py (receipt read, reused)     --->  factory/design_review.py
+factory/hybrid_workflow.py (assess_scale/intent, reused) --->     |
+factory/design_intent_check.py (reused)                --->      |
+factory/manual_review_workspace.py (reused)            --->      |
+factory/slicer_readiness.py (reused)                   --->      |
+factory/slicer_intelligence.py (reused)                --->      |
+factory/validators/mesh_validate.py (reused)                     |
+                                                                   v
+                          factory/cli.py (`factory design-review <project>`)
+                          factory/preview_board.py (`design_review_summary` + a compact card, aggregation point only)
+```
+
+Unlike Phases 49/50, this phase adds **no new timeline event category
+and no new artifact-history classification rule** - a design review is
+never itself a persisted "artifact-relevant event"; it behaves exactly
+like `factory health`, computed fresh on demand. `factory.project_health`
+stays entirely untouched - this is a parallel lens, not an extension of
+its scoring. See `docs/design-review.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated
@@ -606,10 +631,10 @@ point, never inside `project_inspection.py`. This is why
 `slicer_intelligence_summary`, `slicer_history_summary`,
 `timeline_summary`, `artifact_history_summary`,
 `project_health_summary`, (Phase 48) `hybrid_workflow_summary`, (Phase
-49) `blender_adaptation_summary`, and (Phase 50)
-`cad_augmentation_summary` all live on the board's per-project dict
-without ever touching `project_inspection.summarize_project()`'s own
-return shape.
+49) `blender_adaptation_summary`, (Phase 50)
+`cad_augmentation_summary`, and (Phase 51) `design_review_summary` all
+live on the board's per-project dict without ever touching
+`project_inspection.summarize_project()`'s own return shape.
 
 **Applies to every future phase**, not just the seven above - any new
 aggregation/dashboard/summary module must sit *above* `project_inspection.py`

@@ -432,14 +432,24 @@ no Blender execution during board generation).
 - No `--force`/`--overwrite-generated` flag exists - a collision with an
   existing output or receipt always blocks; a human must remove the
   conflicting file themselves before re-running.
-- No CAD augmentation execution exists - `factory.hybrid_workflow`'s
-  `hybrid_organic_mechanical` routing still recommends a CAD step this
-  repo does not yet execute.
 - A project may run `organic_cleanup_workflow` once per input artifact
   through the single `generated/blender_adaptation_receipt.json` path -
   re-running against a different input artifact within the same project
   will refuse to overwrite that receipt (a future phase could key the
   receipt per-input-artifact if this proves limiting).
+
+**Phase 50 note:** CAD augmentation execution now exists -
+`factory.cad_augmentation` (`factory cad-augment plan|execute`) executes
+the CAD half of `factory.hybrid_workflow`'s `hybrid_organic_mechanical`
+routing this document's own limitation above used to describe as
+unimplemented. See `docs/cad-augmentation.md`.
+
+**Phase 51 note:** `factory.design_review` (`factory design-review
+<project>`) reads this module's own `read_blender_adaptation_receipt()`
+directly to verify lineage consistency and to treat scale as already
+human-confirmed whenever `single_shot_human_confirmation: true` is
+recorded - never a second receipt reader, never a re-derivation of this
+module's own execution gate. See `docs/design-review.md`.
 
 ## No-authority rule
 

@@ -585,6 +585,27 @@ Meshy -> Blender -> CAD lineage into `factory.project_timeline`/
 `factory.artifact_history` additively - verified live end-to-end against
 a real piggy-bank artifact. See `docs/cad-augmentation.md`.
 
+`factory design-review <project> [--json] [--save]` (Phase 51,
+`factory.design_review`) is the final intelligence layer over the Meshy
+-> Blender -> CAD pipeline - answers "is this hybrid artifact chain
+ready for human manufacturing review?", never "is it ready to print."
+Review only: never calls Meshy, launches Blender, executes CAD, invokes
+a slicer, or contacts a printer/network, and never modifies geometry.
+Reuses `factory.blender_adaptation`/`factory.cad_augmentation`'s receipt
+readers (verifying lineage *consistency* via fresh fingerprints, not
+just completeness), `factory.hybrid_workflow.assess_scale()`/
+`assess_manufacturing_intent()`, and the existing print-readiness stack
+- **deliberately does not touch `factory.project_health`** (a parallel
+lens, never an extension of its scoring - AI generation never inflates
+health automatically) **and does not claim to measure the "Etsy-worthy"
+design-quality bar** (`docs/design-quality-standard.md`) - aesthetic
+judgment needs a human eye this repo doesn't automate.
+`design_quality_score` is a fully-traceable, explicitly-weighted
+readiness/completeness score, never a magic number; readiness states
+never reach `approved_for_print`. Writes nothing by default; `--save`
+writes a versioned, fingerprinted analysis snapshot, never an execution
+receipt. See `docs/design-review.md`.
+
 ## Workflow
 
 idea/brief -> build plan -> part manifest -> CAD/assets later phase

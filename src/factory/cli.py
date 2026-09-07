@@ -96,6 +96,11 @@ from factory.cad_augmentation import (
     build_safety_block as build_cad_augmentation_safety_block,
     run_organic_mechanical_augmentation,
 )
+from factory.design_review import (
+    build_safety_block as build_design_review_safety_block,
+    evaluate_design_review,
+    save_design_review_report,
+)
 from factory.meshy_approval import (
     MeshyPolicyError,
     build_meshy_approval_plan,
@@ -245,6 +250,7 @@ AVAILABLE_COMMANDS = (
     "[--coin-slot-width-mm N] [--coin-slot-length-mm N] [--coin-slot-depth-mm N] "
     "[--coin-slot-position-x-mm N] [--coin-slot-position-y-mm N] "
     "[--mounting-hole-diameter-mm N] [--mounting-hole-margin-mm N] --confirm [--confirmed-by NAME] [--json]",
+    "design-review <project_dir> [--json] [--save]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2748,6 +2754,93 @@ def cad_augment_execute_cmd(
         console.print(line)
     if result["augmentation_status"] != "succeeded":
         raise typer.Exit(code=1)
+
+
+_DESIGN_REVIEW_SAFETY_TRAILER = (
+    "This is a design quality/manufacturing readiness review, not an approval.",
+    "Generated artifact != good design. Validated mesh != manufacturing ready. Manufacturing ready != human approved.",
+    "Human approved != print approved. Automatic printing remains impossible.",
+)
+
+_READINESS_STATE_ICON = {
+    "not_reviewed": "[dim]NOT REVIEWED[/dim]",
+    "blocked": "[red]BLOCKED[/red]",
+    "needs_information": "[yellow]NEEDS INFORMATION[/yellow]",
+    "design_review_ready": "[cyan]DESIGN REVIEW READY[/cyan]",
+    "manufacturing_review_ready": "[cyan]MANUFACTURING REVIEW READY[/cyan]",
+    "approved_for_slicer_review": "[green]APPROVED FOR SLICER REVIEW[/green]",
+}
+
+
+def _render_design_review_human(review: dict[str, Any]) -> None:
+    console.print("[bold]HYBRID DESIGN QUALITY REVIEW[/bold]\n")
+    console.print(f"[bold]Project:[/bold] {review['project']}")
+    console.print(f"[bold]Workflow type:[/bold] {review['workflow_type']}")
+    console.print(f"[bold]Design quality score:[/bold] {review['design_quality_score']}%")
+    state = review["manufacturing_readiness"]
+    console.print(f"[bold]Manufacturing readiness:[/bold] {_READINESS_STATE_ICON.get(state, state)}")
+    console.print(f"[bold]Confidence:[/bold] {review['confidence']}\n")
+
+    console.print("[bold]Score by category:[/bold]")
+    for name, entry in review["score_categories"].items():
+        weight = review["score_weights"][name]
+        console.print(f"  {name} ({int(weight * 100)}%): {entry['score']}% - {_rich_escape(entry['reasoning'])}")
+    console.print()
+
+    if review["blockers"]:
+        console.print("[bold red]Blockers:[/bold red]")
+        for b in review["blockers"]:
+            console.print(f"  - [{b['source']}] {_rich_escape(b['message'])}")
+        console.print()
+
+    if review["required_human_confirmations"]:
+        console.print("[bold]Required human confirmations:[/bold]")
+        for c in review["required_human_confirmations"]:
+            mark = "[green]OK[/green]" if c["confirmed"] else "[yellow]MISSING[/yellow]"
+            console.print(f"  {mark}  {c['item']}")
+        console.print()
+
+    if review["recommended_actions"]:
+        console.print("[bold]Recommended actions:[/bold]")
+        for action in review["recommended_actions"]:
+            console.print(f"  - {_rich_escape(action)}")
+        console.print()
+
+    for line in _DESIGN_REVIEW_SAFETY_TRAILER:
+        console.print(line)
+
+
+@app.command(name="design-review")
+def design_review_cmd(
+    project_dir: Path = typer.Argument(..., help="Path to a project directory under projects/"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+    save: bool = typer.Option(False, "--save", help="Additionally write a versioned, fingerprinted snapshot to generated/design_review_report.json (never an execution receipt, always overwritable)"),
+) -> None:
+    """Phase 51: the Hybrid Design Quality Review & Manufacturing Readiness Gate - evaluates whether a
+    completed Meshy -> Blender -> CAD artifact chain is ready for human manufacturing review. Fully
+    read-only by default: never calls Meshy, never launches Blender, never executes CAD, never invokes a
+    slicer, never contacts a printer or network, never modifies geometry. Reuses
+    factory.hybrid_workflow/factory.blender_adaptation/factory.cad_augmentation/factory.slicer_intelligence/
+    factory.slicer_readiness directly - never a second validator or lineage system. `manufacturing_readiness`
+    never reaches `approved_for_print` - automatic printing remains impossible. With --save, additionally
+    writes a read-only analysis snapshot (never an execution receipt)."""
+    project_dir = Path(project_dir)
+    if not project_dir.is_dir():
+        console.print(f"[red]error[/red]: not a directory: {project_dir}")
+        raise typer.Exit(code=1)
+
+    review = evaluate_design_review(project_dir)
+    report_path = save_design_review_report(project_dir) if save else None
+
+    if as_json:
+        payload = {"review": review, "safety": build_design_review_safety_block()}
+        if report_path:
+            payload["report_path"] = str(report_path)
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_design_review_human(review)
+    if report_path:
+        console.print(f"\nSaved snapshot: {report_path}")
 
 
 _MESHY_SAFETY_TRAILER = (

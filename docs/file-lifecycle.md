@@ -180,6 +180,15 @@ refuses to overwrite an existing receipt, feature source, or output
 file). Without every gate passing, nothing is written at all. See
 `docs/cad-augmentation.md`.
 
+**Phase 51 addendum:** `factory design-review <project>` writes
+**nothing at all** by default - exactly like `factory health`, it
+computes a fresh, read-only analysis on every call. Only
+`factory design-review <project> --save` additionally writes
+`generated/design_review_report.json` - a versioned, fingerprinted
+**analysis snapshot**, never an execution receipt (a distinct filename
+from every `*_receipt.json` in this repo), always safely overwritable on
+the next `--save`. See `docs/design-review.md`.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

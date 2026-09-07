@@ -325,6 +325,18 @@ disk merely from calling `build_adaptation_plan()`.
   `factory.blender_adaptation` fills exactly this gap for its own one
   workflow, via its own receipt.
 
+## Design quality / manufacturing readiness review (Phase 51)
+
+`factory.design_review` (`factory design-review <project>`) is the final
+intelligence layer over this module's whole pipeline - it answers "is
+this artifact chain ready for human manufacturing review?" by reusing
+`assess_scale()`/`assess_manufacturing_intent()` directly, applied to
+whichever artifact is *actually current* (which this module alone cannot
+determine, since it has no Blender/CAD-augmentation receipt awareness -
+see "Artifact lineage" above). It never modifies geometry, never
+executes anything, and never approves printing. See
+`docs/design-review.md`.
+
 See `docs/architecture.md`, `docs/meshy-adapter.md`,
 `docs/meshy-live-transport.md`, `docs/blender-local-track.md`,
 `docs/roadmap.md` Phase 48, `docs/phase-registry.md`, and `AGENT.md`.
