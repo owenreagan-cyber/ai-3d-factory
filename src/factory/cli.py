@@ -93,6 +93,13 @@ from factory.meshy_approval import (
     record_meshy_policy_approval,
     revoke_meshy_policy_approval,
 )
+from factory.meshy_adapter import (
+    build_safety_block as build_meshy_adapter_safety_block,
+    plan_text_to_3d_request,
+    run_mock_text_to_3d_request,
+    summarize_mock_adapter_state,
+)
+from factory.meshy_models import DEFAULT_AI_MODEL, KNOWN_AI_MODELS, REQUEST_MODES
 from factory.preview_board import VISUAL_READINESS_STATES, discover_projects, write_preview_board
 from factory.project_inspection import summarize_project
 from factory.preview_package import gather_preview_data, preview_package_paths, write_preview_package
@@ -200,6 +207,8 @@ AVAILABLE_COMMANDS = (
     "meshy approve-policy --ack-cost --ack-license --ack-privacy --ack-provenance [--approved-by NAME]",
     "meshy revoke-policy [--reason TEXT]",
     "meshy approval-plan [--json]",
+    "meshy plan --prompt TEXT [--model MODEL] [--mode preview|refine] [--project PATH] [--json]",
+    "meshy mock-run --prompt TEXT --confirm-mock [--model MODEL] [--scenario NAME] [--project PATH] [--json]",
 )
 
 STATUS_ICON = {"PASS": "[green]PASS[/green]", "WARN": "[yellow]WARN[/yellow]", "FAIL": "[red]FAIL[/red]"}
@@ -2414,6 +2423,15 @@ def _render_meshy_human(gate: dict[str, Any], readiness: dict[str, Any]) -> None
     console.print("Ready" if readiness["ready_for_phase47"] else "Not ready")
     console.print()
 
+    adapter_state = summarize_mock_adapter_state()
+    console.print("[bold]Mock adapter (Phase 47A):[/bold]")
+    console.print("Implemented - see `factory meshy plan`/`factory meshy mock-run`" if adapter_state["mock_adapter_implemented"] else "Not implemented")
+    console.print()
+
+    console.print("[bold]Live transport:[/bold]")
+    console.print("Not implemented" if not adapter_state["live_transport_implemented"] else "Implemented")
+    console.print()
+
     if gate["blockers"]:
         console.print("[bold]Blockers:[/bold]")
         for item in gate["blockers"]:
@@ -2447,7 +2465,7 @@ def meshy_status_cmd(
     gate = evaluate_meshy_gate()
     readiness = evaluate_meshy_phase47_readiness(gate)
     if as_json:
-        print(json.dumps({"tool": "meshy", "gate": gate, "phase47_readiness": readiness, "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        print(json.dumps({"tool": "meshy", "gate": gate, "phase47_readiness": readiness, "adapter": summarize_mock_adapter_state(), "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_meshy_human(gate, readiness)
 
@@ -2472,7 +2490,7 @@ def meshy_policy_cmd(
     gate = evaluate_meshy_gate()
     readiness = evaluate_meshy_phase47_readiness(gate)
     if as_json:
-        print(json.dumps({"tool": "meshy", "gate": gate, "cost_policy": gate["cost_policy"], "license_policy": gate["license_policy"], "privacy_policy": gate["privacy_policy"], "provenance_policy": gate["provenance_policy"], "approval": gate["approval"], "phase47_readiness": readiness, "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        print(json.dumps({"tool": "meshy", "gate": gate, "cost_policy": gate["cost_policy"], "license_policy": gate["license_policy"], "privacy_policy": gate["privacy_policy"], "provenance_policy": gate["provenance_policy"], "approval": gate["approval"], "phase47_readiness": readiness, "adapter": summarize_mock_adapter_state(), "safety": _meshy_safety_block()}, indent=2, sort_keys=False, ensure_ascii=False, default=str))
         return
     _render_meshy_human(gate, readiness)
 
@@ -2589,6 +2607,127 @@ def meshy_approval_plan_cmd(
     console.print("No Meshy API call was made. No credentials were read. No decision was recorded on your behalf.")
     for line in _MESHY_SAFETY_TRAILER:
         console.print(line)
+
+
+_MESHY_MOCK_SAFETY_TRAILER = (
+    "No Meshy API call was made. No credentials were read. No credits were spent. No money was spent.",
+    "This is a MOCK artifact - it did not come from Meshy. See docs/meshy-adapter.md.",
+)
+
+
+def _render_meshy_plan_human(plan: dict[str, Any]) -> None:
+    console.print("[bold]MESHY REQUEST PLAN[/bold]\n")
+    console.print("[bold]Mode:[/bold]\nMocked Only\n")
+    console.print(f"[bold]Request:[/bold]\nText-to-3D ({plan['model']}, {plan['mode']})\n")
+    console.print(f"[bold]Estimated credits:[/bold]\n{plan['estimated_credits'] if plan['estimated_credits'] is not None else 'unknown'}\n")
+    cap = plan["provenance"].get("configured_cost_cap")
+    console.print(f"[bold]Request cap:[/bold]\n{cap if cap is not None else 'not configured'}\n")
+    console.print(f"[bold]Policy:[/bold]\n{plan['policy_check']['policy_gate_status']}\n")
+    console.print(f"[bold]Budget:[/bold]\n{'Allowed' if plan['budget_check']['allowed'] else 'Blocked - ' + (plan['budget_check']['reason'] or '')}\n")
+    console.print("[bold]Live Meshy:[/bold]\nDisabled\n")
+    console.print("[bold]Network:[/bold]\nWill not be used\n")
+    console.print(f"[bold]Mock execution allowed:[/bold]\n{plan['mock_execution_allowed']}\n")
+    if plan["blockers"]:
+        console.print("[bold]Blockers:[/bold]")
+        for item in plan["blockers"]:
+            console.print(f"- {_rich_escape(item)}")
+        console.print()
+    if plan["warnings"]:
+        console.print("[bold]Warnings:[/bold]")
+        for item in plan["warnings"]:
+            console.print(f"- {_rich_escape(item)}")
+        console.print()
+    console.print("[bold]Confirmation:[/bold]\nRequired for mock artifact workflow\n")
+    for line in _MESHY_MOCK_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="plan")
+def meshy_plan_cmd(
+    prompt: str = typer.Option(..., "--prompt", help="Text-to-3D prompt (Phase 47A supports text_to_3d only)"),
+    model: str = typer.Option(DEFAULT_AI_MODEL, "--model", help=f"Meshy ai_model - one of {KNOWN_AI_MODELS!r}"),
+    mode: str = typer.Option("preview", "--mode", help=f"Text-to-3D mode - one of {REQUEST_MODES!r}"),
+    target_polygon_count: int = typer.Option(None, "--target-polygon-count", help="Optional target_polycount"),
+    project: Path = typer.Option(None, "--project", help="Optional project directory - used only for provenance/budget-ledger purposes, never written to by this command"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47A: dry-run Meshy Text-to-3D request plan. Read-only - never contacts Meshy, never
+    spends credits, never writes anything. Reuses Phase 46's policy gate and cost caps directly.
+    See docs/meshy-adapter.md."""
+    plan = plan_text_to_3d_request(prompt=prompt, ai_model=model, mode=mode, target_polygon_count=target_polygon_count, project_id=str(project) if project else None)
+    if as_json:
+        payload = dict(plan)
+        payload["safety"] = build_meshy_adapter_safety_block()
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_plan_human(plan)
+
+
+def _render_meshy_mock_run_human(result: dict[str, Any]) -> None:
+    console.print("[bold]MESHY MOCK EXECUTION[/bold]\n")
+    console.print(f"[bold]Task:[/bold]\n{result['task_id'] or '(none - blocked before submission)'}\n")
+    console.print(f"[bold]Lifecycle:[/bold]\n{' -> '.join(result['lifecycle']) if result['lifecycle'] else '(none)'}\n")
+    console.print(f"[bold]Artifact:[/bold]\n{result['artifact_path'] or '(none)'}\n")
+    console.print(f"[bold]Validation:[/bold]\n{result['validation_state'] or 'not run'}\n")
+    console.print(f"[bold]Preview:[/bold]\n{result['preview_state'] or 'not run'}\n")
+    console.print(f"[bold]Provenance:[/bold]\n{'Recorded' if result['receipt'] else 'Not recorded'}\n")
+    console.print("[bold]Live API:[/bold]\nNot used\n")
+    console.print(f"[bold]Credits:[/bold]\n{result['credits_spent']} spent\n")
+    console.print("[bold]Network:[/bold]\nNot used\n")
+    console.print("[bold]Human review:[/bold]\nRequired\n")
+    if result["errors"]:
+        console.print("[bold]Errors:[/bold]")
+        for item in result["errors"]:
+            console.print(f"- ({item['error_code']}) {_rich_escape(item['message'])}")
+        console.print()
+    if result["warnings"]:
+        console.print("[bold]Warnings:[/bold]")
+        for item in result["warnings"]:
+            console.print(f"- {_rich_escape(item)}")
+        console.print()
+    if result.get("receipt_path"):
+        console.print(f"Receipt written to: {result['receipt_path']}\n")
+    console.print("This is a MOCK artifact.")
+    console.print("It did not come from Meshy.\n")
+    for line in _MESHY_MOCK_SAFETY_TRAILER:
+        console.print(line)
+
+
+@meshy_app.command(name="mock-run")
+def meshy_mock_run_cmd(
+    prompt: str = typer.Option(..., "--prompt", help="Text-to-3D prompt (Phase 47A supports text_to_3d only)"),
+    model: str = typer.Option(DEFAULT_AI_MODEL, "--model", help=f"Meshy ai_model - one of {KNOWN_AI_MODELS!r}"),
+    mode: str = typer.Option("preview", "--mode", help=f"Text-to-3D mode - one of {REQUEST_MODES!r}"),
+    scenario: str = typer.Option("success", "--scenario", help="Mock lifecycle scenario: success, failure, rate_limited, server_error, expired_artifact"),
+    project: Path = typer.Option(None, "--project", help="Optional project directory - if given, writes generated/meshy/mock_concept.stl and generated/meshy_receipt.json there; otherwise runs entirely in a temporary directory that is cleaned up"),
+    confirm_mock: bool = typer.Option(False, "--confirm-mock", help="Explicit confirmation to actually run the mocked lifecycle (submit/poll/download/validate/preview)"),
+    as_json: bool = typer.Option(False, "--json", help="Print machine-readable JSON instead of the human-readable report"),
+) -> None:
+    """Phase 47A: run the full MOCKED Meshy Text-to-3D lifecycle (submit -> poll -> mock artifact ->
+    Factory validation -> Factory preview -> receipt). Without --confirm-mock, only builds and shows
+    the dry-run plan (same as `factory meshy plan`) - nothing executes. Never contacts Meshy, never
+    reads a credential, never spends credits/money. The artifact is always a fixed, local, synthetic
+    mock STL - never Meshy output. See docs/meshy-adapter.md."""
+    plan = plan_text_to_3d_request(prompt=prompt, ai_model=model, mode=mode, project_id=str(project) if project else None)
+
+    if not confirm_mock:
+        if as_json:
+            payload = dict(plan)
+            payload["safety"] = build_meshy_adapter_safety_block()
+            payload["note"] = "Dry-run only - pass --confirm-mock to actually execute the mocked lifecycle."
+            print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+            return
+        _render_meshy_plan_human(plan)
+        console.print("\nPass --confirm-mock to actually execute the mocked lifecycle.")
+        return
+
+    result = run_mock_text_to_3d_request(plan, scenario=scenario, project_dir=project)
+    if as_json:
+        payload = dict(result)
+        payload["safety"] = build_meshy_adapter_safety_block()
+        print(json.dumps(payload, indent=2, sort_keys=False, ensure_ascii=False, default=str))
+        return
+    _render_meshy_mock_run_human(result)
 
 
 @app.command(name="review-gate")

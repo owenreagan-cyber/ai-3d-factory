@@ -1,0 +1,7 @@
+{
+  "_mock_note": "Mocked 5xx advisory. Structured advisory only - no auto-retry.",
+  "error_code": "server_error",
+  "http_status": 500,
+  "message": "Mocked server error advisory.",
+  "retry_allowed": false
+}

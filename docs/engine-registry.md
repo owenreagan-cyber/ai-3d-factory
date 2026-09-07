@@ -198,9 +198,14 @@ approval model (`factory.meshy_approval`, `factory meshy status/policy`)
 - still without adding a single network call, credential read, or Meshy
 call of any kind. This registry's own `meshy` record is unchanged by
 Phase 46; `factory meshy status` joins it with the new policy gate at
-runtime instead. Phase 47 (concept/print-preparation gateway) remains the
-first phase that may actually contact Meshy - only after Phase 46's
-policy is human-approved, which merely existing does not satisfy.
+runtime instead. **Phase 47A** (`factory.meshy_adapter`,
+`docs/meshy-adapter.md`) proved the full request/budget/lifecycle/
+provenance/receipt architecture entirely against a mocked transport - no
+network, no credential, no real Meshy contact of any kind, and this
+registry's own `meshy` record stays unchanged by it too. **Phase 47B**
+(one bounded, separately-approved real call) remains the first phase
+that may actually contact Meshy - only after that separate approval,
+which merely completing Phase 47A does not satisfy.
 
 ## Plasticity, Autodesk Fusion, Onshape: permanent future entries
 

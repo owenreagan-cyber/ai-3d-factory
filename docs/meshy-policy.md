@@ -317,6 +317,28 @@ kill switch explicitly enabled, and per-run confirmation). Both report
 `"status": "not_recorded"` until a human takes the separate, explicit
 action each one requires - nothing in this phase can record either.
 
+## Phase 46.6 / 47A - research, real approval, and the mocked adapter
+
+Phase 46.6 was a public-web research checkpoint (`docs/meshy-current-research.md`)
+- no Meshy API call, no credential read - that turned into real,
+human-approved policy values (Phase 46.6's own approval): credit-based
+caps (25/100/150/500 per request/project/day/month), `terms_reviewed:
+true`, `approval.approval_scope: "policy_only"`. Approving this policy is
+still not Phase 47 implementation approval, and still never enables
+execution.
+
+Phase 47A (`factory.meshy_adapter`, `factory.meshy_mock_transport`,
+`factory.meshy_models` - see `docs/meshy-adapter.md`) then built and
+proved the full request-planning/budget-gate/task-lifecycle/provenance/
+receipt architecture entirely against a mocked transport -
+`MockMeshyTransport`, the only transport implementation in this repo.
+`factory.meshy_adapter.check_policy_gate()` reuses this module's
+`evaluate_meshy_gate()` directly (never re-implementing policy
+evaluation) and adds one more explicit, never-collapsed distinction:
+`mock_execution_allowed` (tracks whether *this* module's policy is
+approved) vs. `live_execution_allowed` (hardcoded `False` everywhere,
+regardless of policy state).
+
 ## Engine registry / Preview Board / Project Health integration
 
 - `factory.engine_registry`'s canonical Meshy record (Phase 43) is

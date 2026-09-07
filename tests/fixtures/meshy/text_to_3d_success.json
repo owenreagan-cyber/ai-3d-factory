@@ -1,0 +1,23 @@
+{
+  "_mock_note": "Mocked shape of a Meshy Text-to-3D submit response, per docs/meshy-current-research.md 'Provenance fields Meshy's API actually exposes'. task id/timestamps are placeholders substituted at runtime by MockMeshyTransport - never used verbatim.",
+  "id": "PLACEHOLDER_TASK_ID",
+  "type": "text-to-3d",
+  "status": "SUCCEEDED",
+  "progress": 100,
+  "created_at": 0,
+  "started_at": 0,
+  "finished_at": 60000,
+  "expires_at": 604800000,
+  "model_urls": {
+    "stl": "mock://meshy.invalid/mock-task/model.stl"
+  },
+  "texture_urls": [],
+  "thumbnail_url": "mock://meshy.invalid/mock-task/thumbnail.png",
+  "consumed_credits": 20,
+  "preceding_tasks": 0,
+  "task_error": null,
+  "meshy_printability_claim": {
+    "printable": true,
+    "_mock_note": "Mocked provider claim only - never treated as Factory validation."
+  }
+}

@@ -417,6 +417,29 @@ must not become unhealthy because a cloud tool is ungated" reasoning
 Phase 43 already established for tool detection generally. See
 `docs/meshy-policy.md`.
 
+**Phase 47A addendum:** `factory/meshy_models.py` (pure data) ->
+`factory/meshy_mock_transport.py` (the `MeshyTransport` interface + the
+only implementation, `MockMeshyTransport`) -> `factory/meshy_adapter.py`
+(orchestration) sits *above* `factory.meshy_approval` in the same
+direction every prior phase's aggregation layer has - `meshy_adapter`
+imports `meshy_approval` directly, never the reverse:
+
+```
+factory/meshy_models.py  --->  factory/meshy_mock_transport.py  --->  factory/meshy_adapter.py
+                                                                            |
+                                                          factory/meshy_approval.py (Phase 46, read-only)
+                                                          factory/validators/mesh_validate.py (reused)
+                                                          factory/previews/render_preview.py (reused)
+                                                                            |
+                                                                            v
+                                              factory/cli.py (`factory meshy plan`/`mock-run`)
+```
+
+No `HttpMeshyTransport` exists in this repo, and none is planned until a
+future, separately-approved Phase 47B - `MockMeshyTransport` is not a
+placeholder for one, it is the only transport this architecture needs to
+prove itself against. See `docs/meshy-adapter.md`.
+
 ## Aggregation Layer Convention
 
 This is the standing, permanent rule the diagram above has demonstrated

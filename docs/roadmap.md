@@ -2917,6 +2917,54 @@ asserted, by tests that monkeypatch `socket.socket`/`subprocess.run`/
 `os.system` to raise and assert every command still succeeds. See
 `docs/meshy-policy.md`.
 
+## Phase 47A — Mocked Meshy Adapter & API Contract (complete)
+
+Proves the full Meshy integration *architecture* against a mocked
+transport only - zero network calls, zero credential reads, zero
+credits/money spent, live execution never enabled.
+
+    Policy Approved -> Mocked Adapter -> Mocked Request Planning ->
+    Mocked Task Lifecycle -> Mocked Artifact Retrieval ->
+    Factory Validation -> Factory Preview -> Human Review ->
+    47A Review -> Separate 47B Approval -> One Controlled Real API Call
+
+**New modules: `factory.meshy_models`** (pure request/response/task-state
+data grounded in `docs/meshy-current-research.md`'s researched public
+Meshy API contract - no I/O), **`factory.meshy_mock_transport`** (the
+`MeshyTransport` interface + `MockMeshyTransport`, the only
+implementation - no `HttpMeshyTransport`, not even a skeleton), and
+**`factory.meshy_adapter`** (policy/budget gating, the mocked task
+lifecycle, provenance, receipt).
+
+Only Text-to-3D is modeled (best-documented endpoint, fixed/predictable
+credit cost, no upload, lowest privacy risk). Real Meshy task-status
+vocabulary (`PENDING`/`IN_PROGRESS`/`SUCCEEDED`/`FAILED`/`CANCELED`),
+bounded to at most 5 mocked polls - never an unbounded loop, never a real
+sleep, never an automatic retry (`automatic_retry_performed: false` on
+every result, always). Every mock task id is namespaced
+`mock-meshy-...`; the mock artifact is a fixed, checked-in synthetic STL
+(`tests/fixtures/meshy/mock_concept.stl`), never downloaded or
+Meshy-derived. `factory.validators.mesh_validate.validate_mesh()` and
+`factory.previews.render_preview.render_preview()` are reused directly -
+proven, by a dedicated test, that a mocked response's own
+`meshy_printability_claim: {"printable": true}` never bypasses real
+Factory validation.
+
+`factory meshy plan --prompt TEXT [--json]` is a fully read-only dry-run;
+`factory meshy mock-run --prompt TEXT --confirm-mock [--scenario ...]
+[--project PATH] [--json]` executes the mocked lifecycle only behind
+explicit confirmation - without a `--project`, everything happens inside
+one `tempfile.TemporaryDirectory()` (inventoried before/after, verified
+cleaned); with `--project`, the receipt/artifact are written into
+`<project>/generated/meshy_receipt.json` / `generated/meshy/mock_concept.stl`,
+never into `examples/` implicitly. `live_execution_allowed` is hardcoded
+`false` on every result; `config/future_cloud_tools.json`'s Meshy kill
+switch stays untouched. `factory.project_health`'s `health_score` and
+`factory.engine_registry`'s canonical Meshy record are both entirely
+unchanged; `factory meshy status`/`policy` gained a small additive
+"mock adapter implemented, live transport not implemented" visibility
+line. See `docs/meshy-adapter.md`.
+
 ## Near-term roadmap, locked in
 
 The following sequence is locked in per this phase's roadmap amendment -
@@ -2969,8 +3017,16 @@ permanently unless explicitly removed by a future approved phase:
   stays hardcoded `false` in every code path - `evaluate_meshy_
   phase47_readiness()`'s `ready_for_phase47=True` still never means Meshy
   may be called. See `docs/meshy-policy.md`.
-- **Phase 47** - Meshy Concept & Print-Preparation Gateway, only after
-  Phase 46's explicit approval. Meshy output always enters: provenance ->
+- **Phase 47** - Meshy Concept & Print-Preparation Gateway, staged into
+  three separately-approved sub-phases (per the Phase 46.6 research
+  checkpoint's recommendation): **47A - Mocked Meshy Adapter & API
+  Contract** (complete - see above; the full architecture, zero
+  network/credential/money use). **47B - First Controlled Meshy Call**
+  (a separate, later, explicit approval; one bounded, human-confirmed
+  real request; no automatic retry, no batch, no repair chain). **47C -
+  Additional Meshy Capabilities** (only after 47B succeeds; candidate
+  capabilities include Image-to-3D, Smart Topology, Auto Split,
+  Analyze/Repair Printability). Meshy output always enters: provenance ->
   artifact receipt -> cleanup/manufacturing adaptation -> Factory
   validation -> preview -> human review -> slicer review -> never
   automatic printing.
@@ -2990,6 +3046,14 @@ begun; they stay listed here too until each is actually started, per this
 section's own numbering policy.
 
 ### Meshy approval/cost-gated implementation track
+
+**Phase 47A update:** the *mocked* architecture for this track (request
+planning, budget/policy gating, task lifecycle, provenance, receipt -
+`factory.meshy_adapter`) is now complete and started - see "Phase 47A"
+above. What remains genuinely unstarted is the *real* implementation
+below: any actual Meshy-calling code, credential loading, or live network
+transport. This paragraph's requirements still gate that real
+implementation (Phase 47B) in full.
 
 The actual Meshy-calling implementation - uploads, generation calls,
 mesh acceptance - gated behind everything `docs/meshy-approval-gate.md`

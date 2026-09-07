@@ -1,0 +1,8 @@
+{
+  "_mock_note": "Mocked 429 RateLimitExceeded advisory, per docs/meshy-current-research.md 'Rate/concurrency limits'. Structured advisory only - no sleep/backoff/auto-retry anywhere in this repo.",
+  "error_code": "rate_limited",
+  "http_status": 429,
+  "meshy_error_type": "RateLimitExceeded",
+  "message": "Mocked rate-limit advisory (too many requests/second).",
+  "retry_allowed": false
+}

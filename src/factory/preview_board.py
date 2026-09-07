@@ -409,6 +409,11 @@ def _build_tool_environment_html(summary: dict[str, Any] | None, meshy_summary: 
             f"execution disabled ({_escape_html(str(meshy_summary.get('blocker_count', 0)))} blocker(s))</div>"
         )
         rows += '<p class="tool-environment-hint">For the full Meshy approval gate, run <code>factory meshy status</code>.</p>'
+        rows += (
+            '<p class="tool-environment-hint">Phase 47A: a mocked-only Meshy adapter is implemented '
+            "(<code>factory meshy plan</code>/<code>factory meshy mock-run</code>) - no live transport exists, "
+            "live execution stays disabled, and this board never runs it.</p>"
+        )
     return rows
 
 

@@ -113,6 +113,17 @@ read, or written per-project, never appears in a project's `cad/`/`stl/`/
 (`factory meshy approve-policy`/`revoke-policy`) - never automatically,
 never as a side effect of any project-scoped command above.
 
+**Phase 47A addendum:** `factory meshy mock-run --confirm-mock` writes
+nothing at all unless a caller passes an explicit `--project <dir>`, in
+which case exactly two files are written under that project:
+`generated/meshy_receipt.json` and `generated/meshy/mock_concept.stl` -
+both clearly labeled mock artifacts (`mock_execution: true`,
+`live_api_used: false`), never written into `examples/` unless a caller
+explicitly targets an `examples/...` path themselves. Without
+`--project`, the entire mocked run happens inside one
+`tempfile.TemporaryDirectory()`, verified cleaned after the command
+returns.
+
 ## What never happens automatically
 
 No file is ever moved into `final_candidate/`, and no project status is

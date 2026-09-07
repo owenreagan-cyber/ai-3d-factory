@@ -244,6 +244,29 @@ Mapping this checklist's 10 requirements against Phase 46:
 `factory meshy approve-policy`/`revoke-policy` (the only two writes, both
 local-file-only) - see `docs/meshy-policy.md`.
 
+## Phase 47A cross-reference
+
+`factory.meshy_adapter` (Phase 47A, `docs/meshy-adapter.md`) proves the
+architecture for four more of this checklist's items - still entirely
+against a mocked transport, never a real Meshy call:
+
+3. **Explicit per-run confirmation** - now satisfied *for the mocked
+   path*: `factory meshy mock-run` requires `--confirm-mock`; without it,
+   nothing executes. Still unsatisfied for a real call (Phase 47B).
+4. **Explicit input review before upload** - `check_prompt_privacy_hook()`
+   is a real, working (if simple, keyword-only) review hook exercised on
+   every planned request; still no upload code path exists (Text-to-3D
+   never uploads anything).
+6. **Local storage policy for generated assets** - now demonstrated, not
+   just a field list: the receipt is built in memory always, persisted to
+   disk only with explicit `--project <dir>`, and every persisted field
+   is real (`mock_execution: true`, `credits_spent: 0`), matching
+   `REQUIRED_OUTPUT_PROVENANCE_FIELDS` closely.
+
+Item 5 (explicit output review after generation) remains unsatisfied for
+a *real* generation - a mocked artifact still passes through real Factory
+validation/preview, but there is no real Meshy output to review yet.
+
 See also `config/future_cloud_tools.json`, `docs/roadmap.md` Phase 16,
 `docs/design-quality-standard.md`, `docs/tool-routing.md`,
 `docs/licensing-policy.md`, `docs/safety-gates.md`,

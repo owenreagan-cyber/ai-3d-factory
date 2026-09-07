@@ -483,6 +483,21 @@ phase adds. Meshy availability != Meshy approval != API execution
 approval; actually calling Meshy remains a future, separately-approved
 phase.
 
+`factory meshy plan --prompt TEXT [--json]` / `factory meshy mock-run
+--prompt TEXT --confirm-mock [--scenario ...] [--project PATH] [--json]`
+(`factory.meshy_adapter`, see `docs/meshy-adapter.md`) is the Phase 47A
+**mocked** Meshy adapter - it proves the full request-planning/budget-gate/
+task-lifecycle/provenance/receipt architecture entirely against
+`MockMeshyTransport` (the only transport implementation in this repo - no
+`HttpMeshyTransport` exists). Every mock task id is namespaced
+`mock-meshy-...`; the mock artifact is a fixed, checked-in synthetic STL,
+never Meshy output, and still passes through the real
+`factory.validators.mesh_validate`/`factory.previews.render_preview`
+pipeline - proven, by a dedicated test, that a mocked provider's own
+"printable" claim never bypasses real Factory validation.
+`live_execution_allowed` is hardcoded `false` on every result; zero
+network calls, zero credential reads, zero credits/money spent.
+
 This CLI is the local engine, not the final intended user experience - see
 `docs/product-vision.md` for the (not-yet-built) future visual/launcher
 direction.
